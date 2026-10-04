@@ -1007,6 +1007,11 @@ body {
   cursor: not-allowed;
 }
 
+/* 失败那一行文件名后面的“重试” */
+.lyx-upload .ant-upload-list .lyx-link {
+  margin-inline-start: var(--lyx-space-8);
+}
+
 .lyx-upload__hint {
   margin-top: var(--lyx-space-6);
   font-size: var(--lyx-font-size-caption);
