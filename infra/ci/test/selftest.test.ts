@@ -132,9 +132,10 @@ describe("仓库里的反例", () => {
     }
   });
 
-  it("复审后补的反例都在：密钥扫描的两种绕法、遮蔽 lint 配置、类型检查的严格度、required 汇总", () => {
+  it("复审后补的反例都在：密钥扫描的几种漏法、遮蔽 lint 配置、类型检查的严格度、required 汇总", () => {
     for (const expected of [
       "secret-scan-history.mjs",
+      "secret-scan-broken-history.mjs",
       "secret-scan-inline-allow.mjs",
       "secret-scan-merge-commit.mjs",
       "gate-classify-shadow-eslint-config.mjs",

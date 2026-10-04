@@ -13,7 +13,7 @@
 // 这种注释写在业务文件里，门禁改动分类看不到，所以这里用 --ignore-gitleaks-allow 把它关掉：带了注释照样命中。
 // 命中的内容一律打码（--redact），日志里不出现密钥本身。
 // 要求本机 Docker 在运行。镜像的标签在下面写死，升级单独成 PR。
-// 退出码：0 没有命中；1 有命中；2 用法或环境错误（Docker 没在运行、镜像拉不下来等）。
+// 退出码：0 没有命中；1 有命中；2 用法或环境错误（Docker 没在运行、镜像拉不下来、git 历史没读全等）。
 // 本脚本不引依赖。
 
 import { execFileSync, spawnSync } from "node:child_process";
@@ -91,7 +91,15 @@ const result = spawnSync("docker", args, { encoding: "utf8", maxBuffer: 64 * 102
 if (result.error) fail(`docker 没跑起来（本机要装 Docker 并在运行）。${result.error.message}`);
 
 const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
-if (result.status === 0) {
+// git log 中途出错（历史里有对象读不到之类）时，gitleaks 只记一行 ERR，照样以 0 退出并报“没有命中”：
+// 后面的提交其实没扫。历史没读全不能算通过
+const historyIncomplete = /\bERR (?:\[git\]|error="stderr is not empty")/.test(output);
+if (result.status === 0 && historyIncomplete) {
+  console.error(output);
+  fail(
+    "git 历史没有读全（gitleaks 报了 git 的错误，见上面的 ERR 行），这次扫描不算数。检出带完整历史了吗？仓库的对象都读得到吗？",
+  );
+} else if (result.status === 0) {
   console.log(output);
   console.log(`密钥扫描通过：没有命中（${IMAGE}）。`);
 } else if (result.status === LEAK_EXIT_CODE) {
