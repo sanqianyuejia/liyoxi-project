@@ -103,6 +103,8 @@ packages:
 
   vitest@4.1.11:
     resolution: {integrity: sha512-vvv}
+    peerDependencies:
+      '@types/node': ^22.0.0 || >=24.0.0
 
 snapshots:
 
@@ -214,6 +216,30 @@ function classify(
   };
 }
 
+/**
+ * 分了叉的两条线：共同祖先（缺省是全部基线文件）之上，目标分支提交 onTarget，工作分支提交 onBranch。
+ * 返回仓库目录（检出在工作分支上）与目标分支头的提交号，分类脚本用 --base <目标分支头> 来判。
+ */
+function diverged(
+  onTarget: Record<string, string>,
+  onBranch: Record<string, string>,
+  ancestor: Record<string, string> = baseFiles,
+): { dir: string; target: string } {
+  const temp = makeTempRepo("lyx-gate-", ancestor);
+  cleanups.push(temp.cleanup);
+  git(temp.dir, "commit", "-q", "-m", "ancestor");
+  git(temp.dir, "branch", "work");
+  writeFiles(temp.dir, onTarget);
+  git(temp.dir, "add", "-A");
+  git(temp.dir, "commit", "-q", "-m", "target");
+  const target = git(temp.dir, "rev-parse", "HEAD").stdout.trim();
+  git(temp.dir, "checkout", "-q", "work");
+  writeFiles(temp.dir, onBranch);
+  git(temp.dir, "add", "-A");
+  git(temp.dir, "commit", "-q", "-m", "work");
+  return { dir: temp.dir, target };
+}
+
 const whats = (items: Item[]) => items.map((item) => `${item.file}: ${item.what}`);
 const withChange = (text: string, from: string, to: string) => {
   if (!text.includes(from)) throw new Error(`基线里没有：${from}`);
@@ -284,6 +310,21 @@ describe("没有门禁改动", () => {
       );
     expect(next).not.toBe(LOCK);
     const result = classify({ "pnpm-lock.yaml": next });
+    expect(whats(result.loosen)).toEqual([]);
+    expect(result.verdict).toBe("none");
+  });
+
+  it("锁文件里多出一份 peer 解析不同的同名条目，只有它声明过的 peer 依赖版本不同：不算改动", () => {
+    // 另一个工作区包带来了另一种 peer 解析：vitest 声明了 @types/node 是 peer，这一份解析到 22
+    const variant = [
+      "  vitest@4.1.11(@types/node@22.18.0):",
+      "    dependencies:",
+      "      debug: 4.4.3",
+      "    optionalDependencies:",
+      "      '@types/node': 22.18.0",
+      "",
+    ].join("\n");
+    const result = classify({ "pnpm-lock.yaml": `${LOCK}\n${variant}` });
     expect(whats(result.loosen)).toEqual([]);
     expect(result.verdict).toBe("none");
   });
@@ -498,6 +539,23 @@ describe("只增：判为 gate-touch 并列出", () => {
       ".gitleaksignore: 新建了密钥扫描的放行项（它的门禁条目也是这次新增的）",
       "infra/ci/gate-files.json: 新增门禁文件条目 `.gitleaksignore`（frozen）",
     ]);
+  });
+
+  it("同建之后目标分支又往前走了（没登记这一条）：仍算只增", () => {
+    const { dir, target } = diverged(
+      { "src/other.ts": "export const b = 1;\n" },
+      {
+        ".gitleaksignore": "abc:README.md:generic-api-key:1\n",
+        "infra/ci/gate-files.json": json({
+          files: [...REGISTRY.files, { pattern: ".gitleaksignore", kind: "frozen" }],
+        }),
+      },
+    );
+    const result = spawnSync("node", [script, "--base", target], { cwd: dir, encoding: "utf8" });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(
+      "`.gitleaksignore`：新建了密钥扫描的放行项（它的门禁条目也是这次新增的）",
+    );
   });
 
   it("基线上没有门禁文件清单（门禁第一次建立）：新建清单只列一项", () => {
@@ -808,6 +866,70 @@ describe("放松：没有 gate-change 标签即失败", () => {
       "debug@4.4.3 的 ms 被删",
     ],
     [
+      "锁文件 snapshots 段里改已有条目的依赖版本，另加一份同名的条目留着旧版本",
+      {
+        "pnpm-lock.yaml": withChange(
+          LOCK,
+          "  debug@4.4.3:\n    dependencies:\n      ms: 2.1.3\n",
+          "  debug@4.4.3:\n    dependencies:\n      ms: 2.1.2\n\n  debug@4.4.3(decoy@1.0.0):\n    dependencies:\n      ms: 2.1.3\n",
+        ),
+      },
+      "锁文件 snapshots 段里有 1 处已有条目的依赖有变：debug@4.4.3 的 ms 由 2.1.3 改成 2.1.2",
+    ],
+    [
+      "锁文件 snapshots 段里已有条目删掉一个依赖，另加一份同名的条目留着它",
+      {
+        "pnpm-lock.yaml": withChange(
+          LOCK,
+          "  debug@4.4.3:\n    dependencies:\n      ms: 2.1.3\n",
+          "  debug@4.4.3: {}\n\n  debug@4.4.3(decoy@1.0.0):\n    dependencies:\n      ms: 2.1.3\n",
+        ),
+      },
+      "锁文件 snapshots 段里有 1 处已有条目的依赖有变：debug@4.4.3 的 ms 被删",
+    ],
+    [
+      "锁文件 importers 段把解析版本改指到新加的同名条目，那份条目里的依赖版本不同",
+      {
+        "pnpm-lock.yaml": withChange(
+          withChange(LOCK, "        version: 10.11.0\n", "        version: 10.11.0(decoy@1.0.0)\n"),
+          "  '@types/node@24.19.0': {}\n",
+          "  eslint@10.11.0(decoy@1.0.0):\n    dependencies:\n      debug: 4.4.2\n\n  '@types/node@24.19.0': {}\n",
+        ),
+      },
+      "锁文件 snapshots 段里有 1 处已有条目的依赖有变：新出现的同名条目 eslint@10.11.0(decoy@1.0.0) 的 debug 是 4.4.2，基线上是 4.4.3",
+    ],
+    [
+      "锁文件 snapshots 段里别的条目改指到新加的同名条目，那份条目里的依赖版本不同",
+      {
+        "pnpm-lock.yaml": withChange(
+          withChange(LOCK, "      debug: 4.4.3\n", "      debug: 4.4.3(decoy@1.0.0)\n"),
+          "  ms@2.1.3: {}\n",
+          "  debug@4.4.3(decoy@1.0.0):\n    dependencies:\n      ms: 2.1.2\n\n  ms@2.1.3: {}\n",
+        ),
+      },
+      "新出现的同名条目 debug@4.4.3(decoy@1.0.0) 的 ms 是 2.1.2，基线上是 2.1.3",
+    ],
+    [
+      "锁文件 snapshots 段里条目的键变了（多一个 peer），依赖版本也跟着改了",
+      {
+        "pnpm-lock.yaml": LOCK.replaceAll(
+          "4.1.11(@types/node@24.19.0)",
+          "4.1.11(@types/node@24.19.0)(jsdom@27.0.0)",
+        ).replace(
+          "(jsdom@27.0.0):\n    dependencies:\n      debug: 4.4.3\n",
+          "(jsdom@27.0.0):\n    dependencies:\n      debug: 4.4.2\n",
+        ),
+      },
+      "vitest@4.1.11 的 debug 由 4.4.3 改成 4.4.2",
+    ],
+    [
+      "锁文件里多出一份同名条目，没声明成 peer 的依赖版本不同（声明过的那个不算）",
+      {
+        "pnpm-lock.yaml": `${LOCK}\n  vitest@4.1.11(@types/node@22.18.0):\n    dependencies:\n      debug: 4.4.2\n    optionalDependencies:\n      '@types/node': 22.18.0\n`,
+      },
+      "锁文件 snapshots 段里有 1 处已有条目的依赖有变：新出现的同名条目 vitest@4.1.11(@types/node@22.18.0) 的 debug 是 4.4.2，基线上是 4.4.3",
+    ],
+    [
       "tsconfig 新增一行把 noImplicitAny 关掉",
       {
         "packages/config/tsconfig/base.json": withChange(
@@ -1032,6 +1154,41 @@ describe("放松：没有 gate-change 标签即失败", () => {
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("- `.gitleaksignore`：新建了密钥扫描的放行项\n");
     expect(result.stdout).not.toContain("它的门禁条目也是这次新增的");
+  });
+
+  it("落后的分支把目标分支上的清单原样拷进来，再新建放行文件：目标分支上已登记，不算同建，按放松算", () => {
+    // 共同祖先上还没有清单；目标分支随后登记了清单（含 .gitleaksignore）。分支没同步，把那份清单逐字拷进来
+    const registry = json({
+      files: [...REGISTRY.files, { pattern: ".gitleaksignore", kind: "frozen" }],
+    });
+    const { dir, target } = diverged(
+      { "infra/ci/gate-files.json": registry },
+      {
+        "infra/ci/gate-files.json": registry,
+        ".gitleaksignore": "abc:README.md:generic-api-key:1\n",
+      },
+      { "src/app.ts": "export const a = 1;\n" },
+    );
+    const result = spawnSync("node", [script, "--base", target], { cwd: dir, encoding: "utf8" });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("- `.gitleaksignore`：新建了密钥扫描的放行项\n");
+    expect(result.stdout).not.toContain("它的门禁条目也是这次新增的");
+    expect(result.stderr).toContain("没有 gate-change 标签");
+  });
+
+  it("目标分支上的清单解析不了：判不出是不是同建，按放松算", () => {
+    const { dir, target } = diverged(
+      { "infra/ci/gate-files.json": "{ 不是 JSON" },
+      {
+        ".gitleaksignore": "abc:README.md:generic-api-key:1\n",
+        "infra/ci/gate-files.json": json({
+          files: [...REGISTRY.files, { pattern: ".gitleaksignore", kind: "frozen" }],
+        }),
+      },
+    );
+    const result = spawnSync("node", [script, "--base", target], { cwd: dir, encoding: "utf8" });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("- `.gitleaksignore`：新建了密钥扫描的放行项\n");
   });
 
   // 规则文件里只加行，但加的是关掉、降级检查的写法：靠关键字拦

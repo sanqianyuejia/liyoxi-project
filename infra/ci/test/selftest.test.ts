@@ -147,6 +147,17 @@ describe("仓库里的反例", () => {
     }
   });
 
+  it("独立检验后补的反例都在：.gitattributes 挡住密钥扫描、.gitignore 挡住格式检查、分类的两种绕法", () => {
+    for (const expected of [
+      "secret-scan-gitattributes-binary.mjs",
+      "format-check-gitignore.mjs",
+      "gate-classify-stale-copy-registry.mjs",
+      "gate-classify-lockfile-decoy.mjs",
+    ]) {
+      expect(files).toContain(expected);
+    }
+  });
+
   it.each(files)("%s 的写法合规：有 gate、mutation、reason、run", async (name) => {
     const definition = (
       (await import(pathToFileURL(join(casesDir, name)).href)) as {

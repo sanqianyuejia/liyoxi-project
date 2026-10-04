@@ -13,7 +13,8 @@
 //   append         新增文件、加行算只增；删改已有行算放松；加的行像忽略、豁免、白名单，或像关掉、降级检查，也算放松
 //   new-file       只许新增文件；改已有的文件一律算放松（检查脚本、门禁自测：加一行就能让它空转，逐行判不出）
 //   workflow       同 append，且加的每一段从头到尾必须是整个步骤（“- ” 开头）或整个任务，否则算放松
-//   frozen         一动就算放松，新建也算（它的条目是本次差异里新登记的，新建才算只增）
+//   frozen         一动就算放松，新建也算（它的条目是本次差异里新登记的，新建才算只增：分支头的清单里有，
+//                  共同祖先与 --base 那一头的清单里都没有）
 //   tsconfig       按解析后的键值判（允许注释与行尾逗号），换行、重排不算改动。新增键算只增；删、改已有的键值算放松；
 //                  把严格性开关关掉（新增 "noImplicitAny": false、skipLibCheck 由 false 改 true 之类）算放松；
 //                  新增 exclude、include、files、extends，或往 exclude 里加项，算放松（会改变查哪些文件、继承哪份预设）
@@ -25,7 +26,10 @@
 //                  已知集合以外的顶层键有变（新增也算）一律算放松
 //   lockfile       packages 段只许新增条目，已有条目的内容（来源、校验值）有变算放松；头部设置有变算放松；
 //                  importers 段里已有依赖的 specifier、解析版本有变或被删算放松；snapshots 段里已有条目的依赖
-//                  版本有变或被删算放松。版本后面括号里的 peer 解析不比：加一个依赖就会让它变
+//                  版本有变或被删算放松。版本后面括号里的 peer 解析不比：加一个依赖就会让它变。
+//                  snapshots 的条目按完整的键（带 peer 解析）逐个比；键本身变了的，退回与同名的几份并在一起比；
+//                  新出现的同名条目（多一份 peer 解析）里，依赖版本与基线上同名条目不一致也算放松，
+//                  这个包自己声明的 peer 依赖除外
 //   layers         只许新增模块登记；改已登记模块的层、改同层策略或白名单算放松
 //   registry       门禁文件清单只许新增条目
 //   删除任何门禁文件都算放松。
@@ -425,30 +429,53 @@ function snapshotDeps(lines) {
   return deps;
 }
 
+/** packages 段的一个条目声明的 peer 依赖名（peerDependencies 下面的键） */
+function declaredPeers(lines) {
+  const peers = new Set();
+  let inside = false;
+  for (const line of lines) {
+    const indent = indentOf(line);
+    if (indent === 4) inside = line.trim() === "peerDependencies:";
+    else if (indent === 6 && inside) {
+      const match = line.trim().match(/^(?:'([^']+)'|"([^"]+)"|([^\s:]+)):/);
+      if (match) peers.add(match[1] ?? match[2] ?? match[3]);
+    }
+  }
+  return peers;
+}
+
+/** snapshots 的条目按“名字@版本”并在一起（同一个名字可以有几份，peer 解析不同）：“字段 依赖名” → 出现过的版本 */
+function snapshotsByName(snapshots) {
+  const merged = new Map();
+  for (const [key, deps] of snapshots) {
+    const name = withoutPeers(key);
+    if (!merged.has(name)) merged.set(name, new Map());
+    const union = merged.get(name);
+    for (const [dep, version] of deps) {
+      if (!union.has(dep)) union.set(dep, new Set());
+      union.get(dep).add(version);
+    }
+  }
+  return merged;
+}
+
 function lockParts(text) {
   const header = (text ?? "").split(/^importers:\s*$/m)[0];
+  const packageLines = [...lockSection(text, "packages")];
   /** packages 段的条目：名字@版本 → 条目的内容（来源、校验值等，去掉空行与缩进） */
   const entries = new Map(
-    [...lockSection(text, "packages")].map(([key, lines]) => [
-      key,
-      lines.map((line) => `${line.trim()}\n`).join(""),
-    ]),
+    packageLines.map(([key, lines]) => [key, lines.map((line) => `${line.trim()}\n`).join("")]),
   );
+  /** packages 段的条目：名字@版本 → 它声明的 peer 依赖名 */
+  const peers = new Map(packageLines.map(([key, lines]) => [key, declaredPeers(lines)]));
   const importers = new Map(
     [...lockSection(text, "importers")].map(([key, lines]) => [key, importerDeps(lines)]),
   );
-  /** snapshots 段：同一个“名字@版本”可以有几份（peer 解析不同），并在一起：“字段 依赖名” → 出现过的版本 */
-  const snapshots = new Map();
-  for (const [key, lines] of lockSection(text, "snapshots")) {
-    const name = withoutPeers(key);
-    if (!snapshots.has(name)) snapshots.set(name, new Map());
-    const merged = snapshots.get(name);
-    for (const [dep, version] of snapshotDeps(lines)) {
-      if (!merged.has(dep)) merged.set(dep, new Set());
-      merged.get(dep).add(version);
-    }
-  }
-  return { header, entries, importers, snapshots };
+  /** snapshots 段的条目：完整的键（带 peer 解析）→ “字段 依赖名” → 版本 */
+  const snapshots = new Map(
+    [...lockSection(text, "snapshots")].map(([key, lines]) => [key, snapshotDeps(lines)]),
+  );
+  return { header, entries, peers, importers, snapshots };
 }
 
 const some = (items) => `${items.slice(0, 5).join("、")}${items.length > 5 ? " 等" : ""}`;
@@ -495,17 +522,46 @@ function byLockfile({ baseText, headText }) {
 
   // snapshots 段：传递依赖实际装哪个版本。已有条目的依赖版本有变或被删，算放松；条目被删由 packages 段判
   const transitive = [];
-  for (const [entry, before] of base.snapshots) {
-    const after = head.snapshots.get(entry);
-    if (after === undefined) continue;
-    for (const [dep, versions] of before) {
-      const name = dep.replace(/^\S+ /, "");
-      const now = after.get(dep);
-      if (now === undefined) transitive.push(`${entry} 的 ${name} 被删`);
-      else if ([...versions].some((version) => !now.has(version)))
-        transitive.push(
-          `${entry} 的 ${name} 由 ${[...versions].join("、")} 改成 ${[...now].join("、")}`,
-        );
+  const depName = (dep) => dep.replace(/^\S+ /, "");
+  const [baseByName, headByName] = [
+    snapshotsByName(base.snapshots),
+    snapshotsByName(head.snapshots),
+  ];
+  for (const [key, before] of base.snapshots) {
+    const after = head.snapshots.get(key);
+    if (after !== undefined) {
+      // 键还在：按完整的键逐个比。不与同名的别的条目并在一起，否则另加一份留着旧版本的同名条目就能盖住这里的改动
+      for (const [dep, was] of before) {
+        if (!after.has(dep)) transitive.push(`${key} 的 ${depName(dep)} 被删`);
+        else if (after.get(dep) !== was)
+          transitive.push(`${key} 的 ${depName(dep)} 由 ${was} 改成 ${after.get(dep)}`);
+      }
+      continue;
+    }
+    // 键本身变了（加一个依赖会让括号里的 peer 解析变）：退回与同名的几份并在一起比
+    const name = withoutPeers(key);
+    const union = headByName.get(name);
+    if (union === undefined) continue;
+    for (const [dep, was] of before) {
+      const now = union.get(dep);
+      if (now === undefined) transitive.push(`${name} 的 ${depName(dep)} 被删`);
+      else if (!now.has(was))
+        transitive.push(`${name} 的 ${depName(dep)} 由 ${was} 改成 ${[...now].join("、")}`);
+    }
+  }
+  // 新出现的键、名字在基线上已有（多出一份 peer 解析不同的条目）：importers 与别的条目可以改指到它，
+  // 所以它的依赖版本要与基线上同名条目的一致。这个包自己声明的 peer 依赖除外：peer 解析不同，版本本来就可以不同
+  for (const [key, after] of head.snapshots) {
+    const name = withoutPeers(key);
+    const union = baseByName.get(name);
+    if (base.snapshots.has(key) || union === undefined) continue;
+    const peers = base.peers.get(name) ?? new Set();
+    for (const [dep, version] of after) {
+      const known = union.get(dep);
+      if (known === undefined || known.has(version) || peers.has(depName(dep))) continue;
+      transitive.push(
+        `新出现的同名条目 ${key} 的 ${depName(dep)} 是 ${version}，基线上是 ${[...known].join("、")}`,
+      );
     }
   }
   if (transitive.length > 0) {
@@ -688,7 +744,8 @@ function byRegistry({ baseText, headText }) {
 /**
  * frozen：一动就算放松，新建也算。唯一的例外：这个路径的条目是本次差异里新登记的
  *（门禁与它的放行文件在同一个 PR 里一起建立），这时新建算只增，由业主在清单里看到。
- * 只看差异：分支的共同祖先上没有清单、分支自己也没加这一条的，不算同建。
+ * 只看差异：分支的共同祖先上没有清单、分支自己也没加这一条的，不算同建；
+ * 要合并进去的分支上已经登记了这一条的（落后的分支把那份清单拷进来），也不算。
  */
 function byFrozen(change, entry) {
   const note = entry.note ?? "放行或设置文件";
@@ -759,7 +816,9 @@ const loosen = [];
 const outside = [];
 let changedFiles = 0;
 
-// 本次差异里新登记的条目：头上的清单里有、共同祖先上的清单里没有。判 frozen 文件的“新建”时要用（见 byFrozen）。
+// 本次差异里新登记的条目：头上的清单里有，共同祖先上的清单里没有，--base 那一头（要合并进去的分支）的清单里
+// 也没有。判 frozen 文件的“新建”时要用（见 byFrozen）。最后一条防的是落后的分支：目标分支上已经登记了，
+// 分支把那份清单原样拷进来（合并时不冲突），再新建放行文件，不算同建。
 // 哪一头的清单解析不了，就当作这次没有新登记任何条目（判不出按放松算）
 function registeredAt(revision) {
   const text = git(["show", `${revision}:${REGISTRY_PATH}`], { allowFail: true });
@@ -771,12 +830,18 @@ function registeredAt(revision) {
     return null;
   }
 }
-const [patternsAtBase, patternsAtHead] = [registeredAt(mergeBase), registeredAt(headSha)];
+const [patternsAtBase, patternsAtTarget, patternsAtHead] = [
+  registeredAt(mergeBase),
+  registeredAt(options.base),
+  registeredAt(headSha),
+];
 const registeredInThisDiff = (pattern) =>
   patternsAtBase !== null &&
+  patternsAtTarget !== null &&
   patternsAtHead !== null &&
   patternsAtHead.has(pattern) &&
-  !patternsAtBase.has(pattern);
+  !patternsAtBase.has(pattern) &&
+  !patternsAtTarget.has(pattern);
 
 for (let index = 0; index + 1 < nameStatus.length; index += 2) {
   const status = nameStatus[index];
