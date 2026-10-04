@@ -11,6 +11,10 @@
   },
   "scripts": {
     "prepare": "husky",
+    "infra:up": "docker compose -f infra/compose/local.yml up -d --wait",
+    "infra:down": "docker compose -f infra/compose/local.yml down",
+    "gates:selftest": "node infra/ci/selftest/run.mjs",
+    "status:summary": "node infra/ci/status-summary.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

@@ -1,0 +1,70 @@
+# 狸有戏 · 本地依赖：PostgreSQL 17、Redis 7、MinIO（D7 第 2.5、2.6 节；计划 第 5.6 节）。
+#
+# 用法：pnpm infra:up（等到三个服务都健康才返回）；pnpm infra:down（停掉，数据卷保留）。
+# 只起一份共享实例：项目名写死为 liyoxi，容器名写死为 lyx-*，在任何 worktree 里执行都指向同一套容器。
+# 端口避开常用值，同一台机器上可以同时跑参考工程：PostgreSQL 5442、Redis 6389、MinIO 9100（接口）与 9101（控制台）。
+# 端口只绑在本机回环地址上：口令是公开的开发值，不对局域网开放。
+# 下面的账号与口令是固定的开发值，只在本机这套容器上有效，不是密钥；CI 的服务容器用同一组值。
+# 会话与测试经环境变量把连接串传给 loadEnv，不建、不读 .env。写法见 CLAUDE.md 第 9 节。
+# 不设 TZ：库内一律 UTC。不建桶（W0-19）；不起 server、gateway、mediatool（W1-22）。
+name: liyoxi
+
+services:
+  postgres:
+    image: postgres:17-trixie
+    container_name: lyx-postgres
+    environment:
+      POSTGRES_USER: liyoxi
+      POSTGRES_PASSWORD: lyx-local-dev
+      POSTGRES_DB: liyoxi
+    ports:
+      - "127.0.0.1:5442:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U liyoxi -d liyoxi"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: lyx-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:6389:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  minio:
+    # 官方镜像的最后一个社区版标签。官方仓库 minio/minio 已从 Docker Hub 与 Quay 下架（2026-10-04 查实），
+    # 没有缓存过这个镜像的机器拉不到它。换哪个来源待业主定：docs/plan/status/W0-03.md “偏差”第 1 条。
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: lyx-minio
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: liyoxi
+      MINIO_ROOT_PASSWORD: lyx-local-dev
+    ports:
+      - "127.0.0.1:9100:9000"
+      - "127.0.0.1:9101:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:
+    name: lyx-pgdata
+  redisdata:
+    name: lyx-redisdata
+  miniodata:
+    name: lyx-miniodata
