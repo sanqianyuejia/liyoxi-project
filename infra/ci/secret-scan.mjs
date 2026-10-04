@@ -6,7 +6,9 @@
 //             只扫 HEAD 这一条线，别的分支、标签上的提交不扫：CI 检出带着全部分支，照 gitleaks 的缺省（--all）扫，
 //             别人分支上的一处命中会让每个 PR 都红。各分支的提交由它自己的 PR 扫到。
 //             合并提交也扫：按它相对第一个父提交的差异扫（--diff-merges=first-parent）。gitleaks 缺省不看合并提交
-//             自己的改动，合并时手工写进去的内容（比如解决冲突时加的）会漏掉。代价是合并进来的那一侧被再扫一遍
+//             自己的改动，合并时手工写进去的内容（比如解决冲突时加的）会漏掉。代价是合并进来的那一侧被再扫一遍。
+//             所有文件都按文本出差异（--text）：.gitattributes 把一类文件标成 -diff 或 binary 时，git 缺省不出
+//             它的内容，这类文件就扫不到。代价是真的二进制文件（图片等）也按文本过一遍
 //   --dir     不看 git，扫一个目录里的文件（反例与临时核对用）
 // 放行项只写在仓库根的 .gitleaks.toml：需要时才建，只放本仓库误报的最小放行，逐条写原因；
 // 改它是放松类门禁改动。gitleaks 另认一种写在被扫文件里的放行：命中的那一行带 “gitleaks:allow” 注释就不报。
@@ -66,8 +68,10 @@ if (options.dir !== null) {
   const commonDir = resolve(root, gitOutput(["rev-parse", "--git-common-dir"], root).trim());
   if (!commonDir.startsWith(`${root}/`)) mounts.push(`${commonDir}:${commonDir}:ro`);
   // gitleaks 把这一串按空格拆开接在 git log -p -U0 后面；不给时它用 --full-history --all。
-  // git log -p 缺省不出合并提交的差异，加 --diff-merges=first-parent 才出
-  command.push("git", root, "--log-opts", "--full-history --diff-merges=first-parent HEAD");
+  // git log -p 缺省不出合并提交的差异，加 --diff-merges=first-parent 才出。
+  // --text：.gitattributes 里把一类文件标成 -diff 或 binary 时，git log -p 对它只出一行 “Binary files differ”，
+  // gitleaks 拿不到内容；加上它，所有文件都按文本出差异
+  command.push("git", root, "--log-opts", "--full-history --diff-merges=first-parent --text HEAD");
   if (existsSync(join(root, ".gitleaks.toml"))) {
     command.push("--config", join(root, ".gitleaks.toml"));
   }
