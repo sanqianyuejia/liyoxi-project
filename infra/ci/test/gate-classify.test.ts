@@ -249,6 +249,13 @@ describe("只增：判为 gate-touch 并列出", () => {
     expect(whats(result.touch)).toEqual(["packages/config/eslint/repo.js: 新增 1 行"]);
   });
 
+  it("加的行里有 disallow、shallow 这类词：不当成豁免", () => {
+    const next = `${RULES}// disallowed：用 shallow clone 时也照查\nexport const depth = 1;\n`;
+    const result = classify({ "packages/config/eslint/repo.js": next });
+    expect(result.verdict).toBe("touch");
+    expect(whats(result.touch)).toEqual(["packages/config/eslint/repo.js: 新增 2 行"]);
+  });
+
   it("layers.json 只新增模块登记", () => {
     const next = { ...LAYERS, modules: { ...LAYERS.modules, tenant: "L1" } };
     const result = classify({ "infra/ci/layers.json": json(next) });

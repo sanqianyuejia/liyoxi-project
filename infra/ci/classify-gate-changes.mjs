@@ -38,8 +38,9 @@ const MAX_ITEMS = 40;
 const REGISTRY_PATH = "infra/ci/gate-files.json";
 const DEP_FIELDS = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"];
 const ROOT_FROZEN_FIELDS = ["engines", "packageManager", "pnpm"];
+// 关键字只是粗筛，宁可把无害的行错判成放松。allow、skip、exclude 要在词首，免得 disallow、shallow 之类被带上
 const EXEMPTION =
-  /eslint-disable|ts-ignore|ts-expect-error|ts-nocheck|ignore|exclude|pathNot|allow|skip|\.only\b|continue-on-error|豁免|白名单|放行/i;
+  /eslint-disable|ts-ignore|ts-expect-error|ts-nocheck|ignores?\b|\bexclude|pathNot|\ballow|\bskip|\.only\b|continue-on-error|豁免|白名单|放行/i;
 const WORKFLOW_EXEMPTION =
   /continue-on-error|(?:paths|branches|tags)-ignore|\bif:\s*(?:false|\$\{\{\s*false)/;
 
