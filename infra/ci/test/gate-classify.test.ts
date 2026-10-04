@@ -501,6 +501,11 @@ describe("放松：没有 gate-change 标签即失败", () => {
       "检查脚本 test 改成了空转：vitest run || true",
     ],
     [
+      "工作区包占位的检查脚本换成另一种空转",
+      { "apps/weapp/package.json": json({ ...WEAPP, scripts: { ...WEAPP.scripts, test: "" } }) },
+      "检查脚本 test 改成了空转",
+    ],
+    [
       "工作区包删掉 test 脚本",
       {
         "packages/services/package.json": json({
@@ -599,10 +604,10 @@ describe("放松：没有 gate-change 标签即失败", () => {
     ["规则级别写成数组里的数字 1", 'export const late = { rules: { "no-var": [1, "always"] } };'],
     ["加一行提前退出", "process.exit(0);"],
     [
-      "依赖方向配置里加 doNotFollow",
+      "加 doNotFollow（依赖方向不跟进）",
       'export const options = { doNotFollow: { path: "packages" } };',
     ],
-    ["测试配置里加 passWithNoTests", "export const test = { passWithNoTests: true };"],
+    ["加 passWithNoTests（没有用例也算过）", "export const test = { passWithNoTests: true };"],
   ];
 
   it.each(disabling)("规则文件里%s", (_label, line) => {

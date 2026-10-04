@@ -42,9 +42,9 @@ const DEP_FIELDS = ["dependencies", "devDependencies", "peerDependencies", "opti
 const ROOT_FROZEN_FIELDS = ["engines", "packageManager", "pnpm", "resolutions", "overrides"];
 /** 工作区包里被根脚本或验收命令用到的脚本：已有的被删、被改要判（build 是占位，由后面的包换成真实构建，不管） */
 const GUARDED_SCRIPTS = ["typecheck", "test", "lint"];
-/** 空转的脚本：占位的 echo、true、冒号、exit 0，或命令后面接“|| true”之类 */
+/** 空转的脚本：空串、占位的 echo、true、冒号、exit 0，或命令后面接“|| true”之类 */
 const NOOP_SCRIPT =
-  /^\s*(?:echo\b|true\s*$|:\s*$|exit\s+0\s*$)|\|\|\s*(?:true\b|:\s*$|exit\s+0\b|echo\b)/;
+  /^\s*(?:$|echo\b|true\s*$|:\s*$|exit\s+0\s*$)|\|\|\s*(?:true\b|:\s*$|exit\s+0\b|echo\b)/;
 // 关键字只是粗筛，宁可把无害的行错判成放松。allow、skip、exclude 要在词首，免得 disallow、shallow 之类被带上。
 // 第二行是关掉、降级检查的写法：规则级别 off、warn 与数字 0、1；检查脚本提前退出；依赖方向不跟进；没有用例也算过
 const EXEMPTION = new RegExp(
