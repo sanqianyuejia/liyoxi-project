@@ -2,7 +2,9 @@
 // 密钥扫描：用 gitleaks 官方镜像的固定标签直接跑，不经第三方 Action（D7 第 2.7 节）。
 //
 // 用法：node infra/ci/secret-scan.mjs [--dir <目录>]
-//   不带参数  扫当前仓库的 git 历史：HEAD 能到的全部提交。在仓库根目录跑；CI 检出时要带完整历史
+//   不带参数  扫当前仓库的 git 历史：HEAD 能到的全部提交。在仓库根目录跑；CI 检出时要带完整历史。
+//             只扫 HEAD 这一条线，别的分支、标签上的提交不扫：CI 检出带着全部分支，照 gitleaks 的缺省（--all）扫，
+//             别人分支上的一处命中会让每个 PR 都红。各分支的提交由它自己的 PR 扫到
 //   --dir     不看 git，扫一个目录里的文件（反例与临时核对用）
 // 放行项只写在仓库根的 .gitleaks.toml：需要时才建，只放本仓库误报的最小放行，逐条写原因；
 // 改它是放松类门禁改动。命中的内容一律打码（--redact），日志里不出现密钥本身。
@@ -59,7 +61,8 @@ if (options.dir !== null) {
   mounts.push(`${root}:${root}:ro`);
   const commonDir = resolve(root, gitOutput(["rev-parse", "--git-common-dir"], root).trim());
   if (!commonDir.startsWith(`${root}/`)) mounts.push(`${commonDir}:${commonDir}:ro`);
-  command.push("git", root);
+  // gitleaks 把这一串按空格拆开接在 git log -p -U0 后面；不给时它用 --full-history --all
+  command.push("git", root, "--log-opts", "--full-history HEAD");
   if (existsSync(join(root, ".gitleaks.toml"))) {
     command.push("--config", join(root, ".gitleaks.toml"));
   }

@@ -11,7 +11,7 @@
 | `check-release-age.mjs` | 锁文件里的版本都发布满 7 天 | CI（`--since` 只查新增的） |
 | `check-layers.mjs`、`layers.json` | 模块分层登记与目录一一对应 | `pnpm depcheck`；CI |
 | `check-env-example.mjs` | `.env.example` 的键集合等于 `loadEnv` 的键集合，值都是占位 | CI |
-| `secret-scan.mjs` | 密钥扫描：gitleaks 官方镜像的固定标签，扫 git 历史。放行项只在仓库根的 `.gitleaks.toml`，逐条写原因 | CI；本机要有 Docker |
+| `secret-scan.mjs` | 密钥扫描：gitleaks 官方镜像的固定标签，扫 HEAD 能到的全部提交（别的分支上的提交由它自己的 PR 扫）。放行项只在仓库根的 `.gitleaks.toml`，逐条写原因 | CI；本机要有 Docker |
 | `classify-gate-changes.mjs`、`gate-files.json` | 门禁改动分类：只增（`gate-touch`）与放松（`gate-change`） | CI 的 `gate-classify` 任务 |
 | `ci-required.mjs` | 汇总任务 `required`：判定必过任务的结论，统计耗时，出 `ci-duration.json` | CI 的 `required` 任务 |
 | `status-summary.mjs` | 生成 `docs/plan/status/SUMMARY.md` | `pnpm status:summary`；CI 用 `--check` 核对无差异 |
@@ -63,7 +63,7 @@ export default {
 - 判定是“检查的退出码非 0，且输出对得上 `reason`”。`reason` 写具体（规则名、报错里的关键句），不要写成任何失败都对得上的字。
 - 形似密钥、真实配置、旧名的字符串在运行时拼出来，不作为字面量入库。
 - 本地跑单个反例：`node infra/ci/selftest/run.mjs --only <文件名里的一段>`。
-- 两个反例要用到外部条件：`secret-scan-fake-key` 要本机 Docker 在运行，`audit-vulnerable-dep` 要能连 `registry.npmjs.org`。条件不具备时这两例会红，不会被悄悄跳过。
+- 三个反例要用到外部条件：`secret-scan-fake-key`、`secret-scan-history` 要本机 Docker 在运行，`audit-vulnerable-dep` 要能连 `registry.npmjs.org`。条件不具备时这几例会红，不会被悄悄跳过。
 
 ## 5. 门禁改动分类
 
@@ -83,7 +83,7 @@ node infra/ci/classify-gate-changes.mjs --base origin/main --labels gate-change
 | `workflow` | 新增工作流文件；新增整个步骤或任务；`needs` 里加一行 | 删改已有行；往已有的步骤或任务里加行；新增的一段里夹带步骤或任务之外的行（比如跟在新步骤后面的任务级 `if:`）；`continue-on-error`、`paths-ignore` 之类 |
 | `frozen` | 新建，且它的条目在 main 的清单里还没登记（门禁与放行文件同一个 PR 建立） | 其余任何改动；条目已登记后的新建（放行文件、安装设置、格式规则） |
 | `manifest` | 新增依赖；已有的 `typecheck`、`test`、`lint` 脚本由占位（`echo`）换成真实命令，或去掉 `--passWithNoTests` | 依赖版本有变、删除依赖（升级要单独成 PR）；已有的 `typecheck`、`test`、`lint` 脚本被删、改成空转（`true`、`echo`、后面接 <code>&#124;&#124; true</code>）或换了别的写法。`build` 与其余脚本不管 |
-| `root-manifest` | 新增依赖；新增根脚本 | 依赖同上；改、删已有的根脚本；改 `engines`、`packageManager`、`pnpm` |
+| `root-manifest` | 新增依赖；新增根脚本 | 依赖同上；改、删已有的根脚本；改 `engines`、`packageManager`、`pnpm`、`resolutions`、`overrides`（加也算） |
 | `lockfile` | `packages` 段新增条目 | 条目被移除或替换；已有条目的内容有变（来源、校验值）；头部设置有变 |
 | `layers` | 新增模块登记 | 改已登记模块的层；改同层策略或白名单；改非模块目录名单 |
 | `registry` | `gate-files.json` 新增条目 | 改、删已有条目 |

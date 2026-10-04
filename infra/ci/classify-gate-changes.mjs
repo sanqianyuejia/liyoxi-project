@@ -16,7 +16,7 @@
 //   frozen         一动就算放松，新建也算（它的条目在基线的清单里还没登记时，新建算只增）
 //   manifest       依赖只许新增；版本有变、删除算放松（升级要单独成 PR）。已有的 typecheck、test、lint 脚本
 //                  被删、被改算放松，两种改法除外：占位（echo）换成真实命令、去掉 --passWithNoTests。build 不管
-//   root-manifest  依赖同 manifest；脚本只许新增；engines、packageManager、pnpm 一动就算放松
+//   root-manifest  依赖同 manifest；脚本只许新增；engines、packageManager、pnpm、resolutions、overrides 一动就算放松
 //   lockfile       packages 段只许新增条目，已有条目的内容（来源、校验值）有变算放松；头部设置有变算放松
 //   layers         只许新增模块登记；改已登记模块的层、改同层策略或白名单算放松
 //   registry       门禁文件清单只许新增条目
@@ -39,7 +39,7 @@ const MAX_ITEMS = 40;
 /** 清单在仓库里的位置：只用来看基线上登记过哪些条目 */
 const REGISTRY_PATH = "infra/ci/gate-files.json";
 const DEP_FIELDS = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"];
-const ROOT_FROZEN_FIELDS = ["engines", "packageManager", "pnpm"];
+const ROOT_FROZEN_FIELDS = ["engines", "packageManager", "pnpm", "resolutions", "overrides"];
 /** 工作区包里被根脚本或验收命令用到的脚本：已有的被删、被改要判（build 是占位，由后面的包换成真实构建，不管） */
 const GUARDED_SCRIPTS = ["typecheck", "test", "lint"];
 /** 空转的脚本：占位的 echo、true、冒号、exit 0，或命令后面接“|| true”之类 */

@@ -476,6 +476,11 @@ describe("放松：没有 gate-change 标签即失败", () => {
       "改了 engines",
     ],
     [
+      "根 package.json 加依赖覆盖项（resolutions）",
+      { "package.json": json({ ...ROOT, resolutions: { eslint: "10.10.0" } }) },
+      "改了 resolutions",
+    ],
+    [
       "工作区包的 typecheck 脚本改成空转",
       {
         "packages/services/package.json": json({
