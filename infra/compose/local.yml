@@ -42,9 +42,11 @@ services:
       retries: 30
 
   minio:
-    # 官方镜像的最后一个社区版标签。官方仓库 minio/minio 已从 Docker Hub 与 Quay 下架（2026-10-04 查实），
-    # 没有缓存过这个镜像的机器拉不到它。换哪个来源待业主定：docs/plan/status/W0-03.md “偏差”第 1 条。
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    # 业主定的来源（2026-10-04）：业主自己仓库里的这一份，匿名可拉。它与官方最后一个社区版
+    # RELEASE.2025-09-07T16-13-09Z 是同一个镜像（摘要 sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e）。
+    # 官方仓库 minio/minio 已不公开（Docker Hub 404、Quay 401）。只写 latest、不带摘要也是业主定的：
+    # docs/plan/status/W0-03.md “偏差”第 1 条。
+    image: ghcr.io/byfire-dev/minio:latest
     container_name: lyx-minio
     command: ["server", "/data", "--console-address", ":9001"]
     environment:

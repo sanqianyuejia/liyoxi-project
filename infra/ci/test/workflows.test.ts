@@ -250,16 +250,18 @@ describe("本地 Compose 与 CI 的服务容器", () => {
     expect(compose.match(/^ {4}name: lyx-\w+$/gm)).toHaveLength(3);
   });
 
-  it("端口只绑回环地址：PostgreSQL 5442、Redis 6389、MinIO 9100 与 9101；镜像不用 latest，不设 TZ", () => {
+  it("端口只绑回环地址：PostgreSQL 5442、Redis 6389、MinIO 9100 与 9101；PostgreSQL 与 Redis 的镜像不用 latest，MinIO 用业主定的那一个，不设 TZ", () => {
     const ports = [...compose.matchAll(/^ {6}- "127\.0\.0\.1:(\d+:\d+)"$/gm)].map(
       (match) => match[1],
     );
     expect(ports).toEqual(["5442:5432", "6389:6379", "9100:9000", "9101:9001"]);
     const images = [...compose.matchAll(/^ {4}image: (\S+)$/gm)].map((match) => match[1] ?? "");
     expect(images).toHaveLength(3);
-    for (const image of images) expect(image).toMatch(/:(?!latest$)[\w.-]+$/);
+    for (const image of images.slice(0, 2)) expect(image).toMatch(/:(?!latest$)[\w.-]+$/);
     expect(images[0]).toMatch(/^postgres:17-/);
     expect(images[1]).toBe("redis:7.4-alpine");
+    // MinIO 的来源与“只写 latest”是业主定的（状态文件偏差 1）；换来源或换标签要改这里。
+    expect(images[2]).toBe("ghcr.io/byfire-dev/minio:latest");
     expect(compose).not.toMatch(/^\s*TZ:/m);
   });
 
