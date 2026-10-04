@@ -4,9 +4,10 @@ import { appDateTimeFormat } from "@liyoxi/shared/format/datetime";
 import { statusToneByEnum } from "@liyoxi/shared/design/status-tone";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
-import { App as AntApp, Button } from "antd";
+import { Button } from "antd";
 import { useState } from "react";
 
+import { showSuccessNotice } from "../app/feedback";
 import { ConfirmAction, type ConfirmSpec } from "../components/ConfirmAction";
 import { DetailPage, type DetailState } from "../components/DetailPage";
 import { InfoList } from "../components/InfoList";
@@ -49,7 +50,6 @@ export function DetailSample() {
   const activeTab = typeof rawTab === "string" ? rawTab : "profile";
   const queryClient = useQueryClient();
   const client = sampleClient(services);
-  const { notification } = AntApp.useApp();
   const [confirming, setConfirming] = useState(false);
   const [upload] = useState(createFixtureUpload);
   const [licenseFileId, setLicenseFileId] = useState<string | null>(null);
@@ -239,7 +239,7 @@ export function DetailSample() {
           onCancel={() => setConfirming(false)}
           onDone={() => {
             setConfirming(false);
-            notification.success({ title: `${store.name}：账号已禁用`, placement: "topRight" });
+            showSuccessNotice(`${store.name}：账号已禁用`);
             void queryClient.invalidateQueries({ queryKey: ["samples", "stores"] });
           }}
           onConfirm={async ({ seenValue, idempotencyKey }) => {
