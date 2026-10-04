@@ -132,6 +132,20 @@ describe("仓库里的反例", () => {
     }
   });
 
+  it("复审后补的反例都在：密钥扫描的两种绕法、遮蔽 lint 配置、类型检查的严格度、required 汇总", () => {
+    for (const expected of [
+      "secret-scan-history.mjs",
+      "secret-scan-inline-allow.mjs",
+      "secret-scan-merge-commit.mjs",
+      "gate-classify-shadow-eslint-config.mjs",
+      "typecheck-strict-presets.mjs",
+      "ci-required-verify-failed.mjs",
+      "ci-required-verify-skipped.mjs",
+    ]) {
+      expect(files).toContain(expected);
+    }
+  });
+
   it.each(files)("%s 的写法合规：有 gate、mutation、reason、run", async (name) => {
     const definition = (
       (await import(pathToFileURL(join(casesDir, name)).href)) as {
