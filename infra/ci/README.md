@@ -43,7 +43,7 @@
 - CI 里不放密钥。工作流里的连接串是本地开发的固定值，只对当次运行的服务容器有效。
 - 时长：`required` 的运行摘要与产物 `ci-duration.json` 列出各必过任务的耗时与合计。预算 15 分钟，超了只标出、不阻断（M0 退出时由 W0-30 核对）。
 - 设计地基（W0-26）在 `verify` 里加了三步：换名检查之后的“页面不写色值”（`pnpm lint:colors`）；测试之后的“设计生成物无差异”（`pnpm design:check`）与“上传设计预览页”。预览页是产物 `design-preview`（`packages/shared/dist/design-preview/`，不入库），目录里没有文件时上传那一步失败；业主合并前在运行页面的 Artifacts 里下载来看。
-- 后台与下载页骨架（W0-28）在 `verify` 的“构建”之后加了七步：“后台与下载页单测”（`pnpm --filter @liyoxi/admin --filter @liyoxi/portal test`；根上的 `pnpm test` 不含这两个应用，它们的单测与构建共用各自的 `vite.config.ts`）；“后台与下载页构建”（`pnpm admin:build && pnpm portal:build`，产物检查在各自的 `build` 脚本里）；“页面清单无差异”；“后台冒烟要不要跑”（`apps/admin/scripts/e2e-affected.mjs`，结论写进步骤输出）；它后面三步带条件，只在结论为要跑时执行：装浏览器、“后台冒烟”（`pnpm admin:e2e`）、“上传后台冒烟截图”。截图是产物 `admin-e2e-shots`（外壳与三种骨架四张，1440 × 900；用例失败时另有现场），业主合并前在运行页面的 Artifacts 里下载来看。冒烟不跑的 PR（没改到后台的受影响范围）没有这个产物。写法由 `test/admin-ci.test.ts` 钉住。
+- 后台与下载页骨架（W0-28）在 `verify` 的“构建”之后加了七步：“后台与下载页单测”（`pnpm --filter @liyoxi/admin --filter @liyoxi/portal test`；根上的 `pnpm test` 不含这两个应用，它们的单测与构建共用各自的 `vite.config.ts`）；“后台与下载页构建”（`pnpm admin:build && pnpm portal:build`，产物检查在各自的 `build` 脚本里）；“页面清单无差异”；“后台冒烟要不要跑”（`apps/admin/scripts/e2e-affected.mjs`，结论写进步骤输出）；它后面三步带条件，只在结论为要跑时执行：装浏览器、“后台冒烟”（`pnpm admin:e2e`）、“上传后台冒烟截图”。截图是产物 `admin-e2e-shots`（都是 1440 × 900：01–04 是外壳与三种骨架，05–11 是空、出错、处理后、冲突、上传失败、二次确认、403 几个状态；用例失败时另有现场），业主合并前在运行页面的 Artifacts 里下载来看。冒烟不跑的 PR（没改到后台的受影响范围）没有这个产物。写法由 `test/admin-ci.test.ts` 钉住。
 
 ## 3. 怎么加一步检查
 

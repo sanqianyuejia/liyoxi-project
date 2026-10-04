@@ -1,7 +1,8 @@
 // 后台冒烟（任务书 第 7 节第 2、3、11 条）：一条用例走完
 //   打开外壳 → 样例筛选表格页翻页、改筛选（URL 查询参数随之变）→ 样例审核工作台处理一条并自动跳到下一条 → 样例详情页。
 // 另断言：1366 × 768 下三个样例页没有横向滚动；请求带齐约定的请求头；二次确认勾选前不能点。
-// 四张截图（1440 × 900）写到 dist/e2e-shots，CI 当产物上传。断言用角色与文字定位，不用样式类名。
+// 截图（1440 × 900）写到 dist/e2e-shots，CI 当产物上传：01–04 是验收要的外壳与三种骨架，
+// 05–11 是顺路留的几个状态（空、出错、处理后、冲突、上传失败、二次确认、403）。断言用角色与文字定位，不用样式类名。
 import { mkdirSync } from "node:fs";
 
 import { expect, test, type Page } from "@playwright/test";
@@ -195,12 +196,14 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     await table.getByRole("searchbox", { name: "商家、主体名称" }).fill("没有这家店");
     await table.getByRole("searchbox", { name: "商家、主体名称" }).press("Enter");
     await expect(table.getByText("没有符合条件的记录")).toBeVisible();
+    await shot(page, "05-query-table-empty");
     await table.getByRole("searchbox", { name: "商家、主体名称" }).fill("出错");
     await table.getByRole("searchbox", { name: "商家、主体名称" }).press("Enter");
     await expect(table.getByRole("alert")).toContainText("加载失败");
     await expect(table.getByRole("button", { name: "重新加载" })).toBeVisible();
     // 5xx 的全局提示带请求编号后 8 位
     await expect(page.getByText(/请求编号 [0-9a-f]{8}/).first()).toBeVisible();
+    await shot(page, "06-query-table-error");
 
     const listRequest = backend.received.find((request) => request.path.endsWith("/stores"));
     expect(listRequest?.headers["x-client-version"]).toBeTruthy();
@@ -235,6 +238,7 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     await expect(queue.getByRole("tab", { name: /今日已审核/ })).toContainText("1");
     // 清单不带到下一条
     await expect(detail.getByRole("button", { name: "审核通过" })).toBeDisabled();
+    await shot(page, "07-queue-after-approve");
 
     const post = backend.received.find((request) => request.method === "POST");
     expect(post?.path).toBe(`${SAMPLE_API_PREFIX}/reviews/rv-1/approve`);
@@ -250,6 +254,7 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     await detail.getByRole("button", { name: "驳回" }).click();
     await expect(page.getByTestId("queue-result")).toContainText("该事项已被林晓处理");
     await expect(detail.getByRole("heading", { level: 2 })).toHaveText("XX 火锅（春熙店）");
+    await shot(page, "08-queue-conflict");
 
     // 换页签进 URL；已处理的只读
     await queue.getByRole("tab", { name: /今日已审核/ }).click();
@@ -291,6 +296,7 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
       buffer: Buffer.from("png"),
     });
     await expect(page.getByRole("alert")).toContainText("上传失败");
+    await shot(page, "09-detail-upload-failed");
     await page.getByRole("button", { name: "重试" }).click();
     await expect(page.getByText(/已上传，文件编号/)).toBeVisible();
 
@@ -303,6 +309,7 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     await expect(confirm).toBeDisabled();
     await dialog.getByRole("textbox", { name: "请输入联系电话后 4 位" }).fill("5018");
     await expect(confirm).toBeEnabled();
+    await shot(page, "10-detail-confirm-dialog");
     await confirm.click();
     await expect(page.getByText("晴天洗衣：账号已禁用")).toBeVisible();
     await expect(dialog).toBeHidden();
@@ -310,6 +317,20 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     const disable = backend.received.find((request) => request.path.endsWith("/disable"));
     expect(disable?.body).toEqual({ lockVersion: 1, confirm: { phoneTail: "5018" } });
     expect(disable?.headers["idempotency-key"]).toMatch(/^sample-store-disable:[0-9a-f-]{36}$/);
+  });
+
+  await test.step("权限：换成客服的权限后看不到财务菜单，直接访问财务的地址去 403 页", async () => {
+    await page.evaluate(() => localStorage.setItem("lyx.dev.role", "service"));
+    await page.goto("/finance/refunds");
+    await expect(page).toHaveURL(/\/403$/);
+    await expect(page.getByRole("heading", { name: "没有访问权限" })).toBeVisible();
+    const nav = page.getByRole("navigation", { name: "主菜单" });
+    await expect(nav.getByRole("menuitem", { name: "客服", exact: true })).toBeVisible();
+    await expect(nav.getByRole("menuitem", { name: "财务", exact: true })).toHaveCount(0);
+    await expect(nav.getByRole("menuitem", { name: "系统", exact: true })).toHaveCount(0);
+    await expect(page.getByTestId("shell-user")).toContainText("客服");
+    await shot(page, "11-forbidden-403");
+    await page.evaluate(() => localStorage.removeItem("lyx.dev.role"));
   });
 
   expect(pageErrors, "页面没有未捕获的脚本错误").toEqual([]);
