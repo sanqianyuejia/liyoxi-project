@@ -29,7 +29,10 @@
     "design:check": "pnpm design:generate && git diff --exit-code -- packages/shared/src/design/generated && node infra/ci/check-untracked.mjs packages/shared/src/design/generated",
     "lint:colors": "node infra/ci/check-colors.mjs",
     "mediatool:verify": "node infra/docker/mediatool/verify/run.mjs verify",
-    "mediatool:bench": "node infra/docker/mediatool/verify/run.mjs bench"
+    "mediatool:bench": "node infra/docker/mediatool/verify/run.mjs bench",
+    "admin:build": "pnpm --filter @liyoxi/admin build",
+    "portal:build": "pnpm --filter @liyoxi/portal build",
+    "admin:e2e": "pnpm --filter @liyoxi/admin e2e"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.3",

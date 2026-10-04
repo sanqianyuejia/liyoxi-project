@@ -112,6 +112,11 @@
       "kind": "generated",
       "check": "pnpm design:check",
       "note": "设计生成物：色值检查放行这个目录，只由 pnpm design:generate 写；与来源一致由 design:check 核对"
+    },
+    {
+      "pattern": "apps/admin/scripts/*.mjs",
+      "kind": "new-file",
+      "note": "后台与下载页的构建产物检查、后台冒烟的受影响范围判断"
     }
   ]
 }

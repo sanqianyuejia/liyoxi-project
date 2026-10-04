@@ -360,6 +360,13 @@ describe("ci.yml", () => {
       // W0-26：设计生成物无差异（它的下一步上传预览页，没有 run）
       "pnpm design:check",
       "pnpm -r --if-present build",
+      // W0-28：后台与下载页的单测、构建、页面清单；后台冒烟按受影响范围跑（它后面上传截图的一步没有 run）
+      "pnpm --filter @liyoxi/admin --filter @liyoxi/portal test",
+      "pnpm admin:build && pnpm portal:build",
+      "node infra/ci/pages/generate.mjs --check",
+      'node apps/admin/scripts/e2e-affected.mjs --base "$BASE"',
+      "pnpm --filter @liyoxi/admin exec playwright install --with-deps chromium",
+      "pnpm admin:e2e",
       "node infra/ci/check-env-example.mjs",
       "node infra/ci/secret-scan.mjs",
       "pnpm audit --prod --audit-level high --registry https://registry.npmjs.org/",

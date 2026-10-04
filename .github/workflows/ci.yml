@@ -111,6 +111,42 @@ jobs:
           retention-days: 30
       - name: 构建
         run: pnpm -r --if-present build
+      # W0-28：后台与下载页。根上的 pnpm test 不含这两个应用；它们的单测与构建各自共用一份 vite.config.ts
+      #（D7 第 10.6 节第 10 项），所以单测在这里另跑一步
+      - name: 后台与下载页单测
+        run: pnpm --filter @liyoxi/admin --filter @liyoxi/portal test
+      # 上一步“构建”已连带构建过一遍。这里照验收的写法再各跑一次：产物检查（文件名带哈希、写入构建号、
+      # 生产构建不含夹具）在两个应用各自的 build 脚本里，这一步失败即产物不合格
+      - name: 后台与下载页构建
+        run: pnpm admin:build && pnpm portal:build
+      # docs/plan/pages.md 是生成物：与菜单登记表、下载页页面清单不一致即失败
+      - name: 页面清单无差异
+        run: node infra/ci/pages/generate.mjs --check
+      # 后台冒烟按受影响范围跑（计划 第 5.5 节）：PR 改到后台或它依赖的部分才跑，推到 main 一律跑。
+      # 范围写在 apps/admin/scripts/e2e-affected.mjs 开头；结论在这一步的输出里
+      - name: 后台冒烟要不要跑
+        id: admin-e2e
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
+        run: node apps/admin/scripts/e2e-affected.mjs --base "$BASE"
+      - name: 装后台冒烟用的浏览器
+        if: steps.admin-e2e.outputs.run == 'true'
+        run: pnpm --filter @liyoxi/admin exec playwright install --with-deps chromium
+      # 一条用例：外壳 → 筛选表格 → 审核工作台 → 详情页；1366 × 768 下三个样例页没有横向滚动
+      - name: 后台冒烟
+        if: steps.admin-e2e.outputs.run == 'true'
+        run: pnpm admin:e2e
+      # 四张截图（外壳与三种骨架，1440 × 900）；用例失败时另有现场。业主合并前在运行页面的 Artifacts 里下载来看
+      - name: 上传后台冒烟截图
+        if: always() && steps.admin-e2e.outputs.run == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: admin-e2e-shots
+          path: |
+            apps/admin/dist/e2e-shots/
+            apps/admin/dist/e2e-results/
+          if-no-files-found: error
+          retention-days: 30
       - name: .env.example 核对
         run: node infra/ci/check-env-example.mjs
       - name: 密钥扫描
