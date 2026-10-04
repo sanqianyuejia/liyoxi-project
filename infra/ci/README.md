@@ -42,7 +42,7 @@
 4. 新的门禁文件不在 `gate-files.json` 已有条目的范围内时，登记进去（第 5 节）。
 5. 根脚本要加命令时只新增，不改已有的；命令补进 `CLAUDE.md` 第 9 节。
 
-这些都是“只增”类改动：CI 打 `gate-touch`，差异列在 PR 描述顶部。不要在已有的步骤里加行、改行：那会被判成放松。
+这些都是“只增”类改动：CI 打 `gate-touch`，差异列在 PR 描述顶部。不要在已有的步骤里加行、改行，也不要改已有的检查脚本与反例（加一行也算）：那会被判成放松，要改就走单独的 `gate-change` PR。
 
 ## 4. 怎么加一个反例
 
@@ -78,12 +78,13 @@ node infra/ci/classify-gate-changes.mjs --base origin/main --labels gate-change
 
 | kind | 只增（`gate-touch`） | 放松（须单独的 `gate-change` PR） |
 | --- | --- | --- |
-| `append` | 新增文件；在已有文件里加行 | 删改已有行；加的行像是忽略、豁免、白名单（按关键字判，如 `ignore`、`exclude`、`allow`、`skip`、`eslint-disable`） |
-| `workflow` | 新增工作流文件；新增整个步骤或任务；`needs` 里加一行 | 删改已有行；往已有的步骤或任务里加行；`continue-on-error`、`paths-ignore` 之类 |
+| `append` | 新增文件；在已有文件里加行 | 删改已有行；加的行像是忽略、豁免、白名单（按关键字判，如 `ignore`、`exclude`、`allow`、`skip`、`eslint-disable`），或像是关掉、降级检查（规则级别 `"off"`、`"warn"`、数字 0 与 1，`process.exit`、`exit 0`、`doNotFollow`、`passWithNoTests`） |
+| `new-file` | 新增文件 | 改已有的文件，加一行也算（检查脚本、门禁自测的框架与反例：加一行就能让它空转，逐行判不出） |
+| `workflow` | 新增工作流文件；新增整个步骤或任务；`needs` 里加一行 | 删改已有行；往已有的步骤或任务里加行；新增的一段里夹带步骤或任务之外的行（比如跟在新步骤后面的任务级 `if:`）；`continue-on-error`、`paths-ignore` 之类 |
 | `frozen` | 新建，且它的条目在 main 的清单里还没登记（门禁与放行文件同一个 PR 建立） | 其余任何改动；条目已登记后的新建（放行文件、安装设置、格式规则） |
-| `manifest` | 新增依赖 | 依赖版本有变、删除依赖（升级要单独成 PR） |
-| `root-manifest` | 新增依赖；新增根脚本 | 同上；改、删已有的根脚本；改 `engines`、`packageManager`、`pnpm` |
-| `lockfile` | `packages` 段新增条目 | 条目被移除或替换；头部设置有变 |
+| `manifest` | 新增依赖；已有的 `typecheck`、`test`、`lint` 脚本由占位（`echo`）换成真实命令，或去掉 `--passWithNoTests` | 依赖版本有变、删除依赖（升级要单独成 PR）；已有的 `typecheck`、`test`、`lint` 脚本被删、改成空转（`true`、`echo`、后面接 <code>&#124;&#124; true</code>）或换了别的写法。`build` 与其余脚本不管 |
+| `root-manifest` | 新增依赖；新增根脚本 | 依赖同上；改、删已有的根脚本；改 `engines`、`packageManager`、`pnpm` |
+| `lockfile` | `packages` 段新增条目 | 条目被移除或替换；已有条目的内容有变（来源、校验值）；头部设置有变 |
 | `layers` | 新增模块登记 | 改已登记模块的层；改同层策略或白名单；改非模块目录名单 |
 | `registry` | `gate-files.json` 新增条目 | 改、删已有条目 |
 
@@ -93,8 +94,10 @@ node infra/ci/classify-gate-changes.mjs --base origin/main --labels gate-change
 - 标签是在任务运行时从 PR 上读的。开 PR 之后才补打 `gate-change` 的，重跑 `gate-classify` 任务即可。
 - `gate-touch`、`gate-change` 两个标签由业主建。仓库里没有 `gate-touch` 时任务报错，不自己建。
 - 已知的限度：PR 上跑的是 PR 自己那份工作流文件。分类脚本与清单取自 main，PR 改不了它们对自己的判定；但一个 PR 若把 `gate-classify` 任务连同 `required` 里的那一行一起删掉，就没有任务来判它了。所以改 `.github/workflows/` 的 PR，业主要直接看工作流的差异，不只看顶部的清单。
+- 已知的限度：`append` 类文件（lint 装配与规则片段、tsconfig 预设、依赖方向配置、测试配置、提交钩子、用例与夹具）里加行，只靠关键字拦“关掉、降级”的写法，拦不全。清单里写“新增 N 行”的，业主要看差异。新步骤里的命令写了什么（比如 <code>&#124;&#124; true</code>）也不判，同样要看差异。
+- 还没登记的：工作区包自己的 `tsconfig.json` 与 `vitest.config.ts`。在里面关 `strict`、收窄 `include` 现在判为“没有门禁改动”。按 `append` 登记会把正常的改写（一行拆成多行、往 `include` 里加一项）也判成放松；登记不登记、按什么口径，待业主定（`docs/plan/status/W0-03.md` 偏差 6）。
 
-登记新的门禁文件：往 `gate-files.json` 的 `files` 末尾加一条（`pattern`、`kind`、`note`）。`pattern` 里 `**` 跨目录、`*` 不跨目录。白名单、基线、黄金文件这类“一动就该让业主看”的用 `frozen`；检查脚本与规则用 `append`。
+登记新的门禁文件：往 `gate-files.json` 的 `files` 末尾加一条（`pattern`、`kind`、`note`）。`pattern` 里 `**` 跨目录、`*` 不跨目录。白名单、基线、黄金文件这类“一动就该让业主看”的用 `frozen`；规则与配置用 `append`。`infra/ci/` 下的检查脚本（`.mjs`）与 `selftest/` 已经被现有条目按 `new-file` 盖住，不用再登记；放在别处的检查脚本按 `new-file` 登记。
 
 ## 6. 状态汇总
 

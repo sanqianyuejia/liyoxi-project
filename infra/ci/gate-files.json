@@ -3,22 +3,34 @@
     "门禁文件清单：哪些路径算门禁文件、各按什么口径判“只增”与“放松”（计划 第 5.3 节“门禁改动”行；W0-03 任务书 第 11 节第 7 项）。",
     "infra/ci/classify-gate-changes.mjs 读本文件。CI 里用的是 main 上的清单与脚本，PR 改它们不影响对自己的判定。",
     "一个文件命中几条就按几条各判一遍，有一条判为放松即放松；条目的先后没有意义。except 里的路径仍算门禁路径，只是不逐行判（文档）。",
-    "kind 的取值：append（只许加行，加的行不得是忽略、豁免、白名单）、workflow（只许加整个步骤或任务）、frozen（一动就算放松；新建也算，除非它的条目在基线的清单里还没登记）、manifest（依赖只许新增）、root-manifest（另管根脚本、engines、packageManager）、lockfile、layers、registry（本清单：只许加条目）。",
+    "kind 的取值：append（只许加行，加的行不得是忽略、豁免、白名单，也不得是关掉、降级检查的写法）、new-file（只许新增文件，改已有的一律算放松）、workflow（只许加整个步骤或任务）、frozen（一动就算放松；新建也算，除非它的条目在基线的清单里还没登记）、manifest（依赖只许新增；已有的 typecheck、test、lint 脚本不得删、不得改松）、root-manifest（另管根脚本、engines、packageManager）、lockfile、layers、registry（本清单：只许加条目）。",
     "新增门禁文件：往 files 末尾加一条（只增）。改、删已有条目是放松，只在单独的 gate-change PR 里做。用法见 infra/ci/README.md。"
   ],
   "files": [
     { "pattern": ".github/workflows/**", "kind": "workflow", "note": "CI 工作流" },
     { "pattern": "infra/ci/layers.json", "kind": "layers", "note": "模块分层登记与同层白名单" },
     { "pattern": "infra/ci/gate-files.json", "kind": "registry", "note": "本清单" },
+    { "pattern": "infra/ci/*.mjs", "kind": "new-file", "note": "检查脚本" },
+    { "pattern": "infra/ci/selftest/**", "kind": "new-file", "note": "门禁自测的框架与反例" },
     {
       "pattern": "infra/ci/**",
-      "except": ["infra/ci/**/*.md", "infra/ci/layers.json", "infra/ci/gate-files.json"],
+      "except": [
+        "infra/ci/**/*.md",
+        "infra/ci/layers.json",
+        "infra/ci/gate-files.json",
+        "infra/ci/*.mjs",
+        "infra/ci/selftest/**"
+      ],
       "kind": "append",
-      "note": "检查脚本、用例、夹具、门禁自测的反例"
+      "note": "检查的用例、夹具与其余文件"
     },
     { "pattern": "package.json", "kind": "root-manifest", "note": "根脚本、根依赖、运行时版本" },
-    { "pattern": "apps/*/package.json", "kind": "manifest", "note": "应用的依赖" },
-    { "pattern": "packages/*/package.json", "kind": "manifest", "note": "工作区包的依赖" },
+    { "pattern": "apps/*/package.json", "kind": "manifest", "note": "应用的依赖与检查脚本" },
+    {
+      "pattern": "packages/*/package.json",
+      "kind": "manifest",
+      "note": "工作区包的依赖与检查脚本"
+    },
     { "pattern": "pnpm-lock.yaml", "kind": "lockfile", "note": "锁文件" },
     {
       "pattern": "pnpm-workspace.yaml",

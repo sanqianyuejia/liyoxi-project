@@ -56,7 +56,19 @@ const ROOT = {
   scripts: { lint: "eslint .", test: "vitest run" },
   devDependencies: { eslint: "10.11.0" },
 };
-const SERVICES = { name: "@liyoxi/services", scripts: { build: "echo 占位" }, dependencies: {} };
+const SERVICES = {
+  name: "@liyoxi/services",
+  scripts: {
+    typecheck: "tsc --noEmit -p tsconfig.json",
+    test: "vitest run --passWithNoTests",
+    build: "echo 占位",
+  },
+  dependencies: {},
+};
+const WEAPP = {
+  name: "@liyoxi/weapp",
+  scripts: { typecheck: "tsc --noEmit -p tsconfig.json", test: "echo '占位：前端测试以后接'" },
+};
 const LOCK = `lockfileVersion: '9.0'
 
 settings:
@@ -89,10 +101,13 @@ const baseFiles: Record<string, string> = {
   "infra/ci/layers.json": json(LAYERS),
   "infra/ci/gate-files.json": json(REGISTRY),
   "infra/ci/check-x.mjs": 'console.log("x");\n',
+  "infra/ci/selftest/cases/x.mjs": "export default { reason: /出现旧名/ };\n",
+  "infra/ci/test/x.test.ts": 'it("x", () => {});\n',
   "infra/ci/README.md": "# 说明\n",
   "packages/config/eslint/repo.js": RULES,
   "package.json": json(ROOT),
   "packages/services/package.json": json(SERVICES),
+  "apps/weapp/package.json": json(WEAPP),
   "pnpm-lock.yaml": LOCK,
   ".prettierignore": "dist\n",
   "src/app.ts": "export const a = 1;\n",
@@ -173,8 +188,11 @@ describe("没有门禁改动", () => {
     expect(result.outside).toEqual([]);
   });
 
-  it("工作区包改自己的脚本不算门禁改动（占位构建换成真实构建）", () => {
-    const next = { ...SERVICES, scripts: { build: "tsup" } };
+  it("工作区包改自己的 build 脚本、加别的脚本不算门禁改动（占位构建换成真实构建）", () => {
+    const next = {
+      ...SERVICES,
+      scripts: { ...SERVICES.scripts, build: "tsup", generate: "tsx scripts/generate.ts" },
+    };
     expect(classify({ "packages/services/package.json": json(next) }).verdict).toBe("none");
   });
 });
@@ -285,6 +303,33 @@ describe("只增：判为 gate-touch 并列出", () => {
     expect(whats(result.touch)).toEqual(["pnpm-lock.yaml: 锁文件新增 1 个版本：zod@4.6.5"]);
   });
 
+  it("工作区包的检查脚本去掉 --passWithNoTests：是收紧，算只增", () => {
+    const next = { ...SERVICES, scripts: { ...SERVICES.scripts, test: "vitest run" } };
+    const result = classify({ "packages/services/package.json": json(next) });
+    expect(result.verdict).toBe("touch");
+    expect(whats(result.touch)).toEqual([
+      "packages/services/package.json: 检查脚本 test 去掉了 --passWithNoTests",
+    ]);
+  });
+
+  it("工作区包占位的检查脚本换成真实命令：算只增", () => {
+    const next = { ...WEAPP, scripts: { ...WEAPP.scripts, test: "vitest run" } };
+    const result = classify({ "apps/weapp/package.json": json(next) });
+    expect(result.verdict).toBe("touch");
+    expect(whats(result.touch)).toEqual([
+      "apps/weapp/package.json: 检查脚本 test 由占位换成真实命令",
+    ]);
+  });
+
+  it("工作流里新步骤后面紧跟一个新任务：两样都是整段新增", () => {
+    const added =
+      "      - name: 构建\n        run: pnpm build\n  e2e:\n    runs-on: ubuntu-24.04\n    steps:\n      - name: e2e\n        run: pnpm e2e\n";
+    const next = withChange(WORKFLOW, "  required:\n", `${added}  required:\n`);
+    const result = classify({ ".github/workflows/ci.yml": next });
+    expect(result.verdict).toBe("touch");
+    expect(result.touch.map((item) => item.what)).toEqual(["新增步骤或任务：- name: 构建"]);
+  });
+
   it("放行文件与它的门禁条目在同一个 PR 里新建：算只增，列出来给业主看", () => {
     // .gitleaksignore 在真实清单里是 frozen，但这个临时仓库的基线清单里还没有登记它
     const result = classify({ ".gitleaksignore": "abc:README.md:generic-api-key:1\n" });
@@ -343,8 +388,38 @@ describe("放松：没有 gate-change 标签即失败", () => {
     ],
     [
       "用例里加 skip",
-      { "infra/ci/check-x.mjs": 'console.log("x");\nit.skip("以后再说", () => {});\n' },
+      { "infra/ci/test/x.test.ts": 'it("x", () => {});\nit.skip("以后再说", () => {});\n' },
       "加的行像是忽略、豁免或白名单",
+    ],
+    [
+      "已有的检查脚本里加一行（加在开头就能让它空转，判不出）",
+      { "infra/ci/check-x.mjs": 'process.exit(0);\nconsole.log("x");\n' },
+      "改了已有的检查脚本：这类文件只许新增",
+    ],
+    [
+      "已有的反例里加一行（后写的同名键会盖掉前面的）",
+      {
+        "infra/ci/selftest/cases/x.mjs": "export default { reason: /出现旧名/,\n reason: /./ };\n",
+      },
+      "改了已有的门禁自测的框架与反例：这类文件只许新增",
+    ],
+    [
+      "新步骤后面夹带任务级的键",
+      {
+        ".github/workflows/ci.yml": withChange(
+          WORKFLOW,
+          "  required:\n",
+          "      - name: 构建\n        run: pnpm build\n    if: github.actor == 'someone'\n  required:\n",
+        ),
+      },
+      "新增的步骤或任务后面夹带了它之外的行，判不出是不是只增：if: github.actor == 'someone'",
+    ],
+    [
+      "新任务后面夹带顶层的键",
+      {
+        ".github/workflows/ci.yml": `${WORKFLOW}  e2e:\n    runs-on: ubuntu-24.04\ndefaults:\n  run:\n    shell: bash\n`,
+      },
+      "新增的步骤或任务后面夹带了它之外的行，判不出是不是只增：defaults:",
     ],
     [
       "删一个 CI 步骤",
@@ -401,6 +476,46 @@ describe("放松：没有 gate-change 标签即失败", () => {
       "改了 engines",
     ],
     [
+      "工作区包的 typecheck 脚本改成空转",
+      {
+        "packages/services/package.json": json({
+          ...SERVICES,
+          scripts: { ...SERVICES.scripts, typecheck: "true" },
+        }),
+      },
+      "检查脚本 typecheck 改成了空转：true",
+    ],
+    [
+      "工作区包的检查脚本后面接 || true",
+      {
+        "apps/weapp/package.json": json({
+          ...WEAPP,
+          scripts: { ...WEAPP.scripts, test: "vitest run || true" },
+        }),
+      },
+      "检查脚本 test 改成了空转：vitest run || true",
+    ],
+    [
+      "工作区包删掉 test 脚本",
+      {
+        "packages/services/package.json": json({
+          ...SERVICES,
+          scripts: { typecheck: SERVICES.scripts.typecheck, build: SERVICES.scripts.build },
+        }),
+      },
+      "删掉了检查脚本 test",
+    ],
+    [
+      "工作区包的检查脚本换了写法（判不出，按放松算）",
+      {
+        "packages/services/package.json": json({
+          ...SERVICES,
+          scripts: { ...SERVICES.scripts, typecheck: "tsc --noEmit -p tsconfig.loose.json" },
+        }),
+      },
+      "改了已有的检查脚本 typecheck，判不出是不是放松",
+    ],
+    [
       "改已登记模块的层",
       { "infra/ci/layers.json": json({ ...LAYERS, modules: { kernel: "L1", identity: "L1" } }) },
       "改了已登记模块 kernel 的层：L0 → L1",
@@ -440,6 +555,22 @@ describe("放松：没有 gate-change 标签即失败", () => {
       "锁文件里有 1 个版本被移除或替换：eslint@10.11.0",
     ],
     [
+      "锁文件里已有条目换了来源",
+      {
+        "pnpm-lock.yaml": withChange(
+          LOCK,
+          "resolution: {integrity: sha512-aaa}",
+          "resolution: {tarball: https://example.invalid/eslint-10.11.0.tgz}",
+        ),
+      },
+      "锁文件里有 1 个已有条目的内容有变（来源、校验值等）：eslint@10.11.0",
+    ],
+    [
+      "锁文件里已有条目换了校验值",
+      { "pnpm-lock.yaml": withChange(LOCK, "sha512-bbb", "sha512-zzz") },
+      "锁文件里有 1 个已有条目的内容有变（来源、校验值等）：@types/node@24.19.0",
+    ],
+    [
       "锁文件头部的设置有变",
       { "pnpm-lock.yaml": withChange(LOCK, "autoInstallPeers: true", "autoInstallPeers: false") },
       "锁文件头部",
@@ -453,6 +584,29 @@ describe("放松：没有 gate-change 标签即失败", () => {
     expect(whats(result.loosen).join("\n")).toContain(expected);
     expect(result.status).toBe(1);
     expect(result.output).toContain("没有 gate-change 标签");
+  });
+
+  // 规则文件里只加行，但加的是关掉、降级检查的写法：靠关键字拦
+  const disabling: Array<[string, string]> = [
+    ["末尾追加一段把规则设为 off", 'export const late = { rules: { "no-var": "off" } };'],
+    ["追加一段把规则降成 warn", "export const late = { rules: { 'no-var': 'warn' } };"],
+    ["规则级别写成数字 0", 'export const late = { rules: { "no-var": 0 } };'],
+    ["规则级别写成数组里的数字 1", 'export const late = { rules: { "no-var": [1, "always"] } };'],
+    ["加一行提前退出", "process.exit(0);"],
+    [
+      "依赖方向配置里加 doNotFollow",
+      'export const options = { doNotFollow: { path: "packages" } };',
+    ],
+    ["测试配置里加 passWithNoTests", "export const test = { passWithNoTests: true };"],
+  ];
+
+  it.each(disabling)("规则文件里%s", (_label, line) => {
+    const result = classify({ "packages/config/eslint/repo.js": `${RULES}${line}\n` });
+    expect(result.verdict).toBe("loosen");
+    expect(whats(result.loosen)).toEqual([
+      `packages/config/eslint/repo.js: 加的行像是忽略、豁免或白名单（含关掉、降级检查的写法）：${line}`,
+    ]);
+    expect(result.status).toBe(1);
   });
 });
 

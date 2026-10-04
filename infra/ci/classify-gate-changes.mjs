@@ -10,12 +10,14 @@
 //   --pr、--repo  CI 用：经 gh 读 PR 的标签，把清单写进 PR 描述顶部两个标记之间，有只增项就打 gate-touch
 //   --out         把结果另存成 JSON
 // 口径（清单里每个 kind 的判法；判不出的一律按放松算）：
-//   append         新增文件、加行算只增；删改已有行算放松；加的行像忽略、豁免、白名单也算放松
-//   workflow       同上，且加的每一段必须是整个步骤（“- ” 开头）或整个任务，否则算放松
+//   append         新增文件、加行算只增；删改已有行算放松；加的行像忽略、豁免、白名单，或像关掉、降级检查，也算放松
+//   new-file       只许新增文件；改已有的文件一律算放松（检查脚本、门禁自测：加一行就能让它空转，逐行判不出）
+//   workflow       同 append，且加的每一段从头到尾必须是整个步骤（“- ” 开头）或整个任务，否则算放松
 //   frozen         一动就算放松，新建也算（它的条目在基线的清单里还没登记时，新建算只增）
-//   manifest       依赖只许新增；版本有变、删除算放松（升级要单独成 PR）
-//   root-manifest  同 manifest；脚本只许新增；engines、packageManager、pnpm 一动就算放松
-//   lockfile       packages 段只许新增条目；头部设置有变算放松
+//   manifest       依赖只许新增；版本有变、删除算放松（升级要单独成 PR）。已有的 typecheck、test、lint 脚本
+//                  被删、被改算放松，两种改法除外：占位（echo）换成真实命令、去掉 --passWithNoTests。build 不管
+//   root-manifest  依赖同 manifest；脚本只许新增；engines、packageManager、pnpm 一动就算放松
+//   lockfile       packages 段只许新增条目，已有条目的内容（来源、校验值）有变算放松；头部设置有变算放松
 //   layers         只许新增模块登记；改已登记模块的层、改同层策略或白名单算放松
 //   registry       门禁文件清单只许新增条目
 //   删除任何门禁文件都算放松。
@@ -38,9 +40,22 @@ const MAX_ITEMS = 40;
 const REGISTRY_PATH = "infra/ci/gate-files.json";
 const DEP_FIELDS = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"];
 const ROOT_FROZEN_FIELDS = ["engines", "packageManager", "pnpm"];
-// 关键字只是粗筛，宁可把无害的行错判成放松。allow、skip、exclude 要在词首，免得 disallow、shallow 之类被带上
-const EXEMPTION =
-  /eslint-disable|ts-ignore|ts-expect-error|ts-nocheck|ignores?\b|\bexclude|pathNot|\ballow|\bskip|\.only\b|continue-on-error|豁免|白名单|放行/i;
+/** 工作区包里被根脚本或验收命令用到的脚本：已有的被删、被改要判（build 是占位，由后面的包换成真实构建，不管） */
+const GUARDED_SCRIPTS = ["typecheck", "test", "lint"];
+/** 空转的脚本：占位的 echo、true、冒号、exit 0，或命令后面接“|| true”之类 */
+const NOOP_SCRIPT =
+  /^\s*(?:echo\b|true\s*$|:\s*$|exit\s+0\s*$)|\|\|\s*(?:true\b|:\s*$|exit\s+0\b|echo\b)/;
+// 关键字只是粗筛，宁可把无害的行错判成放松。allow、skip、exclude 要在词首，免得 disallow、shallow 之类被带上。
+// 第二行是关掉、降级检查的写法：规则级别 off、warn 与数字 0、1；检查脚本提前退出；依赖方向不跟进；没有用例也算过
+const EXEMPTION = new RegExp(
+  [
+    /eslint-disable|ts-ignore|ts-expect-error|ts-nocheck|ignores?\b|\bexclude|pathNot|\ballow|\bskip|\.only\b|continue-on-error|豁免|白名单|放行/,
+    /["'](?:off|warn)["']|["']\s*:\s*\[?\s*[01]\s*(?:[,\]}]|$)|process\.exit|\bexit\s+0\b|doNotFollow|passWithNoTests/,
+  ]
+    .map((part) => part.source)
+    .join("|"),
+  "i",
+);
 const WORKFLOW_EXEMPTION =
   /continue-on-error|(?:paths|branches|tags)-ignore|\bif:\s*(?:false|\$\{\{\s*false)/;
 
@@ -144,6 +159,30 @@ function hunksOf(base, head, path) {
   return hunks;
 }
 
+const JOB_KEY = /^ {2}[\w-]+:\s*(?:#.*)?$/;
+const LIST_ITEM = /^\s*- /;
+const indentOf = (line) => line.length - line.trimStart().length;
+
+/**
+ * 工作流里加的一段是不是从头到尾都在新增的步骤或任务之内：是则返回 null，否则返回第一处判不出的行。
+ * 一段以步骤（列表项）或任务的键开头；后面的行要么缩进更深，要么是同一层的下一个步骤、下一个任务。
+ * 缩进退到步骤之外的行（比如跟在新步骤后面的任务级 if:）会落到已有的任务头上，判不出。
+ */
+function strayWorkflowLine(lines) {
+  let floor = null;
+  let inJob = false;
+  for (const line of lines) {
+    if (line.trim().startsWith("#")) continue;
+    const indent = indentOf(line);
+    if (floor !== null && indent > floor) continue;
+    if (JOB_KEY.test(line)) [floor, inJob] = [2, true];
+    else if (LIST_ITEM.test(line) && (floor === null || (!inJob && indent === floor)))
+      [floor, inJob] = [indent, false];
+    else return line;
+  }
+  return null;
+}
+
 // ---------- 各 kind 的判法：返回 { touch: [说明], loosen: [说明] } ----------
 
 function byLines({ hunks }, { blocks }) {
@@ -158,15 +197,17 @@ function byLines({ hunks }, { blocks }) {
     if (added.length === 0) continue;
     for (const line of added) {
       if ((blocks ? WORKFLOW_EXEMPTION : EXEMPTION).test(line)) {
-        loosen.push(`加的行像是忽略、豁免或白名单：${excerpt(line)}`);
+        loosen.push(`加的行像是忽略、豁免或白名单（含关掉、降级检查的写法）：${excerpt(line)}`);
       }
     }
     if (blocks && hunk.removed.every(isBlank)) {
       const first = added.find((l) => !l.trim().startsWith("#"));
+      const stray = strayWorkflowLine(added);
       if (first === undefined) addedLines += added.length;
-      else if (/^\s*- /.test(first) || /^ {2}[\w-]+:\s*(?:#.*)?$/.test(first)) {
-        touch.push(`新增步骤或任务：${excerpt(first)}`);
-      } else loosen.push(`往已有的步骤或任务里加了行，判不出是不是只增：${excerpt(first)}`);
+      else if (stray === null) touch.push(`新增步骤或任务：${excerpt(first)}`);
+      else if (stray === first)
+        loosen.push(`往已有的步骤或任务里加了行，判不出是不是只增：${excerpt(first)}`);
+      else loosen.push(`新增的步骤或任务后面夹带了它之外的行，判不出是不是只增：${excerpt(stray)}`);
     } else addedLines += added.length;
   }
   if (addedLines > 0 && loosen.length === 0) touch.push(`新增 ${addedLines} 行`);
@@ -215,19 +256,44 @@ function byManifest({ baseText, headText }, { root }) {
     for (const field of ROOT_FROZEN_FIELDS) {
       if (stable(base[field]) !== stable(head[field])) loosen.push(`改了 ${field}`);
     }
+  } else {
+    const [before, after] = [record(base.scripts), record(head.scripts)];
+    for (const name of GUARDED_SCRIPTS) {
+      if (!(name in before) || before[name] === after[name]) continue;
+      const [from, to] = [String(before[name]), String(after[name] ?? "")];
+      const squeeze = (text) => text.replace(/\s+/g, " ").trim();
+      if (!(name in after)) loosen.push(`删掉了检查脚本 ${name}`);
+      else if (NOOP_SCRIPT.test(to)) loosen.push(`检查脚本 ${name} 改成了空转：${excerpt(to)}`);
+      else if (NOOP_SCRIPT.test(from)) touch.push(`检查脚本 ${name} 由占位换成真实命令`);
+      else if (
+        from.includes("--passWithNoTests") &&
+        squeeze(from.replace(/--passWithNoTests\b/g, "")) === squeeze(to)
+      )
+        touch.push(`检查脚本 ${name} 去掉了 --passWithNoTests`);
+      else loosen.push(`改了已有的检查脚本 ${name}，判不出是不是放松：${excerpt(to)}`);
+    }
   }
   return { touch, loosen };
 }
 
 function lockParts(text) {
   const header = (text ?? "").split(/^importers:\s*$/m)[0];
-  const entries = new Set();
+  /** packages 段的条目：名字@版本 → 条目的内容（来源、校验值等，去掉空行与缩进） */
+  const entries = new Map();
   let inPackages = false;
+  let current = null;
   for (const line of (text ?? "").split("\n")) {
-    if (/^\S/.test(line)) inPackages = line.trimEnd() === "packages:";
-    else if (inPackages) {
+    if (/^\S/.test(line)) {
+      inPackages = line.trimEnd() === "packages:";
+      current = null;
+    } else if (inPackages) {
       const match = line.match(/^ {2}(?:'([^']+)'|"([^"]+)"|([^\s'":][^:]*)):\s*$/);
-      if (match) entries.add(match[1] ?? match[2] ?? match[3]);
+      if (match) {
+        current = match[1] ?? match[2] ?? match[3];
+        entries.set(current, "");
+      } else if (current !== null && !isBlank(line)) {
+        entries.set(current, `${entries.get(current)}${line.trim()}\n`);
+      }
     }
   }
   return { header, entries };
@@ -239,8 +305,16 @@ function byLockfile({ baseText, headText }) {
   const [base, head] = [lockParts(baseText), lockParts(headText)];
   if (baseText !== null && base.header !== head.header)
     loosen.push("锁文件头部（版本、设置、覆盖项）有变");
-  const removed = [...base.entries].filter((entry) => !head.entries.has(entry));
-  const added = [...head.entries].filter((entry) => !base.entries.has(entry));
+  const removed = [...base.entries.keys()].filter((entry) => !head.entries.has(entry));
+  const added = [...head.entries.keys()].filter((entry) => !base.entries.has(entry));
+  const changed = [...head.entries.keys()].filter(
+    (entry) => base.entries.has(entry) && base.entries.get(entry) !== head.entries.get(entry),
+  );
+  if (changed.length > 0) {
+    loosen.push(
+      `锁文件里有 ${changed.length} 个已有条目的内容有变（来源、校验值等）：${changed.slice(0, 5).join("、")}${changed.length > 5 ? " 等" : ""}`,
+    );
+  }
   if (removed.length > 0) {
     loosen.push(
       `锁文件里有 ${removed.length} 个版本被移除或替换：${removed.slice(0, 5).join("、")}${removed.length > 5 ? " 等" : ""}`,
@@ -313,11 +387,19 @@ function byFrozen(change, entry) {
   return { touch: [`新建了${note}（它的门禁条目也是这次新增的）`], loosen: [] };
 }
 
+/** new-file：只许新增文件。改已有的文件判不出是不是放松（加一行就能让检查空转），一律按放松算 */
+function byNewFile(change, entry) {
+  if (change.status === "A") return { touch: ["新增文件"], loosen: [] };
+  const note = entry.note ?? "门禁文件";
+  return { touch: [], loosen: [`改了已有的${note}：这类文件只许新增，改已有的判不出是不是放松`] };
+}
+
 const KINDS = {
   append: (change) =>
     change.status === "A"
       ? { touch: ["新增文件"], loosen: [] }
       : byLines(change, { blocks: false }),
+  "new-file": byNewFile,
   workflow: (change) =>
     change.status === "A"
       ? { touch: ["新增工作流文件"], loosen: [] }
