@@ -29,8 +29,112 @@ function jobBody(workflow: string, id: string): string {
   return (end === -1 ? rest : rest.slice(0, end)).join("\n");
 }
 
+/** 各任务在平台上的检查名：写了 name 用 name，没写用任务编号。必过检查是按这个名字认的 */
+function checkNames(workflow: string): string[] {
+  return jobIds(workflow).map((id) => {
+    const name = jobBody(workflow, id).match(/^ {4}name:\s*(.+?)\s*(?:#.*)?$/m)?.[1] ?? id;
+    return name.replace(/^(['"])(.*)\1$/, "$2");
+  });
+}
+
+/**
+ * 检查名的重名问题：同一个工作流里两个任务同名（或任务编号重复）；必过的那个名字在全部工作流里不止一个。
+ * 重名时平台按哪一个算必过检查说不准：再加一个同名且恒成功的任务，就可能顶掉真的那个。
+ */
+function duplicateCheckNames(workflows: Record<string, string>, requiredName: string): string[] {
+  const problems: string[] = [];
+  const holders: string[] = [];
+  for (const [file, text] of Object.entries(workflows)) {
+    const names = checkNames(text);
+    const ids = jobIds(text);
+    for (const [label, values] of [
+      ["检查名", names],
+      ["任务编号", ids],
+    ] as const) {
+      const repeated = [...new Set(values.filter((value, at) => values.indexOf(value) !== at))];
+      for (const value of repeated) problems.push(`${file}：${label} ${value} 出现了不止一次`);
+    }
+    for (const name of names) if (name === requiredName) holders.push(file);
+  }
+  if (holders.length !== 1) {
+    problems.push(
+      `检查名 ${requiredName} 在全部工作流里要恰好出现一次，现在是 ${holders.length} 次${holders.length > 0 ? `（${holders.join("、")}）` : ""}`,
+    );
+  }
+  return problems;
+}
+
 describe("全部工作流", () => {
   const files = readdirSync(workflowsDir).filter((name) => /\.ya?ml$/.test(name));
+  const workflows = Object.fromEntries(
+    files.map((name) => [name, read(`.github/workflows/${name}`)]),
+  );
+
+  it("必过检查名 required 在全部工作流里只出现一次，同一个工作流里任务名不重复", () => {
+    expect(duplicateCheckNames(workflows, "required")).toEqual([]);
+    expect(checkNames(ci)).toContain("required");
+    // 每个任务都显式写了 name，且与任务编号相同：检查名不靠缺省值
+    for (const text of Object.values(workflows)) expect(checkNames(text)).toEqual(jobIds(text));
+  });
+
+  describe("重名的反例：上面那条断言要能把它们查出来", () => {
+    const shadowJob = (id: string, name: string | null) =>
+      [
+        `  ${id}:`,
+        ...(name === null ? [] : [`    name: ${name}`]),
+        "    runs-on: ubuntu-24.04",
+        "    steps:",
+        '      - run: "true"',
+        "",
+      ].join("\n");
+    const extra = (job: string) =>
+      `name: extra\non:\n  pull_request:\npermissions:\n  contents: read\njobs:\n${job}`;
+
+    it.each([
+      ["另一个工作流里的任务也叫 required", shadowJob("shadow", "required")],
+      ["名字带引号", shadowJob("shadow", '"required"')],
+      ["名字后面带注释", shadowJob("shadow", "required # 恒成功")],
+      ["没写 name，任务编号就是 required", shadowJob("required", null)],
+    ])("%s：查出 required 出现两次", (_label, job) => {
+      expect(duplicateCheckNames({ ...workflows, "extra.yml": extra(job) }, "required")).toEqual([
+        "检查名 required 在全部工作流里要恰好出现一次，现在是 2 次（ci.yml、extra.yml）",
+      ]);
+    });
+
+    it("ci.yml 里再加一个检查名也叫 required 的任务：查出同一个工作流里重名", () => {
+      const mutated = { ...workflows, "ci.yml": `${ci}\n${shadowJob("shadow", "required")}` };
+      expect(duplicateCheckNames(mutated, "required")).toEqual([
+        "ci.yml：检查名 required 出现了不止一次",
+        "检查名 required 在全部工作流里要恰好出现一次，现在是 2 次（ci.yml、ci.yml）",
+      ]);
+    });
+
+    it("同一个工作流里两个任务同名（不是 required 也算）", () => {
+      const mutated = { ...workflows, "ci.yml": `${ci}\n${shadowJob("lint-again", "verify")}` };
+      expect(duplicateCheckNames(mutated, "required")).toEqual([
+        "ci.yml：检查名 verify 出现了不止一次",
+      ]);
+    });
+
+    it("任务编号重复（后写的顶掉前面的）", () => {
+      const mutated = { ...workflows, "ci.yml": `${ci}\n${shadowJob("verify", "verify-2")}` };
+      // 按编号取任务正文时两个都取到前一个，所以检查名也报重复
+      expect(duplicateCheckNames(mutated, "required")).toEqual([
+        "ci.yml：检查名 verify 出现了不止一次",
+        "ci.yml：任务编号 verify 出现了不止一次",
+      ]);
+    });
+
+    it("把 required 改了名：查出一次都没有", () => {
+      const mutated = {
+        ...workflows,
+        "ci.yml": ci.replace("    name: required\n", "    name: all\n"),
+      };
+      expect(duplicateCheckNames(mutated, "required")).toEqual([
+        "检查名 required 在全部工作流里要恰好出现一次，现在是 0 次",
+      ]);
+    });
+  });
 
   it.each(files)("%s：第三方 Action 固定到提交 SHA，行尾注明版本", (name) => {
     const uses = [...read(`.github/workflows/${name}`).matchAll(/^\s*(?:- )?uses: (.+)$/gm)].map(
