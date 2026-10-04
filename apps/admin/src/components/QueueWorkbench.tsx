@@ -314,7 +314,8 @@ export function QueueWorkbench<Item>({
             </div>
           </div>
         ) : (
-          <EmptyState title="暂无选中的事项" description="队列处理完了，或换一个页签看看" />
+          // 这里说的是“没有选中”，不是没有数据，不套“暂无……”的写法
+          <EmptyState title="没有选中的事项" description="队列处理完了，或换一个页签看看" />
         )}
       </section>
     </div>
