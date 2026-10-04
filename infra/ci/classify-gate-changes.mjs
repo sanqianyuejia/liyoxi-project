@@ -13,11 +13,19 @@
 //   append         新增文件、加行算只增；删改已有行算放松；加的行像忽略、豁免、白名单，或像关掉、降级检查，也算放松
 //   new-file       只许新增文件；改已有的文件一律算放松（检查脚本、门禁自测：加一行就能让它空转，逐行判不出）
 //   workflow       同 append，且加的每一段从头到尾必须是整个步骤（“- ” 开头）或整个任务，否则算放松
-//   frozen         一动就算放松，新建也算（它的条目在基线的清单里还没登记时，新建算只增）
-//   manifest       依赖只许新增；版本有变、删除算放松（升级要单独成 PR）。已有的 typecheck、test、lint 脚本
-//                  被删、被改算放松，两种改法除外：占位（echo）换成真实命令、去掉 --passWithNoTests。build 不管
-//   root-manifest  依赖同 manifest；脚本只许新增；engines、packageManager、pnpm、resolutions、overrides 一动就算放松
-//   lockfile       packages 段只许新增条目，已有条目的内容（来源、校验值）有变算放松；头部设置有变算放松
+//   frozen         一动就算放松，新建也算（它的条目是本次差异里新登记的，新建才算只增）
+//   tsconfig       按解析后的键值判（允许注释与行尾逗号），换行、重排不算改动。新增键算只增；删、改已有的键值算放松；
+//                  把严格性开关关掉（新增 "noImplicitAny": false、skipLibCheck 由 false 改 true 之类）算放松；
+//                  新增 exclude、include、files、extends，或往 exclude 里加项，算放松（会改变查哪些文件、继承哪份预设）
+//   manifest       依赖只许新增，且要写精确版本（工作区内部包写 workspace: 除外）；写成范围、标签、别名的判不出，
+//                  算放松。版本有变、删除算放松（升级要单独成 PR）。已有的 typecheck、test、lint 脚本
+//                  被删、被改算放松，两种改法除外：占位（echo）换成真实命令、去掉 --passWithNoTests。build 不管。
+//                  prettier、lint-staged、commitlint、eslintConfig 这几个键一动就算放松（工具先读它，会遮蔽已登记的配置）
+//   root-manifest  依赖同 manifest；脚本只许新增；engines、packageManager、pnpm、resolutions、overrides 一动就算放松；
+//                  已知集合以外的顶层键有变（新增也算）一律算放松
+//   lockfile       packages 段只许新增条目，已有条目的内容（来源、校验值）有变算放松；头部设置有变算放松；
+//                  importers 段里已有依赖的 specifier、解析版本有变或被删算放松；snapshots 段里已有条目的依赖
+//                  版本有变或被删算放松。版本后面括号里的 peer 解析不比：加一个依赖就会让它变
 //   layers         只许新增模块登记；改已登记模块的层、改同层策略或白名单算放松
 //   registry       门禁文件清单只许新增条目
 //   删除任何门禁文件都算放松。
@@ -36,10 +44,69 @@ const END = "<!-- gate-diff:end -->";
 const TOUCH_LABEL = "gate-touch";
 const CHANGE_LABEL = "gate-change";
 const MAX_ITEMS = 40;
-/** 清单在仓库里的位置：只用来看基线上登记过哪些条目 */
+/** 清单在仓库里的位置：只用来看本次差异新登记了哪些条目 */
 const REGISTRY_PATH = "infra/ci/gate-files.json";
 const DEP_FIELDS = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"];
 const ROOT_FROZEN_FIELDS = ["engines", "packageManager", "pnpm", "resolutions", "overrides"];
+/** 根 package.json 里不影响任何检查的顶层键。依赖、脚本与上面五个字段另有判法；其余的键一律判不出 */
+const ROOT_PLAIN_FIELDS = [
+  "name",
+  "version",
+  "private",
+  "description",
+  "type",
+  "license",
+  "author",
+  "contributors",
+  "repository",
+  "homepage",
+  "bugs",
+  "keywords",
+];
+/** 工具会先读 package.json 里的这几个键，读到了就不再看已登记的配置文件 */
+const TOOL_CONFIG_FIELDS = ["commitlint", "eslintConfig", "lint-staged", "prettier"];
+/** 依赖的写法：精确版本（可带预发布与构建号）；工作区内部包用 workspace: 协议，只会解析到本仓库的包 */
+const PINNED_VERSION = /^(?:\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?|workspace:.+)$/;
+/** tsconfig 的严格性开关（TypeScript 5.9）：第一组取 true 为严，第二组取 false 为严 */
+const TS_STRICT_WHEN_TRUE = new Set([
+  "strict",
+  "noImplicitAny",
+  "strictNullChecks",
+  "strictFunctionTypes",
+  "strictBindCallApply",
+  "strictPropertyInitialization",
+  "strictBuiltinIteratorReturn",
+  "noImplicitThis",
+  "useUnknownInCatchVariables",
+  "alwaysStrict",
+  "noUnusedLocals",
+  "noUnusedParameters",
+  "exactOptionalPropertyTypes",
+  "noImplicitReturns",
+  "noFallthroughCasesInSwitch",
+  "noUncheckedIndexedAccess",
+  "noImplicitOverride",
+  "noPropertyAccessFromIndexSignature",
+  "noUncheckedSideEffectImports",
+  "checkJs",
+  "isolatedModules",
+  "isolatedDeclarations",
+  "verbatimModuleSyntax",
+  "erasableSyntaxOnly",
+  "forceConsistentCasingInFileNames",
+]);
+const TS_STRICT_WHEN_FALSE = new Set([
+  "skipLibCheck",
+  "skipDefaultLibCheck",
+  "noCheck",
+  "allowUnreachableCode",
+  "allowUnusedLabels",
+  "suppressExcessPropertyErrors",
+  "suppressImplicitAnyIndexErrors",
+  "noStrictGenericChecks",
+]);
+/** tsconfig 顶层这几个键新增即判不出：改变查哪些文件、继承哪份预设 */
+const TS_SCOPE_FIELDS = ["exclude", "include", "files", "extends"];
 /** 工作区包里被根脚本或验收命令用到的脚本：已有的被删、被改要判（build 是占位，由后面的包换成真实构建，不管） */
 const GUARDED_SCRIPTS = ["typecheck", "test", "lint"];
 /** 空转的脚本：空串、占位的 echo、true、冒号、exit 0，或命令后面接“|| true”之类 */
@@ -230,33 +297,50 @@ function byManifest({ baseText, headText }, { root }) {
   const base = parseJson(baseText, "基线上的文件", loosen);
   const head = parseJson(headText, "改后的文件", loosen);
   if (!base || !head) return { touch, loosen };
-  const compare = (field, added, changed) => {
+  for (const field of DEP_FIELDS) {
     const [before, after] = [record(base[field]), record(head[field])];
     for (const [name, value] of Object.entries(after)) {
-      if (!(name in before)) touch.push(added(name, value));
-      else if (before[name] !== value) loosen.push(changed(name, before[name], value));
+      const shown = typeof value === "string" ? value : JSON.stringify(value);
+      if (name in before) {
+        if (before[name] !== value)
+          loosen.push(`依赖版本有变 ${name}：${before[name]} → ${shown}（升级要单独成 PR）`);
+      } else if (typeof value === "string" && PINNED_VERSION.test(value)) {
+        touch.push(`新增依赖 ${name}@${shown}（${field}）`);
+      } else {
+        loosen.push(
+          `新增依赖 ${name}@${shown}（${field}）不是精确版本，判不出装的是哪一版（CLAUDE.md 第 4 节：全部写精确版本）`,
+        );
+      }
     }
     for (const name of Object.keys(before)) {
       if (!(name in after)) loosen.push(`${field} 里删掉了 ${name}`);
     }
-  };
-  for (const field of DEP_FIELDS) {
-    compare(
-      field,
-      (name, value) => `新增依赖 ${name}@${value}（${field}）`,
-      (name, from, to) => `依赖版本有变 ${name}：${from} → ${to}（升级要单独成 PR）`,
-    );
   }
   if (root) {
-    compare(
-      "scripts",
-      (name) => `新增根脚本 ${name}`,
-      (name) => `改了已有的根脚本 ${name}`,
-    );
+    const [before, after] = [record(base.scripts), record(head.scripts)];
+    for (const [name, value] of Object.entries(after)) {
+      if (!(name in before)) touch.push(`新增根脚本 ${name}`);
+      else if (before[name] !== value) loosen.push(`改了已有的根脚本 ${name}`);
+    }
+    for (const name of Object.keys(before)) {
+      if (!(name in after)) loosen.push(`scripts 里删掉了 ${name}`);
+    }
     for (const field of ROOT_FROZEN_FIELDS) {
       if (stable(base[field]) !== stable(head[field])) loosen.push(`改了 ${field}`);
     }
+    const judged = new Set([...DEP_FIELDS, "scripts", ...ROOT_FROZEN_FIELDS, ...ROOT_PLAIN_FIELDS]);
+    for (const field of new Set([...Object.keys(base), ...Object.keys(head)])) {
+      if (judged.has(field) || stable(base[field]) === stable(head[field])) continue;
+      const how = !(field in base) ? "新增了" : !(field in head) ? "删掉了" : "改了";
+      loosen.push(
+        `${how}顶层键 ${field}：不在已知的键里，判不出（commitlint、prettier、lint-staged 这类工具先读 package.json 里的同名键，读到了就不看已登记的配置文件）`,
+      );
+    }
   } else {
+    for (const field of TOOL_CONFIG_FIELDS) {
+      if (stable(base[field]) === stable(head[field])) continue;
+      loosen.push(`动了 ${field} 键：工具先读 package.json 里的它，会遮蔽已登记的配置文件`);
+    }
     const [before, after] = [record(base.scripts), record(head.scripts)];
     for (const name of GUARDED_SCRIPTS) {
       if (!(name in before) || before[name] === after[name]) continue;
@@ -276,28 +360,98 @@ function byManifest({ baseText, headText }, { root }) {
   return { touch, loosen };
 }
 
-function lockParts(text) {
-  const header = (text ?? "").split(/^importers:\s*$/m)[0];
-  /** packages 段的条目：名字@版本 → 条目的内容（来源、校验值等，去掉空行与缩进） */
+const LOCK_KEY = /^ {2}(?:'([^']+)'|"([^"]+)"|([^\s'":][^:]*)):/;
+const unquote = (text) => text.trim().replace(/^(['"])(.*)\1$/, "$2");
+/** 去掉版本后面括号里的 peer 解析：4.1.11(@types/node@24.19.0) → 4.1.11。加一个依赖就会让它变，不比 */
+const withoutPeers = (text) => text.replace(/\(.*$/, "");
+
+/** 锁文件里一段的条目：两格缩进的键 → 它下面的行（保留缩进，去掉空行） */
+function lockSection(text, section) {
   const entries = new Map();
-  let inPackages = false;
+  let inside = false;
   let current = null;
   for (const line of (text ?? "").split("\n")) {
     if (/^\S/.test(line)) {
-      inPackages = line.trimEnd() === "packages:";
+      inside = line.trimEnd() === `${section}:`;
       current = null;
-    } else if (inPackages) {
-      const match = line.match(/^ {2}(?:'([^']+)'|"([^"]+)"|([^\s'":][^:]*)):\s*$/);
+    } else if (inside && !isBlank(line)) {
+      const match = line.match(LOCK_KEY);
       if (match) {
         current = match[1] ?? match[2] ?? match[3];
-        entries.set(current, "");
-      } else if (current !== null && !isBlank(line)) {
-        entries.set(current, `${entries.get(current)}${line.trim()}\n`);
+        if (!entries.has(current)) entries.set(current, []);
+      } else if (current !== null) entries.get(current).push(line);
+    }
+  }
+  return entries;
+}
+
+/** importers 段的一个条目：“字段 依赖名” → “specifier 与解析版本”（解析版本不带 peer 解析） */
+function importerDeps(lines) {
+  const deps = new Map();
+  let field = null;
+  let name = null;
+  for (const line of lines) {
+    const indent = indentOf(line);
+    const text = line.trim();
+    if (indent === 4) [field, name] = [text.replace(/:.*$/, ""), null];
+    else if (indent === 6) {
+      name = `${field} ${unquote(text.replace(/:\s*$/, ""))}`;
+      deps.set(name, { specifier: "", version: "" });
+    } else if (indent === 8 && name !== null) {
+      const match = text.match(/^(specifier|version):\s*(.*)$/);
+      if (match) deps.get(name)[match[1]] = withoutPeers(unquote(match[2]));
+    }
+  }
+  return new Map(
+    [...deps].map(([key, dep]) => [key, `specifier ${dep.specifier}、解析到 ${dep.version}`]),
+  );
+}
+
+/** snapshots 段的一个条目：“字段 依赖名” → 版本（不带 peer 解析）。transitivePeerDependencies、optional 不比 */
+function snapshotDeps(lines) {
+  const deps = new Map();
+  let field = null;
+  for (const line of lines) {
+    const indent = indentOf(line);
+    const text = line.trim();
+    if (indent === 4) field = /:\s*$/.test(text) ? text.replace(/:\s*$/, "") : null;
+    else if (indent === 6 && field !== null && !text.startsWith("- ")) {
+      const match = text.match(/^(?:'([^']+)'|"([^"]+)"|([^\s:]+)):\s*(.+)$/);
+      if (match) {
+        deps.set(`${field} ${match[1] ?? match[2] ?? match[3]}`, withoutPeers(unquote(match[4])));
       }
     }
   }
-  return { header, entries };
+  return deps;
 }
+
+function lockParts(text) {
+  const header = (text ?? "").split(/^importers:\s*$/m)[0];
+  /** packages 段的条目：名字@版本 → 条目的内容（来源、校验值等，去掉空行与缩进） */
+  const entries = new Map(
+    [...lockSection(text, "packages")].map(([key, lines]) => [
+      key,
+      lines.map((line) => `${line.trim()}\n`).join(""),
+    ]),
+  );
+  const importers = new Map(
+    [...lockSection(text, "importers")].map(([key, lines]) => [key, importerDeps(lines)]),
+  );
+  /** snapshots 段：同一个“名字@版本”可以有几份（peer 解析不同），并在一起：“字段 依赖名” → 出现过的版本 */
+  const snapshots = new Map();
+  for (const [key, lines] of lockSection(text, "snapshots")) {
+    const name = withoutPeers(key);
+    if (!snapshots.has(name)) snapshots.set(name, new Map());
+    const merged = snapshots.get(name);
+    for (const [dep, version] of snapshotDeps(lines)) {
+      if (!merged.has(dep)) merged.set(dep, new Set());
+      merged.get(dep).add(version);
+    }
+  }
+  return { header, entries, importers, snapshots };
+}
+
+const some = (items) => `${items.slice(0, 5).join("、")}${items.length > 5 ? " 等" : ""}`;
 
 function byLockfile({ baseText, headText }) {
   const touch = [];
@@ -312,19 +466,174 @@ function byLockfile({ baseText, headText }) {
   );
   if (changed.length > 0) {
     loosen.push(
-      `锁文件里有 ${changed.length} 个已有条目的内容有变（来源、校验值等）：${changed.slice(0, 5).join("、")}${changed.length > 5 ? " 等" : ""}`,
+      `锁文件里有 ${changed.length} 个已有条目的内容有变（来源、校验值等）：${some(changed)}`,
     );
   }
   if (removed.length > 0) {
+    loosen.push(`锁文件里有 ${removed.length} 个版本被移除或替换：${some(removed)}`);
+  }
+  if (added.length > 0) touch.push(`锁文件新增 ${added.length} 个版本：${some(added)}`);
+
+  // importers 段：各工作区包的直接依赖实际装哪个版本。已有的依赖 specifier、解析版本有变，或被删，算放松
+  const direct = [];
+  for (const [importer, before] of base.importers) {
+    const after = head.importers.get(importer);
+    if (after === undefined) {
+      direct.push(`${importer} 整个条目被删`);
+      continue;
+    }
+    for (const [dep, was] of before) {
+      const name = dep.replace(/^\S+ /, "");
+      if (!after.has(dep)) direct.push(`${importer} 的 ${name} 被删`);
+      else if (after.get(dep) !== was)
+        direct.push(`${importer} 的 ${name} 由“${was}”改成“${after.get(dep)}”`);
+    }
+  }
+  if (direct.length > 0) {
+    loosen.push(`锁文件 importers 段里有 ${direct.length} 处已有的依赖有变：${some(direct)}`);
+  }
+
+  // snapshots 段：传递依赖实际装哪个版本。已有条目的依赖版本有变或被删，算放松；条目被删由 packages 段判
+  const transitive = [];
+  for (const [entry, before] of base.snapshots) {
+    const after = head.snapshots.get(entry);
+    if (after === undefined) continue;
+    for (const [dep, versions] of before) {
+      const name = dep.replace(/^\S+ /, "");
+      const now = after.get(dep);
+      if (now === undefined) transitive.push(`${entry} 的 ${name} 被删`);
+      else if ([...versions].some((version) => !now.has(version)))
+        transitive.push(
+          `${entry} 的 ${name} 由 ${[...versions].join("、")} 改成 ${[...now].join("、")}`,
+        );
+    }
+  }
+  if (transitive.length > 0) {
     loosen.push(
-      `锁文件里有 ${removed.length} 个版本被移除或替换：${removed.slice(0, 5).join("、")}${removed.length > 5 ? " 等" : ""}`,
+      `锁文件 snapshots 段里有 ${transitive.length} 处已有条目的依赖有变：${some(transitive)}`,
     );
   }
-  if (added.length > 0) {
-    touch.push(
-      `锁文件新增 ${added.length} 个版本：${added.slice(0, 5).join("、")}${added.length > 5 ? " 等" : ""}`,
-    );
+  return { touch, loosen };
+}
+
+/**
+ * tsconfig 允许注释与行尾逗号：去掉之后按 JSON 解析。解析不了即抛错。
+ * 分两遍扫，字符串里的内容原样保留：第一遍去注释，第二遍去掉后面紧跟 } 或 ] 的逗号。
+ */
+function parseJsonc(text) {
+  const scan = (source, skip) => {
+    let out = "";
+    for (let index = 0; index < source.length;) {
+      if (source[index] === '"') {
+        let end = index + 1;
+        while (end < source.length && source[end] !== '"') end += source[end] === "\\" ? 2 : 1;
+        out += source.slice(index, end + 1);
+        index = end + 1;
+      } else {
+        const skipped = skip(source, index);
+        if (skipped === 0) out += source[index];
+        index += skipped || 1;
+      }
+    }
+    return out;
+  };
+  const comment = (source, index) => {
+    if (source.startsWith("//", index)) {
+      const end = source.indexOf("\n", index);
+      return (end === -1 ? source.length : end) - index;
+    }
+    if (source.startsWith("/*", index)) {
+      const end = source.indexOf("*/", index + 2);
+      return (end === -1 ? source.length : end + 2) - index;
+    }
+    return 0;
+  };
+  const trailingComma = (source, index) =>
+    source[index] === "," && /^\s*[}\]]/.test(source.slice(index + 1)) ? 1 : 0;
+  return JSON.parse(scan(scan(text, comment), trailingComma));
+}
+
+/** 一个取值算不算“严”：true 严，false 松，null 不是已知的严格性开关 */
+function strictness(key, value) {
+  if (typeof value !== "boolean") return null;
+  if (TS_STRICT_WHEN_TRUE.has(key)) return value;
+  if (TS_STRICT_WHEN_FALSE.has(key)) return !value;
+  return null;
+}
+
+/**
+ * tsconfig：按解析后的键值判，换行、重排、注释不算改动。
+ * 新增键算只增，四种除外：把已知的严格性开关设成松的一边；顶层新增 exclude、include、files、extends；
+ * 往 exclude 里加项；键或值命中豁免关键字。删、改已有的键值算放松，唯一的例外是把严格性开关由松改严。
+ */
+function byTsconfig({ baseText, headText }) {
+  const touch = [];
+  const loosen = [];
+  const parse = (text, label) => {
+    try {
+      const value = parseJsonc(text);
+      if (value && typeof value === "object" && !Array.isArray(value)) return value;
+    } catch {
+      // 落到下面
+    }
+    loosen.push(`${label}解析不了，判不出`);
+    return null;
+  };
+  const base = parse(baseText, "基线上的文件");
+  const head = parse(headText, "改后的文件");
+  if (!base || !head) return { touch, loosen };
+  const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+  const show = (value) => excerpt(JSON.stringify(value));
+
+  const added = (where, key, value, parent) => {
+    if (isRecord(value)) walk({}, value, where);
+    else if (parent === "compilerOptions" && strictness(key, value) === false)
+      loosen.push(`关掉了严格性开关：新增 ${where}: ${show(value)}`);
+    else if (parent === "" && TS_SCOPE_FIELDS.includes(key))
+      loosen.push(
+        `新增了 ${key}：${show(value)}（会改变查哪些文件、继承哪份预设，判不出是不是只增）`,
+      );
+    else if (EXEMPTION.test(`"${key}": ${JSON.stringify(value)}`))
+      loosen.push(`新增的键像是忽略、豁免或白名单：${where}: ${show(value)}`);
+    else touch.push(`新增 ${where}: ${show(value)}`);
+  };
+  const lists = (was, now, where) => {
+    if (where === "extends") {
+      if (stable(was) !== stable(now)) loosen.push(`改了 extends：${show(was)} → ${show(now)}`);
+      return;
+    }
+    const [before, after] = [new Set(was.map(stable)), new Set(now.map(stable))];
+    for (const item of before)
+      if (!after.has(item)) loosen.push(`${where} 里删掉了 ${excerpt(item)}`);
+    for (const item of after) {
+      if (before.has(item)) continue;
+      if (where === "exclude") loosen.push(`exclude 里加了 ${excerpt(item)}：被检查的文件变少`);
+      else if (EXEMPTION.test(item))
+        loosen.push(`加的项像是忽略、豁免或白名单：${where} 里的 ${excerpt(item)}`);
+      else touch.push(`${where} 里新增 ${excerpt(item)}`);
+    }
+  };
+  function walk(before, after, path) {
+    for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
+      const where = path === "" ? key : `${path}.${key}`;
+      const [was, now] = [before[key], after[key]];
+      if (!(key in after)) loosen.push(`删掉了 ${where}（原来是 ${show(was)}）`);
+      else if (!(key in before)) added(where, key, now, path);
+      else if (isRecord(was) && isRecord(now)) walk(was, now, where);
+      else if (Array.isArray(was) && Array.isArray(now)) lists(was, now, where);
+      else if (stable(was) === stable(now)) continue;
+      else if (
+        path === "compilerOptions" &&
+        strictness(key, was) === false &&
+        strictness(key, now) === true
+      )
+        touch.push(`收紧了严格性开关 ${where}：${show(was)} → ${show(now)}`);
+      else if (path === "compilerOptions" && strictness(key, now) === false)
+        loosen.push(`关掉了严格性开关 ${where}：${show(was)} → ${show(now)}`);
+      else loosen.push(`改了 ${where}：${show(was)} → ${show(now)}`);
+    }
   }
+  walk(base, head, "");
   return { touch, loosen };
 }
 
@@ -377,13 +686,14 @@ function byRegistry({ baseText, headText }) {
 }
 
 /**
- * frozen：一动就算放松，新建也算。唯一的例外：这个路径在基线的清单里还没有登记
+ * frozen：一动就算放松，新建也算。唯一的例外：这个路径的条目是本次差异里新登记的
  *（门禁与它的放行文件在同一个 PR 里一起建立），这时新建算只增，由业主在清单里看到。
+ * 只看差异：分支的共同祖先上没有清单、分支自己也没加这一条的，不算同建。
  */
 function byFrozen(change, entry) {
   const note = entry.note ?? "放行或设置文件";
   if (change.status !== "A") return { touch: [], loosen: [`改了${note}`] };
-  if (change.registeredAtBase(entry.pattern)) return { touch: [], loosen: [`新建了${note}`] };
+  if (!change.registeredInThisDiff(entry.pattern)) return { touch: [], loosen: [`新建了${note}`] };
   return { touch: [`新建了${note}（它的门禁条目也是这次新增的）`], loosen: [] };
 }
 
@@ -405,6 +715,8 @@ const KINDS = {
       ? { touch: ["新增工作流文件"], loosen: [] }
       : byLines(change, { blocks: true }),
   frozen: byFrozen,
+  tsconfig: (change) =>
+    change.status === "A" ? { touch: ["新增文件"], loosen: [] } : byTsconfig(change),
   manifest: (change) => byManifest(change, { root: false }),
   "root-manifest": (change) => byManifest(change, { root: true }),
   lockfile: byLockfile,
@@ -447,14 +759,24 @@ const loosen = [];
 const outside = [];
 let changedFiles = 0;
 
-// 基线上已经登记的条目：判 frozen 文件的“新建”时要用（见 byFrozen）
-const basePatterns = new Set();
-try {
-  const text = git(["show", `${mergeBase}:${REGISTRY_PATH}`], { allowFail: true });
-  for (const entry of JSON.parse(text ?? "{}").files ?? []) basePatterns.add(entry.pattern);
-} catch {
-  // 基线上的清单解析不了：当作一条都没登记
+// 本次差异里新登记的条目：头上的清单里有、共同祖先上的清单里没有。判 frozen 文件的“新建”时要用（见 byFrozen）。
+// 哪一头的清单解析不了，就当作这次没有新登记任何条目（判不出按放松算）
+function registeredAt(revision) {
+  const text = git(["show", `${revision}:${REGISTRY_PATH}`], { allowFail: true });
+  if (text === null) return new Set();
+  try {
+    const files = JSON.parse(text).files;
+    return new Set((Array.isArray(files) ? files : []).map((entry) => entry?.pattern));
+  } catch {
+    return null;
+  }
 }
+const [patternsAtBase, patternsAtHead] = [registeredAt(mergeBase), registeredAt(headSha)];
+const registeredInThisDiff = (pattern) =>
+  patternsAtBase !== null &&
+  patternsAtHead !== null &&
+  patternsAtHead.has(pattern) &&
+  !patternsAtBase.has(pattern);
 
 for (let index = 0; index + 1 < nameStatus.length; index += 2) {
   const status = nameStatus[index];
@@ -478,7 +800,7 @@ for (let index = 0; index + 1 < nameStatus.length; index += 2) {
     baseText: status === "A" ? null : git(["show", `${mergeBase}:${path}`]),
     headText: git(["show", `${headSha}:${path}`]),
     hunks: status === "A" ? [] : hunksOf(mergeBase, headSha, path),
-    registeredAtBase: (pattern) => basePatterns.has(pattern),
+    registeredInThisDiff,
   };
   for (const entry of applicable) {
     const verdict = KINDS[entry.kind](change, entry);

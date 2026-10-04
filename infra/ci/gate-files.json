@@ -3,7 +3,8 @@
     "门禁文件清单：哪些路径算门禁文件、各按什么口径判“只增”与“放松”（计划 第 5.3 节“门禁改动”行；W0-03 任务书 第 11 节第 7 项）。",
     "infra/ci/classify-gate-changes.mjs 读本文件。CI 里用的是 main 上的清单与脚本，PR 改它们不影响对自己的判定。",
     "一个文件命中几条就按几条各判一遍，有一条判为放松即放松；条目的先后没有意义。except 里的路径不按那一条判，但仍算门禁路径：文档不逐行判；检查脚本与门禁自测由各自的 new-file 条目判。",
-    "kind 的取值：append（只许加行，加的行不得是忽略、豁免、白名单，也不得是关掉、降级检查的写法）、new-file（只许新增文件，改已有的一律算放松）、workflow（只许加整个步骤或任务）、frozen（一动就算放松；新建也算，除非它的条目在基线的清单里还没登记）、manifest（依赖只许新增；已有的 typecheck、test、lint 脚本不得删、不得改松）、root-manifest（另管根脚本、engines、packageManager、依赖覆盖项）、lockfile、layers、registry（本清单：只许加条目）。",
+    "kind 的取值：append（只许加行，加的行不得是忽略、豁免、白名单，也不得是关掉、降级检查的写法）、new-file（只许新增文件，改已有的一律算放松）、workflow（只许加整个步骤或任务）、frozen（一动就算放松；新建也算，除非它的条目是同一个 PR 的差异里新登记的）、tsconfig（按解析后的键值判：新增键算只增，删改已有键值、关掉严格性开关、新增 exclude 之类算放松）、manifest（依赖只许新增且写精确版本；已有的 typecheck、test、lint 脚本不得删、不得改松；prettier、lint-staged 之类的工具配置键一动就算放松）、root-manifest（另管根脚本、engines、packageManager、依赖覆盖项；已知集合以外的顶层键有变即算放松）、lockfile、layers、registry（本清单：只许加条目）。",
+    "遮蔽：ESLint、Prettier、commitlint、lint-staged 都会在别的文件名或别的目录里找配置，找到了就不看已登记的那一份。所以这几个工具的配置文件名在任何目录下都按 frozen 登记（已登记为 append 的那一份除外），新增即算放松。",
     "新增门禁文件：往 files 末尾加一条（只增）。改、删已有条目是放松，只在单独的 gate-change PR 里做。用法见 infra/ci/README.md。"
   ],
   "files": [
@@ -41,17 +42,56 @@
     { "pattern": ".nvmrc", "kind": "frozen", "note": "Node 版本" },
     { "pattern": ".node-version", "kind": "frozen", "note": "Node 版本" },
     { "pattern": "eslint.config.js", "kind": "append", "note": "lint 装配" },
+    {
+      "pattern": "**/eslint.config.*",
+      "except": ["eslint.config.js"],
+      "kind": "frozen",
+      "note": "根上那份以外的 lint 配置（子目录里的会遮蔽根上的装配）"
+    },
     { "pattern": "packages/config/eslint/**", "kind": "append", "note": "lint 规则片段" },
-    { "pattern": "packages/config/tsconfig/**", "kind": "append", "note": "tsconfig 预设" },
-    { "pattern": "tsconfig.json", "kind": "append", "note": "根 tsconfig" },
-    { "pattern": "infra/tsconfig.json", "kind": "append", "note": "infra 的 tsconfig" },
+    { "pattern": "packages/config/tsconfig/*.json", "kind": "tsconfig", "note": "tsconfig 预设" },
+    {
+      "pattern": "packages/config/tsconfig/**",
+      "except": ["packages/config/tsconfig/*.json"],
+      "kind": "append",
+      "note": "tsconfig 预设目录下的其余文件"
+    },
+    { "pattern": "tsconfig.json", "kind": "tsconfig", "note": "根 tsconfig" },
+    { "pattern": "infra/tsconfig.json", "kind": "tsconfig", "note": "infra 的 tsconfig" },
     { "pattern": ".dependency-cruiser.cjs", "kind": "append", "note": "依赖方向与分层规则" },
     { "pattern": "vitest.config.ts", "kind": "append", "note": "根测试配置：项目清单" },
     { "pattern": "infra/vitest.config.ts", "kind": "append", "note": "infra 的测试配置" },
     { "pattern": "commitlint.config.js", "kind": "append", "note": "提交信息规则" },
+    {
+      "pattern": "**/commitlint.config.*",
+      "except": ["commitlint.config.js"],
+      "kind": "frozen",
+      "note": "根上那份以外的提交信息规则（会遮蔽已登记的那份）"
+    },
+    {
+      "pattern": "**/.commitlintrc*",
+      "kind": "frozen",
+      "note": "另一种文件名的提交信息规则（会遮蔽已登记的那份）"
+    },
     { "pattern": ".husky/*", "kind": "append", "note": "提交钩子" },
     { "pattern": ".lintstagedrc.json", "kind": "append", "note": "提交前检查" },
-    { "pattern": ".prettierrc", "kind": "frozen", "note": "格式规则" },
+    {
+      "pattern": "**/.lintstagedrc*",
+      "except": [".lintstagedrc.json"],
+      "kind": "frozen",
+      "note": "根上那份以外的提交前检查配置（会遮蔽已登记的那份）"
+    },
+    {
+      "pattern": "**/lint-staged.config.*",
+      "kind": "frozen",
+      "note": "另一种文件名的提交前检查配置（会遮蔽已登记的那份）"
+    },
+    { "pattern": "**/.prettierrc*", "kind": "frozen", "note": "格式规则（任何目录）" },
+    {
+      "pattern": "**/prettier.config.*",
+      "kind": "frozen",
+      "note": "另一种文件名的格式规则（会遮蔽已登记的那份）"
+    },
     { "pattern": ".prettierignore", "kind": "frozen", "note": "格式检查的忽略项" },
     { "pattern": ".gitleaks.toml", "kind": "frozen", "note": "密钥扫描的放行项" },
     { "pattern": ".gitleaksignore", "kind": "frozen", "note": "密钥扫描的放行项" }

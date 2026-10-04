@@ -81,6 +81,11 @@ importers:
       eslint:
         specifier: 10.11.0
         version: 10.11.0
+      vitest:
+        specifier: 4.1.11
+        version: 4.1.11(@types/node@24.19.0)
+
+  packages/services: {}
 
 packages:
 
@@ -90,9 +95,48 @@ packages:
   '@types/node@24.19.0':
     resolution: {integrity: sha512-bbb}
 
+  debug@4.4.3:
+    resolution: {integrity: sha512-ddd}
+
+  ms@2.1.3:
+    resolution: {integrity: sha512-mmm}
+
+  vitest@4.1.11:
+    resolution: {integrity: sha512-vvv}
+
 snapshots:
 
-  eslint@10.11.0: {}
+  eslint@10.11.0:
+    dependencies:
+      debug: 4.4.3
+
+  '@types/node@24.19.0': {}
+
+  debug@4.4.3:
+    dependencies:
+      ms: 2.1.3
+
+  ms@2.1.3: {}
+
+  vitest@4.1.11(@types/node@24.19.0):
+    dependencies:
+      debug: 4.4.3
+    optionalDependencies:
+      '@types/node': 24.19.0
+`;
+/** tsconfig 预设：故意带注释与行尾逗号，分类脚本要能解析 */
+const TSCONFIG = `{
+  // 全仓的严格度以这份为准
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "strict": true,
+    "skipLibCheck": false,
+    "exactOptionalPropertyTypes": false,
+    "types": ["node"],
+  },
+  "include": ["src", "test"],
+}
 `;
 const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
 
@@ -105,6 +149,9 @@ const baseFiles: Record<string, string> = {
   "infra/ci/test/x.test.ts": 'it("x", () => {});\n',
   "infra/ci/README.md": "# 说明\n",
   "packages/config/eslint/repo.js": RULES,
+  "packages/config/tsconfig/base.json": TSCONFIG,
+  "eslint.config.js": "export default [];\n",
+  "commitlint.config.js": 'export default { extends: ["@commitlint/config-conventional"] };\n',
   "package.json": json(ROOT),
   "packages/services/package.json": json(SERVICES),
   "apps/weapp/package.json": json(WEAPP),
@@ -195,6 +242,51 @@ describe("没有门禁改动", () => {
     };
     expect(classify({ "packages/services/package.json": json(next) }).verdict).toBe("none");
   });
+
+  it("根 package.json 改已知的说明性键（license、description）不算门禁改动", () => {
+    const next = { ...ROOT, license: "UNLICENSED", description: "改过的说明" };
+    const result = classify({ "package.json": json(next) });
+    expect(result.verdict).toBe("none");
+    expect(result.outside).toEqual([]);
+  });
+
+  it("工作区包加 exports、main 这类键不算门禁改动", () => {
+    const next = { ...SERVICES, main: "src/index.ts", exports: { ".": "./src/index.ts" } };
+    expect(classify({ "packages/services/package.json": json(next) }).verdict).toBe("none");
+  });
+
+  it("tsconfig 只改写法（去注释、一行拆多行、键与数组项换顺序）：按键值判，不算改动", () => {
+    const next = json({
+      include: ["test", "src"],
+      compilerOptions: {
+        types: ["node"],
+        exactOptionalPropertyTypes: false,
+        skipLibCheck: false,
+        strict: true,
+        lib: ["ES2023"],
+        target: "ES2022",
+      },
+    });
+    const result = classify({ "packages/config/tsconfig/base.json": next });
+    expect(result.verdict).toBe("none");
+    expect(result.outside).toEqual([]);
+  });
+
+  it("锁文件里加依赖带来的 peer 解析变化（版本后面括号里的内容）不算改动", () => {
+    const next = LOCK.replaceAll(
+      "4.1.11(@types/node@24.19.0)",
+      "4.1.11(@types/node@24.19.0)(jsdom@27.0.0)",
+    )
+      .replace("      debug: 4.4.3\n", "      debug: 4.4.3(supports-color@10.2.2)\n")
+      .replace(
+        "  debug@4.4.3:\n    dependencies:",
+        "  debug@4.4.3(supports-color@10.2.2):\n    dependencies:",
+      );
+    expect(next).not.toBe(LOCK);
+    const result = classify({ "pnpm-lock.yaml": next });
+    expect(whats(result.loosen)).toEqual([]);
+    expect(result.verdict).toBe("none");
+  });
 });
 
 describe("只增：判为 gate-touch 并列出", () => {
@@ -208,6 +300,18 @@ describe("只增：判为 gate-touch 并列出", () => {
     ]);
     expect(result.output).toContain("只增 1 项");
   });
+
+  it.each(["4.6.5", "5.0.0-beta.2", "1.2.3+build.7", "workspace:*", "workspace:^"])(
+    "新增依赖写成精确版本或工作区协议（%s）：只增",
+    (version) => {
+      const next = { ...SERVICES, dependencies: { zod: version } };
+      const result = classify({ "packages/services/package.json": json(next) });
+      expect(result.verdict).toBe("touch");
+      expect(whats(result.touch)).toEqual([
+        `packages/services/package.json: 新增依赖 zod@${version}（dependencies）`,
+      ]);
+    },
+  );
 
   it("新增根脚本", () => {
     const next = { ...ROOT, scripts: { ...ROOT.scripts, "infra:up": "docker compose up" } };
@@ -265,6 +369,56 @@ describe("只增：判为 gate-touch 并列出", () => {
     const result = classify({ "packages/config/eslint/repo.js": next });
     expect(result.verdict).toBe("touch");
     expect(whats(result.touch)).toEqual(["packages/config/eslint/repo.js: 新增 1 行"]);
+  });
+
+  it("根上已登记的 lint 装配、提交信息规则里加行：仍按加行判，不被“遮蔽”那几条当成新建", () => {
+    const result = classify({
+      "eslint.config.js": "export default [];\nexport const extra = 1;\n",
+      "commitlint.config.js": `${baseFiles["commitlint.config.js"]}export const extra = 1;\n`,
+    });
+    expect(result.verdict).toBe("touch");
+    expect(whats(result.touch)).toEqual([
+      "commitlint.config.js: 新增 1 行",
+      "eslint.config.js: 新增 1 行",
+    ]);
+  });
+
+  it("tsconfig 新增键、往数组里加项：只增，逐项列出", () => {
+    const next = withChange(
+      withChange(TSCONFIG, '"types": ["node"],', '"types": ["node", "vitest/globals"],'),
+      '"strict": true,',
+      '"strict": true,\n    "noImplicitOverride": true,\n    "paths": { "@/*": ["./src/*"] },',
+    ).replace('"include": ["src", "test"],', '"include": ["src", "test", "scripts"],');
+    const result = classify({ "packages/config/tsconfig/base.json": next });
+    expect(whats(result.loosen)).toEqual([]);
+    expect(result.touch.map((item) => item.what).sort()).toEqual(
+      [
+        'compilerOptions.types 里新增 "vitest/globals"',
+        'include 里新增 "scripts"',
+        "新增 compilerOptions.noImplicitOverride: true",
+        '新增 compilerOptions.paths.@/*: ["./src/*"]',
+      ].sort(),
+    );
+  });
+
+  it("tsconfig 把严格性开关由松改严：是收紧，算只增", () => {
+    const next = withChange(
+      TSCONFIG,
+      '"exactOptionalPropertyTypes": false,',
+      '"exactOptionalPropertyTypes": true,',
+    );
+    const result = classify({ "packages/config/tsconfig/base.json": next });
+    expect(result.verdict).toBe("touch");
+    expect(whats(result.touch)).toEqual([
+      "packages/config/tsconfig/base.json: 收紧了严格性开关 compilerOptions.exactOptionalPropertyTypes：false → true",
+    ]);
+  });
+
+  it("新增一份 tsconfig 预设：只增", () => {
+    const result = classify({
+      "packages/config/tsconfig/node-lib.json": '{ "extends": "./base.json" }\n',
+    });
+    expect(whats(result.touch)).toEqual(["packages/config/tsconfig/node-lib.json: 新增文件"]);
   });
 
   it("加的行里有 disallow、shallow 这类词：不当成豁免", () => {
@@ -330,12 +484,19 @@ describe("只增：判为 gate-touch 并列出", () => {
     expect(result.touch.map((item) => item.what)).toEqual(["新增步骤或任务：- name: 构建"]);
   });
 
-  it("放行文件与它的门禁条目在同一个 PR 里新建：算只增，列出来给业主看", () => {
-    // .gitleaksignore 在真实清单里是 frozen，但这个临时仓库的基线清单里还没有登记它
-    const result = classify({ ".gitleaksignore": "abc:README.md:generic-api-key:1\n" });
+  it("放行文件与它的门禁条目在同一个 PR 里新建：算只增，两样都列出来给业主看", () => {
+    // .gitleaksignore 在真实清单里是 frozen；这次差异里既建了它，也在仓库的清单里登记了它
+    const registry = {
+      files: [...REGISTRY.files, { pattern: ".gitleaksignore", kind: "frozen" }],
+    };
+    const result = classify({
+      ".gitleaksignore": "abc:README.md:generic-api-key:1\n",
+      "infra/ci/gate-files.json": json(registry),
+    });
     expect(result.verdict).toBe("touch");
     expect(whats(result.touch)).toEqual([
       ".gitleaksignore: 新建了密钥扫描的放行项（它的门禁条目也是这次新增的）",
+      "infra/ci/gate-files.json: 新增门禁文件条目 `.gitleaksignore`（frozen）",
     ]);
   });
 
@@ -586,6 +747,184 @@ describe("放松：没有 gate-change 标签即失败", () => {
       "锁文件头部",
     ],
     ["清单文件解析不了（判不出）", { "infra/ci/layers.json": "{ 不是 JSON" }, "解析不了，判不出"],
+    [
+      "新建放行文件，而这次差异里没有登记它的条目",
+      { ".gitleaksignore": "abc:README.md:generic-api-key:1\n" },
+      ".gitleaksignore: 新建了密钥扫描的放行项",
+    ],
+    [
+      "新建放行文件，同时把清单改得解析不了（判不出是不是同建）",
+      { ".gitleaksignore": "abc\n", "infra/ci/gate-files.json": "{ 不是 JSON" },
+      ".gitleaksignore: 新建了密钥扫描的放行项",
+    ],
+    [
+      "锁文件 importers 段里已有依赖的解析版本有变",
+      {
+        "pnpm-lock.yaml": withChange(
+          LOCK,
+          "        version: 10.11.0\n",
+          "        version: 10.10.0\n",
+        ),
+      },
+      "锁文件 importers 段里有 1 处已有的依赖有变：. 的 eslint 由“specifier 10.11.0、解析到 10.11.0”改成“specifier 10.11.0、解析到 10.10.0”",
+    ],
+    [
+      "锁文件 importers 段里已有依赖的 specifier 改成范围",
+      {
+        "pnpm-lock.yaml": withChange(LOCK, "specifier: 4.1.11\n", "specifier: ^4.1.11\n"),
+      },
+      ". 的 vitest 由“specifier 4.1.11、解析到 4.1.11”改成“specifier ^4.1.11、解析到 4.1.11”",
+    ],
+    [
+      "锁文件 importers 段里删掉一个已有的依赖",
+      {
+        "pnpm-lock.yaml": withChange(
+          LOCK,
+          "      vitest:\n        specifier: 4.1.11\n        version: 4.1.11(@types/node@24.19.0)\n",
+          "",
+        ),
+      },
+      "锁文件 importers 段里有 1 处已有的依赖有变：. 的 vitest 被删",
+    ],
+    [
+      "锁文件 importers 段里删掉整个工作区包",
+      { "pnpm-lock.yaml": withChange(LOCK, "  packages/services: {}\n", "") },
+      "packages/services 整个条目被删",
+    ],
+    [
+      "锁文件 snapshots 段里已有条目的依赖版本有变",
+      { "pnpm-lock.yaml": withChange(LOCK, "      ms: 2.1.3\n", "      ms: 2.1.2\n") },
+      "锁文件 snapshots 段里有 1 处已有条目的依赖有变：debug@4.4.3 的 ms 由 2.1.3 改成 2.1.2",
+    ],
+    [
+      "锁文件 snapshots 段里已有条目删掉一个依赖",
+      {
+        "pnpm-lock.yaml": withChange(
+          LOCK,
+          "  debug@4.4.3:\n    dependencies:\n      ms: 2.1.3\n",
+          "  debug@4.4.3: {}\n",
+        ),
+      },
+      "debug@4.4.3 的 ms 被删",
+    ],
+    [
+      "tsconfig 新增一行把 noImplicitAny 关掉",
+      {
+        "packages/config/tsconfig/base.json": withChange(
+          TSCONFIG,
+          '"strict": true,',
+          '"strict": true,\n    "noImplicitAny": false,',
+        ),
+      },
+      "关掉了严格性开关：新增 compilerOptions.noImplicitAny: false",
+    ],
+    [
+      "tsconfig 把 strict 改成 false",
+      {
+        "packages/config/tsconfig/base.json": withChange(
+          TSCONFIG,
+          '"strict": true',
+          '"strict": false',
+        ),
+      },
+      "关掉了严格性开关 compilerOptions.strict：true → false",
+    ],
+    [
+      "tsconfig 用同名键顶替（后写的 strict: false 生效）",
+      {
+        "packages/config/tsconfig/base.json": withChange(
+          TSCONFIG,
+          '"types": ["node"],',
+          '"types": ["node"],\n    "strict": false,',
+        ),
+      },
+      "关掉了严格性开关 compilerOptions.strict：true → false",
+    ],
+    [
+      "tsconfig 把 skipLibCheck 由 false 改成 true",
+      {
+        "packages/config/tsconfig/base.json": withChange(
+          TSCONFIG,
+          '"skipLibCheck": false',
+          '"skipLibCheck": true',
+        ),
+      },
+      "关掉了严格性开关 compilerOptions.skipLibCheck：false → true",
+    ],
+    [
+      "tsconfig 新增 noCheck",
+      {
+        "packages/config/tsconfig/base.json": withChange(
+          TSCONFIG,
+          '"strict": true,',
+          '"strict": true,\n    "noCheck": true,',
+        ),
+      },
+      "关掉了严格性开关：新增 compilerOptions.noCheck: true",
+    ],
+    [
+      "tsconfig 新增 exclude",
+      {
+        "packages/config/tsconfig/base.json": withChange(
+          TSCONFIG,
+          '"include": ["src", "test"],',
+          '"include": ["src", "test"],\n  "exclude": ["src/legacy"],',
+        ),
+      },
+      '新增了 exclude：["src/legacy"]',
+    ],
+    [
+      "tsconfig 新增 extends",
+      {
+        "packages/config/tsconfig/base.json": withChange(
+          TSCONFIG,
+          '"include": ["src", "test"],',
+          '"include": ["src", "test"],\n  "extends": "./loose.json",',
+        ),
+      },
+      '新增了 extends："./loose.json"',
+    ],
+    [
+      "tsconfig 从 include 里删一项",
+      {
+        "packages/config/tsconfig/base.json": withChange(
+          TSCONFIG,
+          '"include": ["src", "test"],',
+          '"include": ["src"],',
+        ),
+      },
+      'include 里删掉了 "test"',
+    ],
+    [
+      "tsconfig 删掉 strict",
+      {
+        "packages/config/tsconfig/base.json": withChange(TSCONFIG, '    "strict": true,\n', ""),
+      },
+      "删掉了 compilerOptions.strict（原来是 true）",
+    ],
+    [
+      "tsconfig 改已有的键（target）",
+      {
+        "packages/config/tsconfig/base.json": withChange(TSCONFIG, '"ES2022"', '"ES5"'),
+      },
+      '改了 compilerOptions.target："ES2022" → "ES5"',
+    ],
+    [
+      "tsconfig 新增的键命中豁免关键字（allowJs）",
+      {
+        "packages/config/tsconfig/base.json": withChange(
+          TSCONFIG,
+          '"strict": true,',
+          '"strict": true,\n    "allowJs": true,',
+        ),
+      },
+      "新增的键像是忽略、豁免或白名单：compilerOptions.allowJs: true",
+    ],
+    [
+      "tsconfig 解析不了（判不出）",
+      { "packages/config/tsconfig/base.json": '{ "compilerOptions": { "strict": }' },
+      "改后的文件解析不了，判不出",
+    ],
   ];
 
   it.each(cases)("%s", (_label, changes, expected) => {
@@ -594,6 +933,105 @@ describe("放松：没有 gate-change 标签即失败", () => {
     expect(whats(result.loosen).join("\n")).toContain(expected);
     expect(result.status).toBe(1);
     expect(result.output).toContain("没有 gate-change 标签");
+  });
+
+  // 新增一个文件就能遮蔽已登记的配置：这些文件名在任何目录下都是 frozen，新建即放松
+  const LINT = "根上那份以外的 lint 配置（子目录里的会遮蔽根上的装配）";
+  const FORMAT = "格式规则（任何目录）";
+  const shadows: Array<[string, string]> = [
+    ["packages/services/eslint.config.js", LINT],
+    ["apps/api/src/eslint.config.mjs", LINT],
+    ["infra/eslint.config.ts", LINT],
+    ["eslint.config.mjs", LINT],
+    ["packages/shared/.prettierrc", FORMAT],
+    ["apps/weapp/.prettierrc.json", FORMAT],
+    [".prettierrc", FORMAT],
+    ["apps/admin/prettier.config.js", "另一种文件名的格式规则（会遮蔽已登记的那份）"],
+    [".commitlintrc.json", "另一种文件名的提交信息规则（会遮蔽已登记的那份）"],
+    ["commitlint.config.mjs", "根上那份以外的提交信息规则（会遮蔽已登记的那份）"],
+    [".lintstagedrc", "根上那份以外的提交前检查配置（会遮蔽已登记的那份）"],
+    ["packages/shared/.lintstagedrc.json", "根上那份以外的提交前检查配置（会遮蔽已登记的那份）"],
+    ["lint-staged.config.js", "另一种文件名的提交前检查配置（会遮蔽已登记的那份）"],
+  ];
+
+  it.each(shadows)("新增 %s：会遮蔽已登记的配置，按放松算", (path, note) => {
+    const result = classify({ [path]: "export default [];\n" });
+    expect(result.verdict).toBe("loosen");
+    expect(whats(result.loosen)).toEqual([`${path}: 新建了${note}`]);
+    expect(result.outside).toEqual([]);
+    expect(result.status).toBe(1);
+  });
+
+  // 新增一个键也能遮蔽：工具先读 package.json 里的同名键
+  it.each(["commitlint", "prettier", "lint-staged", "eslintConfig", "workspaces", "devEngines"])(
+    "根 package.json 新增顶层键 %s：不在已知的键里，按放松算",
+    (key) => {
+      const result = classify({ "package.json": json({ ...ROOT, [key]: { rules: {} } }) });
+      expect(result.verdict).toBe("loosen");
+      expect(whats(result.loosen).join("\n")).toContain(
+        `package.json: 新增了顶层键 ${key}：不在已知的键里，判不出`,
+      );
+      expect(result.status).toBe(1);
+    },
+  );
+
+  it.each(["prettier", "lint-staged", "commitlint", "eslintConfig"])(
+    "工作区包的 package.json 新增 %s 键：按放松算",
+    (key) => {
+      const next = { ...SERVICES, [key]: { semi: false } };
+      const result = classify({ "packages/services/package.json": json(next) });
+      expect(result.verdict).toBe("loosen");
+      expect(whats(result.loosen)).toEqual([
+        `packages/services/package.json: 动了 ${key} 键：工具先读 package.json 里的它，会遮蔽已登记的配置文件`,
+      ]);
+    },
+  );
+
+  // 新增依赖不是精确版本：判不出装的是哪一版
+  it.each([
+    "^4.6.5",
+    "~4.6.5",
+    "*",
+    "latest",
+    ">=4.6.0 <5",
+    "4.x",
+    "4.6",
+    "npm:zod@4.6.5",
+    "catalog:",
+  ])("新增依赖写成 %s：不是精确版本，按放松算", (version) => {
+    const next = { ...SERVICES, dependencies: { zod: version } };
+    const result = classify({ "packages/services/package.json": json(next) });
+    expect(result.verdict).toBe("loosen");
+    expect(result.touch).toEqual([]);
+    expect(whats(result.loosen)).toEqual([
+      `packages/services/package.json: 新增依赖 zod@${version}（dependencies）不是精确版本，判不出装的是哪一版（CLAUDE.md 第 4 节：全部写精确版本）`,
+    ]);
+    expect(result.status).toBe(1);
+  });
+
+  it("根 package.json 新增的依赖写成范围：同样按放松算", () => {
+    const next = { ...ROOT, devDependencies: { ...ROOT.devDependencies, prettier: "^3.9.9" } };
+    const result = classify({ "package.json": json(next) });
+    expect(result.verdict).toBe("loosen");
+    expect(whats(result.loosen).join("\n")).toContain(
+      "新增依赖 prettier@^3.9.9（devDependencies）不是精确版本",
+    );
+  });
+
+  it("分支的共同祖先上没有清单，分支自己也没登记：新建放行文件不算同建，按放松算", () => {
+    const temp = makeTempRepo("lyx-gate-", { "src/app.ts": "export const a = 1;\n" });
+    cleanups.push(temp.cleanup);
+    git(temp.dir, "commit", "-q", "-m", "base");
+    writeFiles(temp.dir, { ".gitleaksignore": "abc:README.md:generic-api-key:1\n" });
+    git(temp.dir, "add", "-A");
+    git(temp.dir, "commit", "-q", "-m", "head");
+    const result = spawnSync("node", [script, "--base", "HEAD~1"], {
+      cwd: temp.dir,
+      encoding: "utf8",
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("- `.gitleaksignore`：新建了密钥扫描的放行项\n");
+    expect(result.stdout).not.toContain("它的门禁条目也是这次新增的");
   });
 
   // 规则文件里只加行，但加的是关掉、降级检查的写法：靠关键字拦
