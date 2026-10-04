@@ -33,7 +33,7 @@
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | [W0-01](W0-01.md) | 根骨架 | 完成 | [#6](https://github.com/byfire-dev/liyoxi-project/pull/6) | W0-04 | 乙 | M | 无 |
 | [W0-02](W0-02.md) | 十个空包与依赖声明 | 完成 | [#7](https://github.com/byfire-dev/liyoxi-project/pull/7) | W0-01；Q4 | 乙 | M | 无 |
-| [W0-03](W0-03.md) | 本地环境与 CI | 完成 | — | W0-02 | 乙 | M | 无 |
+| [W0-03](W0-03.md) | 本地环境与 CI | 完成 | [#15](https://github.com/byfire-dev/liyoxi-project/pull/15)（草稿，等 CI 首次运行补证） | W0-02 | 乙 | M | 无 |
 | [W0-04](W0-04.md) | 协作规范 | 完成 | [#3](https://github.com/byfire-dev/liyoxi-project/pull/3) | — | 丙 | M | 无 |
 | [W0-05](W0-05.md) | `packages/db` 首版迁移 | 未开工 | — | W0-03；Q2 | 甲 | L | 无 |
 | [W0-05b](W0-05b.md) | 测试支架 | 未开工 | — | W0-05 | 乙 | M | 无 |
