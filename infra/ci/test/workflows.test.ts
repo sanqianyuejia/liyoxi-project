@@ -14,47 +14,104 @@ const ci = read(".github/workflows/ci.yml");
 const nightly = read(".github/workflows/nightly.yml");
 const compose = read("infra/compose/local.yml");
 
-/** jobs: 下一级的键，即各任务的编号 */
+interface Job {
+  id: string;
+  /** 任务键下面的行（四格及更深的缩进，不含空行） */
+  lines: string[];
+}
+
+const TOP_KEY = /^[a-z][\w-]*:(?: \S.*)?$/;
+const JOB_KEY = /^ {2}([\w-]+):$/;
+const JOB_FIELD = /^ {4}([a-z][\w-]*):(?: \S.*)?$/;
+const indentOf = (line: string) => line.length - line.trimStart().length;
+const isComment = (line: string) => line.trimStart().startsWith("#");
+
+/**
+ * 按行读一个工作流，并核对它的写法：认不出就算问题。
+ * 下面的断言（检查名、任务清单、needs、runs-on）都按行读，所以先要保证按行读到的就是平台解析出来的。
+ *   顶格的行：只能是注释，或不带引号的键。“jobs:” 要逐字一行、恰好一次，冒号后面不带任何东西
+ *   jobs 段里缩进不到四格的行：只能是注释，或两格缩进的任务编号（“  <编号>:”，不带引号，冒号后面不带任何东西）
+ *   任务下面四格缩进的行：只能是注释，或不带引号的键；其中 name 恰好一行，且逐字是 “    name: <任务编号>”
+ * 带引号的键、行尾注释、行内写法、锚点与别名、合并键、换一种缩进，都算认不出：这些写法 Prettier 原样保留，
+ * 平台照常解析，按行读却读不到。
+ */
+function shapeOf(workflow: string): { jobs: Job[]; problems: string[] } {
+  const jobs: Job[] = [];
+  const problems: string[] = [];
+  let jobsLines = 0;
+  let inJobs = false;
+  let current: Job | null = null;
+  let keyed = false;
+  for (const line of workflow.split("\n")) {
+    if (line.trim() === "") continue;
+    const indent = indentOf(line);
+    if (/\t/.test(line.slice(0, indent))) problems.push(`缩进里有制表符：${line.trim()}`);
+    if (indent === 0) {
+      if (isComment(line)) continue;
+      inJobs = line === "jobs:";
+      current = null;
+      if (inJobs) jobsLines += 1;
+      else if (!TOP_KEY.test(line)) problems.push(`顶格的行认不出：${line}`);
+    } else if (!inJobs) {
+      continue;
+    } else if (indent < 4) {
+      if (isComment(line)) continue;
+      const id = line.match(JOB_KEY)?.[1];
+      current = id === undefined ? null : { id, lines: [] };
+      keyed = true;
+      if (current) jobs.push(current);
+      else problems.push(`jobs 段里缩进不到四格的行认不出：${line}`);
+    } else if (current) {
+      current.lines.push(line);
+    } else if (!keyed && !isComment(line)) {
+      // 任务编号写在四格或更深的缩进上：一个任务都读不到
+      keyed = true;
+      problems.push(`jobs 段里任务编号之前就有内容，认不出：${line.trim()}`);
+    }
+  }
+  if (jobsLines !== 1) {
+    problems.push(`逐字的 “jobs:” 一行要恰好出现一次，现在是 ${jobsLines} 次`);
+  }
+  for (const job of jobs) {
+    const fields = job.lines.filter((line) => indentOf(line) === 4 && !isComment(line));
+    for (const line of fields) {
+      if (!JOB_FIELD.test(line)) problems.push(`任务 ${job.id} 下面四格缩进的行认不出：${line}`);
+    }
+    const names = fields.filter((line) => line.match(JOB_FIELD)?.[1] === "name");
+    if (names.length !== 1 || names[0] !== `    name: ${job.id}`) {
+      problems.push(
+        `任务 ${job.id} 下面要恰好有一行 “name: ${job.id}”（检查名与任务编号相同），现在是：${names.length === 0 ? "没有" : names.map((line) => line.trim()).join("；")}`,
+      );
+    }
+  }
+  return { jobs, problems };
+}
+
+/** jobs: 下一级的键，即各任务的编号。写法合规时（shapeOf 没有问题）它也就是各任务在平台上的检查名 */
 function jobIds(workflow: string): string[] {
-  const body = workflow.split(/^jobs:\s*$/m)[1] ?? "";
-  return [...body.matchAll(/^ {2}([\w-]+):\s*$/gm)].map((match) => match[1] ?? "");
+  return shapeOf(workflow).jobs.map((job) => job.id);
 }
 
-/** 一个任务的全文：从它的键到下一个任务的键 */
+/** 一个任务的全文：它的键下面的行，到下一个任务的键为止 */
 function jobBody(workflow: string, id: string): string {
-  const body = workflow.split(/^jobs:\s*$/m)[1] ?? "";
-  const start = body.search(new RegExp(`^ {2}${id}:\\s*$`, "m"));
-  const rest = body.slice(start).split("\n").slice(1);
-  const end = rest.findIndex((line) => /^ {2}[\w-]+:\s*$/.test(line));
-  return (end === -1 ? rest : rest.slice(0, end)).join("\n");
-}
-
-/** 各任务在平台上的检查名：写了 name 用 name，没写用任务编号。必过检查是按这个名字认的 */
-function checkNames(workflow: string): string[] {
-  return jobIds(workflow).map((id) => {
-    const name = jobBody(workflow, id).match(/^ {4}name:\s*(.+?)\s*(?:#.*)?$/m)?.[1] ?? id;
-    return name.replace(/^(['"])(.*)\1$/, "$2");
-  });
+  return (shapeOf(workflow).jobs.find((job) => job.id === id)?.lines ?? []).join("\n");
 }
 
 /**
- * 检查名的重名问题：同一个工作流里两个任务同名（或任务编号重复）；必过的那个名字在全部工作流里不止一个。
+ * 检查名的问题：工作流的写法认不出；任务的检查名与任务编号不同；同一个工作流里任务编号重复；
+ * 必过的那个名字在全部工作流里不是恰好一个。
  * 重名时平台按哪一个算必过检查说不准：再加一个同名且恒成功的任务，就可能顶掉真的那个。
  */
-function duplicateCheckNames(workflows: Record<string, string>, requiredName: string): string[] {
+function checkNameProblems(workflows: Record<string, string>, requiredName: string): string[] {
   const problems: string[] = [];
   const holders: string[] = [];
   for (const [file, text] of Object.entries(workflows)) {
-    const names = checkNames(text);
-    const ids = jobIds(text);
-    for (const [label, values] of [
-      ["检查名", names],
-      ["任务编号", ids],
-    ] as const) {
-      const repeated = [...new Set(values.filter((value, at) => values.indexOf(value) !== at))];
-      for (const value of repeated) problems.push(`${file}：${label} ${value} 出现了不止一次`);
-    }
-    for (const name of names) if (name === requiredName) holders.push(file);
+    const shape = shapeOf(text);
+    for (const problem of shape.problems) problems.push(`${file}：${problem}`);
+    const ids = shape.jobs.map((job) => job.id);
+    const repeated = [...new Set(ids.filter((id, at) => ids.indexOf(id) !== at))];
+    for (const id of repeated) problems.push(`${file}：任务编号 ${id} 出现了不止一次`);
+    for (const id of ids) if (id === requiredName) holders.push(file);
   }
   if (holders.length !== 1) {
     problems.push(
@@ -70,68 +127,172 @@ describe("全部工作流", () => {
     files.map((name) => [name, read(`.github/workflows/${name}`)]),
   );
 
-  it("必过检查名 required 在全部工作流里只出现一次，同一个工作流里任务名不重复", () => {
-    expect(duplicateCheckNames(workflows, "required")).toEqual([]);
-    expect(checkNames(ci)).toContain("required");
-    // 每个任务都显式写了 name，且与任务编号相同：检查名不靠缺省值
-    for (const text of Object.values(workflows)) expect(checkNames(text)).toEqual(jobIds(text));
+  it("必过检查名 required 在全部工作流里只出现一次；写法都认得出，每个任务的检查名就是任务编号", () => {
+    expect(checkNameProblems(workflows, "required")).toEqual([]);
+    expect(jobIds(ci)).toContain("required");
   });
 
   describe("重名的反例：上面那条断言要能把它们查出来", () => {
+    const TAIL = ["    runs-on: ubuntu-24.04", "    steps:", '      - run: "true"', ""];
     const shadowJob = (id: string, name: string | null) =>
+      [`  ${id}:`, ...(name === null ? [] : [`    name: ${name}`]), ...TAIL].join("\n");
+    const HEAD = "name: extra\non:\n  pull_request:\npermissions:\n  contents: read\n";
+    const extra = (job: string) => `${HEAD}jobs:\n${job}`;
+    const TWICE = "检查名 required 在全部工作流里要恰好出现一次，现在是 2 次（ci.yml、extra.yml）";
+    const nameOf = (id: string, now: string) =>
+      `任务 ${id} 下面要恰好有一行 “name: ${id}”（检查名与任务编号相同），现在是：${now}`;
+
+    // 另一个工作流里造一个也叫 required 的检查。前四种是写了能认出来的 name；后面几种是换一种
+    // Prettier 原样保留、平台照常解析的写法，按行读不到：认不出就算问题
+    const shadows: Array<[string, string, string[]]> = [
       [
-        `  ${id}:`,
-        ...(name === null ? [] : [`    name: ${name}`]),
-        "    runs-on: ubuntu-24.04",
-        "    steps:",
-        '      - run: "true"',
-        "",
-      ].join("\n");
-    const extra = (job: string) =>
-      `name: extra\non:\n  pull_request:\npermissions:\n  contents: read\njobs:\n${job}`;
+        "任务的 name 是 required",
+        extra(shadowJob("shadow", "required")),
+        [`extra.yml：${nameOf("shadow", "name: required")}`],
+      ],
+      [
+        "name 带引号",
+        extra(shadowJob("shadow", '"required"')),
+        [`extra.yml：${nameOf("shadow", 'name: "required"')}`],
+      ],
+      [
+        "name 后面带注释",
+        extra(shadowJob("shadow", "required # 恒成功")),
+        [`extra.yml：${nameOf("shadow", "name: required # 恒成功")}`],
+      ],
+      [
+        "没写 name，任务编号就是 required",
+        extra(shadowJob("required", null)),
+        [`extra.yml：${nameOf("required", "没有")}`, TWICE],
+      ],
+      ["任务编号是 required，name 也照规矩写", extra(shadowJob("required", "required")), [TWICE]],
+      [
+        "任务键带行尾注释",
+        extra(["  shadow: # 说明", "    name: required", ...TAIL].join("\n")),
+        ["extra.yml：jobs 段里缩进不到四格的行认不出：  shadow: # 说明"],
+      ],
+      [
+        "任务键带引号，不写 name",
+        extra(['  "required":', ...TAIL].join("\n")),
+        ['extra.yml：jobs 段里缩进不到四格的行认不出：  "required":'],
+      ],
+      [
+        "jobs 一行带行尾注释",
+        `${HEAD}jobs: # 说明\n${shadowJob("required", null)}`,
+        ["extra.yml：逐字的 “jobs:” 一行要恰好出现一次，现在是 0 次"],
+      ],
+      [
+        "jobs 的键带引号",
+        `${HEAD}"jobs":\n${shadowJob("required", null)}`,
+        [
+          'extra.yml：顶格的行认不出："jobs":',
+          "extra.yml：逐字的 “jobs:” 一行要恰好出现一次，现在是 0 次",
+        ],
+      ],
+      [
+        "name 的键带引号",
+        extra(["  shadow:", '    "name": required', ...TAIL].join("\n")),
+        [
+          'extra.yml：任务 shadow 下面四格缩进的行认不出：    "name": required',
+          `extra.yml：${nameOf("shadow", "没有")}`,
+        ],
+      ],
+      [
+        "任务写成行内的一整段",
+        extra('  shadow: { name: required, runs-on: ubuntu-24.04, steps: [{ run: "true" }] }\n'),
+        [
+          'extra.yml：jobs 段里缩进不到四格的行认不出：  shadow: { name: required, runs-on: ubuntu-24.04, steps: [{ run: "true" }] }',
+        ],
+      ],
+      [
+        "任务编号缩进三格",
+        extra(["   required:", "     runs-on: ubuntu-24.04", "     steps:", ""].join("\n")),
+        ["extra.yml：jobs 段里缩进不到四格的行认不出：   required:"],
+      ],
+      [
+        "任务编号缩进四格",
+        extra(["    required:", "        runs-on: ubuntu-24.04", ""].join("\n")),
+        ["extra.yml：jobs 段里任务编号之前就有内容，认不出：required:"],
+      ],
+      [
+        "任务的内容缩进五格，name 是 required",
+        extra(["  shadow:", "     name: required", "     runs-on: ubuntu-24.04", ""].join("\n")),
+        [`extra.yml：${nameOf("shadow", "没有")}`],
+      ],
+      [
+        "任务整个引用一个锚点",
+        extra(["  shadow: *job", ""].join("\n")),
+        ["extra.yml：jobs 段里缩进不到四格的行认不出：  shadow: *job"],
+      ],
+      [
+        "name 经合并键带进来",
+        extra(["  shadow:", "    <<: *named", "    name: shadow", ...TAIL].join("\n")),
+        ["extra.yml：任务 shadow 下面四格缩进的行认不出：    <<: *named"],
+      ],
+      [
+        "name 写了两行，后一行是 required",
+        extra(
+          ["  shadow:", "    name: shadow", ...TAIL.slice(0, 3), "    name: required", ""].join(
+            "\n",
+          ),
+        ),
+        [`extra.yml：${nameOf("shadow", "name: shadow；name: required")}`],
+      ],
+    ];
 
-    it.each([
-      ["另一个工作流里的任务也叫 required", shadowJob("shadow", "required")],
-      ["名字带引号", shadowJob("shadow", '"required"')],
-      ["名字后面带注释", shadowJob("shadow", "required # 恒成功")],
-      ["没写 name，任务编号就是 required", shadowJob("required", null)],
-    ])("%s：查出 required 出现两次", (_label, job) => {
-      expect(duplicateCheckNames({ ...workflows, "extra.yml": extra(job) }, "required")).toEqual([
-        "检查名 required 在全部工作流里要恰好出现一次，现在是 2 次（ci.yml、extra.yml）",
+    it.each(shadows)("另一个工作流里%s：查得出", (_label, text, expected) => {
+      expect(checkNameProblems({ ...workflows, "extra.yml": text }, "required")).toEqual(expected);
+    });
+
+    it("ci.yml 末尾追加一个任务键带行尾注释、runs-on 的键带引号的任务：查得出", () => {
+      const job = ["  shadow: # 说明", "    name: required", '    "runs-on": ubuntu-24.04', ""];
+      const mutated = { ...workflows, "ci.yml": `${ci}\n${job.join("\n")}` };
+      expect(checkNameProblems(mutated, "required")).toEqual([
+        "ci.yml：jobs 段里缩进不到四格的行认不出：  shadow: # 说明",
       ]);
     });
 
-    it("ci.yml 里再加一个检查名也叫 required 的任务：查出同一个工作流里重名", () => {
+    it("ci.yml 里再加一个 name 是 required 的任务：查得出", () => {
       const mutated = { ...workflows, "ci.yml": `${ci}\n${shadowJob("shadow", "required")}` };
-      expect(duplicateCheckNames(mutated, "required")).toEqual([
-        "ci.yml：检查名 required 出现了不止一次",
-        "检查名 required 在全部工作流里要恰好出现一次，现在是 2 次（ci.yml、ci.yml）",
+      expect(checkNameProblems(mutated, "required")).toEqual([
+        `ci.yml：${nameOf("shadow", "name: required")}`,
       ]);
     });
 
-    it("同一个工作流里两个任务同名（不是 required 也算）", () => {
+    it("同一个工作流里两个任务的检查名相同（不是 required 也算）", () => {
       const mutated = { ...workflows, "ci.yml": `${ci}\n${shadowJob("lint-again", "verify")}` };
-      expect(duplicateCheckNames(mutated, "required")).toEqual([
-        "ci.yml：检查名 verify 出现了不止一次",
+      expect(checkNameProblems(mutated, "required")).toEqual([
+        `ci.yml：${nameOf("lint-again", "name: verify")}`,
       ]);
     });
 
     it("任务编号重复（后写的顶掉前面的）", () => {
-      const mutated = { ...workflows, "ci.yml": `${ci}\n${shadowJob("verify", "verify-2")}` };
-      // 按编号取任务正文时两个都取到前一个，所以检查名也报重复
-      expect(duplicateCheckNames(mutated, "required")).toEqual([
-        "ci.yml：检查名 verify 出现了不止一次",
-        "ci.yml：任务编号 verify 出现了不止一次",
+      const mutated = { ...workflows, "ci.yml": `${ci}\n${shadowJob("required", "required")}` };
+      expect(checkNameProblems(mutated, "required")).toEqual([
+        "ci.yml：任务编号 required 出现了不止一次",
+        "检查名 required 在全部工作流里要恰好出现一次，现在是 2 次（ci.yml、ci.yml）",
       ]);
     });
 
     it("把 required 改了名：查出一次都没有", () => {
-      const mutated = {
-        ...workflows,
-        "ci.yml": ci.replace("    name: required\n", "    name: all\n"),
-      };
-      expect(duplicateCheckNames(mutated, "required")).toEqual([
+      const renamed = ci.replace("  required:\n    name: required\n", "  all:\n    name: all\n");
+      expect(renamed).not.toBe(ci);
+      expect(checkNameProblems({ ...workflows, "ci.yml": renamed }, "required")).toEqual([
         "检查名 required 在全部工作流里要恰好出现一次，现在是 0 次",
+      ]);
+    });
+
+    it("只改 required 的 name、不改任务编号：查得出", () => {
+      const renamed = ci.replace("    name: required\n", "    name: all\n");
+      expect(checkNameProblems({ ...workflows, "ci.yml": renamed }, "required")).toEqual([
+        `ci.yml：${nameOf("required", "name: all")}`,
+      ]);
+    });
+
+    it("顶格多出一行认不出的内容（第二个文档、合并键之类）：查得出", () => {
+      const text = `${extra(shadowJob("shadow", "shadow"))}---\n`;
+      expect(checkNameProblems({ ...workflows, "extra.yml": text }, "required")).toEqual([
+        "extra.yml：顶格的行认不出：---",
       ]);
     });
   });
@@ -150,6 +311,8 @@ describe("全部工作流", () => {
     expect(text).not.toContain("continue-on-error");
     expect(text).not.toContain("pull_request_target");
     expect(text).toMatch(/^permissions:\n {2}contents: read\n/m);
+    // 令牌有 checks、statuses 的写权限时，能经接口造出任意名字的检查（包括 required）：哪个工作流都不给
+    expect(text).not.toMatch(/\bchecks\b|\bstatuses\b|write-all/);
   });
 });
 
