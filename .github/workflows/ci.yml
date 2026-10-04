@@ -1,0 +1,189 @@
+# 狸有戏 · CI 第一版（计划 第 5.5 节“M0 起”；D7 第 8.1 节）。
+#
+# 必过检查只有一个：汇总任务 required，它依赖全部必过任务。业主在 main 的保护规则里只设 required 一项。
+# 加检查的规矩（门禁改动分类按“只增”判，写法见 infra/ci/README.md）：
+#   - 加一步：在 verify 里新增一个完整的步骤（“- name:” 开头的一整段）。
+#   - 加任务：新增一个完整的任务，并在 required 的 needs 里加一行。
+#   - 删改已有的步骤或任务是放松类改动，只在单独的 gate-change PR 里做。
+# 执行机只写在一处：verify 的 runs-on 带锚点 &runner，其余任务用 *runner 引用。改成自托管时只改那一处。
+# 第三方 Action 一律固定到提交 SHA，行尾注明版本。CI 里不放任何密钥：下面的连接串是本地开发的固定值，
+# 与 infra/compose/local.yml 相同，只对本次运行的服务容器有效。
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# 同一个分支的新提交取消在途的运行；main 上的运行不取消，每次合并都跑完
+concurrency:
+  group: ci-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify
+    runs-on: &runner ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-trixie
+        env:
+          POSTGRES_USER: liyoxi
+          POSTGRES_PASSWORD: lyx-local-dev
+          POSTGRES_DB: liyoxi
+        ports: ["5442:5432"]
+        options: >-
+          --health-cmd "pg_isready -U liyoxi -d liyoxi"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 30
+      redis:
+        image: redis:7.4-alpine
+        ports: ["6389:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      APP_ENV: test
+      DATABASE_URL: postgresql://liyoxi:lyx-local-dev@localhost:5442/liyoxi
+      REDIS_URL: redis://localhost:6389/0
+    steps:
+      - name: 检出（带完整历史：密钥扫描与发布时长检查要用）
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: 装 pnpm（版本取 package.json 的 packageManager）
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - name: 装 Node（版本取 .nvmrc）
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: 冻结安装
+        run: pnpm install --frozen-lockfile
+      - name: lint
+        run: pnpm lint
+      - name: 格式
+        run: pnpm format:check
+      - name: 换名检查
+        run: pnpm check:rename
+      - name: 类型
+        run: pnpm typecheck
+      - name: 依赖方向与五层
+        run: pnpm depcheck
+      - name: 测试
+        run: pnpm test
+      - name: 构建
+        run: pnpm -r --if-present build
+      - name: .env.example 核对
+        run: node infra/ci/check-env-example.mjs
+      - name: 密钥扫描
+        run: node infra/ci/secret-scan.mjs
+      - name: 依赖审计（高危阻断）
+        run: pnpm audit --prod --audit-level high --registry https://registry.npmjs.org/
+      - name: 新增依赖发布时长
+        env:
+          SINCE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
+        run: node infra/ci/check-release-age.mjs --since "$SINCE" --registry https://registry.npmjs.org/
+      - name: gates:selftest
+        run: pnpm gates:selftest
+      - name: 状态汇总无差异
+        run: node infra/ci/status-summary.mjs --check
+
+  gate-classify:
+    name: gate-classify
+    if: github.event_name == 'pull_request'
+    runs-on: *runner
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: 检出 PR 的提交（带完整历史：要找与 main 的共同祖先）
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: 装 Node（版本取 .nvmrc）
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - name: 取 main 上的分类脚本与清单（main 上还没有时用 PR 里的）
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/gate"
+          if git cat-file -e "origin/$BASE_REF:infra/ci/classify-gate-changes.mjs" 2>/dev/null &&
+            git cat-file -e "origin/$BASE_REF:infra/ci/gate-files.json" 2>/dev/null; then
+            git show "origin/$BASE_REF:infra/ci/classify-gate-changes.mjs" > "$RUNNER_TEMP/gate/classify-gate-changes.mjs"
+            git show "origin/$BASE_REF:infra/ci/gate-files.json" > "$RUNNER_TEMP/gate/gate-files.json"
+            echo "用 $BASE_REF 上的分类脚本与清单"
+          else
+            cp infra/ci/classify-gate-changes.mjs infra/ci/gate-files.json "$RUNNER_TEMP/gate/"
+            echo "$BASE_REF 上还没有分类脚本或清单，用 PR 里的"
+          fi
+      - name: 门禁改动分类（写 PR 描述顶部的清单，打 gate-touch）
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_REF: ${{ github.base_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: >-
+          node "$RUNNER_TEMP/gate/classify-gate-changes.mjs"
+          --base "origin/$BASE_REF"
+          --pr "$PR_NUMBER"
+          --repo "$GITHUB_REPOSITORY"
+
+  required:
+    name: required
+    if: always()
+    needs:
+      - verify
+      - gate-classify
+    runs-on: *runner
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: 检出
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: 装 Node（版本取 .nvmrc）
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - name: 取各任务的起止时间
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100"
+          > "$RUNNER_TEMP/jobs.json"
+          || echo "没取到任务列表，时长记为未知"
+      - name: 汇总判定与时长统计
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          # 只在 PR 上跑的任务，推到 main 时会被跳过
+          MAY_SKIP: ${{ github.event_name != 'pull_request' && 'gate-classify' || 'none' }}
+        run: >-
+          node infra/ci/ci-required.mjs
+          --needs "$NEEDS_JSON"
+          --jobs "$RUNNER_TEMP/jobs.json"
+          --may-skip "$MAY_SKIP"
+          --out ci-duration.json
+      - name: 上传时长统计
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-duration
+          path: ci-duration.json
+          if-no-files-found: warn
+          retention-days: 30
