@@ -185,6 +185,10 @@
 | `pnpm --dir spikes/license-pdf render`（另有 `test`、`render:container`、`typecheck`） | 授权书 PDF 渲染验证（X-03）：出三份样张与报告；跑用例；在 `node:24-slim` 容器里复跑。独立工程，先 `pnpm --dir spikes/license-pdf install --frozen-lockfile`。见 [README](spikes/license-pdf/README.md) |
 | `pnpm mediatool:verify` | mediatool 隔离容器的验证：构建镜像，起验证用的 Compose，现场造测试片，在调用端容器里跑用例，再核对容器配置；跑完删掉容器与卷。本机要有 Docker。见 [README](infra/docker/mediatool/README.md) |
 | `pnpm mediatool:bench` | 同上，另造一条约 200MB 的片子，量“体检 + 封面”与加标的耗时 |
+| `pnpm admin:build`、`pnpm portal:build` | 后台、下载页的生产构建（产物在各自的 `dist/app`），随后查产物：文件名带内容哈希、写入了构建号、不含夹具。见 [README](apps/admin/README.md) |
+| `pnpm admin:e2e` | 后台 Playwright 冒烟：先出一份带样例页的构建，起它的预览，走一条用例，出四张截图（`apps/admin/dist/e2e-shots`）。浏览器怎么备见 [README](apps/admin/README.md) |
+| `pnpm --filter @liyoxi/admin test`、`pnpm --filter @liyoxi/portal test` | 后台、下载页的单测。根上的 `pnpm test` 不含这两个应用：它们的单测与构建共用各自的 `vite.config.ts` |
+| `node infra/ci/pages/generate.mjs`（加 `--check` 只比对） | 由后台菜单登记表与下载页页面清单重新生成 `docs/plan/pages.md`。用法见 [脚本](infra/ci/pages/generate.mjs) 开头的注释 |
 
 本地连接参数：配置只经 `loadEnv`（`packages/services/src/kernel/env.ts`）读环境变量，会话与测试不建、不读 `.env`，在命令前或 shell 里给出。取值出处是 [local.yml](infra/compose/local.yml)，账号与口令是固定的开发值，只对本机这套容器有效；CI 的服务容器用同一组值。
 
