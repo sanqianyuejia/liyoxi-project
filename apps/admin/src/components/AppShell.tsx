@@ -111,6 +111,14 @@ export function AppShell({
             theme="dark"
             mode="inline"
             inlineIndent={12}
+            // 分组箭头照原型：收起朝右、展开朝下（antd 缺省是朝下、朝上）
+            expandIcon={({ isOpen }) => (
+              <Icon
+                name={isOpen ? "chevron-down" : "chevron-right"}
+                size={14}
+                className="ant-menu-submenu-expand-icon lyx-menu-arrow"
+              />
+            )}
             items={items}
             selectedKeys={selectedKey ? [selectedKey] : []}
             openKeys={openKeys}

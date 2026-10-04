@@ -72,11 +72,19 @@ export const adminTheme: ThemeConfig = {
       paddingInlineLG: px(sharedTokens.space[20]),
       paddingInlineSM: px(sharedTokens.space[12]),
       borderColorDisabled: color["fill-disabled"],
+      // 三档高度的圆角：36 与 40 都是 8（大号不跟全局的 12），行内 32 是 6（规范 第 5.2、5.3 节）
+      borderRadiusLG: px(radius.control),
+      // 悬停：主按钮底加深（规范 第 12 节）；antd 缺省由主色算出一个更浅的颜色
+      colorPrimaryHover: color["primary-text"],
+      // 文字按钮（“重置筛选”一类）悬停、按下不变浅，下划线在 global.css 里加
+      colorLinkHover: color["primary-text"],
+      colorLinkActive: color["primary-text"],
     },
     Modal: {
       titleFontSize: px(fontSize["title-lg"]),
       borderRadiusLG: px(radius.modal),
       boxShadow: shadow.modal,
+      // 内边距 24、内部间距 16、关闭按钮 32 × 32 灰底：这几样没有公开的主题变量，在 global.css 里覆盖
     },
     Drawer: {
       boxShadow: shadow.drawer,
@@ -137,7 +145,8 @@ export const adminTheme: ThemeConfig = {
     },
     Alert: {
       defaultPadding: `${sharedTokens.space[10]} ${sharedTokens.space[12]}`,
-      borderRadiusLG: px(radius.control),
+      // 圆角 8 在 global.css 里给，不在这里设：antd 6.6 的提示条用自己的圆角变量 --ant-alert-border-radius，
+      // 组件级把它（或 borderRadiusLG）设成 8、与全局的 borderRadius 同值时，这个变量不输出，圆角落成 0（实测）
       colorSuccessBorder: color["success-bg"],
       colorInfoBorder: color["info-bg"],
       colorWarningBorder: color["warning-bg"],

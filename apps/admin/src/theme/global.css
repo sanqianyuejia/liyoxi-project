@@ -114,6 +114,13 @@ body {
   line-height: var(--lyx-size-control-sm);
 }
 
+/* 分组箭头：14px，贴着菜单项的右内边距（位置与过渡沿用 antd 给展开图标的样式） */
+.lyx-shell__nav .ant-menu .lyx-menu-arrow {
+  inset-inline-end: var(--lyx-space-12);
+  width: 14px;
+  height: 14px;
+}
+
 .lyx-menu-label {
   display: flex;
   gap: var(--lyx-space-8);
@@ -450,6 +457,14 @@ body {
   margin-inline-start: auto;
 }
 
+/*
+ * 下拉的高度（规范 第 5.3 节：36；小号 32）。字号下调到 13 之后，antd 仍按 14 的行高算上下内边距，
+ * 控件矮了 1.6px：把“文字行高”这个变量按实际字号算回去，各档的高度就回到控件高。
+ */
+:root .ant-select {
+  --ant-select-font-height: calc(var(--ant-select-font-size) * var(--ant-select-line-height));
+}
+
 .lyx-table .ant-table-thead > tr > th {
   height: var(--lyx-size-table-header);
   padding-block: 0;
@@ -458,9 +473,14 @@ body {
   border-bottom: var(--lyx-border-width-default) solid var(--lyx-color-border-light);
 }
 
+/* 行高两档：单行内容 44，双行内容 56。一行里有双行单元格（.lyx-cell-2）就取 56，页面不用另外声明 */
 .lyx-table .ant-table-tbody > tr > td {
   height: var(--lyx-size-table-row);
   padding-block: var(--lyx-space-6);
+}
+
+.lyx-table .ant-table-tbody > tr > td:has(.lyx-cell-2) {
+  height: var(--lyx-size-table-row-double);
 }
 
 .lyx-table .ant-table-cell:first-child {
@@ -523,12 +543,26 @@ body {
   border: 0;
 }
 
-.lyx-link:hover {
+/* 悬停只加下划线，颜色不变（规范 第 12 节）；antd 对 a:hover 另有一条变浅的规则，这里压住 */
+.lyx-link:hover,
+a.lyx-link:hover {
+  color: var(--lyx-color-primary-text);
   text-decoration: underline;
 }
 
-.lyx-link--danger {
+.lyx-link--danger,
+.lyx-link--danger:hover,
+a.lyx-link--danger:hover {
   color: var(--lyx-color-danger);
+}
+
+/* 文字按钮（antd 的 link 型按钮，如“重置筛选”）：13px，悬停加下划线（规范 第 5.3、12 节） */
+.ant-btn.ant-btn-variant-link {
+  font-size: var(--lyx-font-size-body);
+}
+
+.ant-btn.ant-btn-variant-link:not(:disabled):hover > span {
+  text-decoration: underline;
 }
 
 /* 表格骨架：首次加载显示 5 行 */
@@ -812,11 +846,26 @@ body {
   color: var(--lyx-color-danger);
 }
 
-/* 驳回按钮：白底、描边、危险色字 600 */
-.lyx-btn-reject.ant-btn {
+/*
+ * 危险描边按钮（规范 第 5.2 节“操作按钮”、第 5.3 节“危险描边见队列工作台”）：白底、描边、危险色字 600。
+ * 两种写法同一个样子：工作台的驳回（.lyx-btn-reject），与页面里写的 <Button danger>（如详情页头的“禁用账号”）。
+ */
+.lyx-btn-reject.ant-btn:not(:disabled),
+.ant-btn.ant-btn-color-dangerous.ant-btn-variant-outlined:not(:disabled) {
   font-weight: var(--lyx-font-weight-semibold);
   color: var(--lyx-color-danger);
+  background: var(--lyx-color-bg-card);
   border-color: var(--lyx-color-danger-border);
+}
+
+/* 悬停、按下：字仍是危险色，描边变成危险色（次按钮“描边变主色”的危险款）；不落回次按钮的黑字橙边，也不变浅 */
+.lyx-btn-reject.ant-btn:not(:disabled):hover,
+.lyx-btn-reject.ant-btn:not(:disabled):active,
+.ant-btn.ant-btn-color-dangerous.ant-btn-variant-outlined:not(:disabled):hover,
+.ant-btn.ant-btn-color-dangerous.ant-btn-variant-outlined:not(:disabled):active {
+  color: var(--lyx-color-danger);
+  background: var(--lyx-color-bg-card);
+  border-color: var(--lyx-color-danger);
 }
 
 /* 主按钮字重 600；禁用主按钮的底与字（规范 第 5.3 节） */
@@ -901,6 +950,65 @@ body {
   font-weight: var(--lyx-font-weight-semibold);
 }
 
+/* ---------- 弹窗与右上角通知（规范 第 5.3 节“弹窗”“关闭按钮”“轻提示”；主题变量管不到的几处） ---------- */
+
+/* 弹窗内边距 24 */
+.ant-modal .ant-modal-container {
+  padding: var(--lyx-space-24);
+}
+
+/* 关闭按钮：32 × 32，圆角 8，灰底，贴着弹窗的内边距（24）放在标题右侧 */
+.ant-modal .ant-modal-container .ant-modal-close {
+  top: var(--lyx-space-24);
+  inset-inline-end: var(--lyx-space-24);
+  width: var(--lyx-size-control-sm);
+  height: var(--lyx-size-control-sm);
+  color: var(--lyx-color-text-primary);
+  background: var(--lyx-color-bg-page);
+  border-radius: var(--lyx-radius-control);
+}
+
+.ant-modal .ant-modal-container .ant-modal-close:hover {
+  background: var(--lyx-color-fill-neutral);
+}
+
+.ant-modal .ant-modal-container .ant-modal-close .ant-modal-close-x {
+  line-height: var(--lyx-size-control-sm);
+}
+
+/* 头部与内容的间距 16（内部间距）；标题不伸到关闭按钮底下：右侧让出按钮的宽度加间距 12 */
+.ant-modal .ant-modal-container .ant-modal-header {
+  padding-inline-end: calc(var(--lyx-size-control-sm) + var(--lyx-space-12));
+  margin-bottom: var(--lyx-space-16);
+}
+
+/* 提示条圆角 8（规范 第 5.3 节“提示条”）；通栏的那种（banner）不要圆角。主题变量不起作用的原因见 antd.ts 的 Alert 一段 */
+.ant-alert:not(.ant-alert-banner) {
+  border-radius: var(--lyx-radius-control);
+}
+
+.ant-alert {
+  line-height: var(--lyx-line-height-body);
+}
+
+/* 通知的关闭键 28 × 28；图标 16（对勾用浅绿，失败用红色感叹号，图标由 app/feedback.ts 给） */
+.ant-notification .ant-notification-notice .ant-notification-notice-close {
+  width: 28px;
+  height: 28px;
+}
+
+.lyx-toast-icon {
+  display: block;
+}
+
+.lyx-toast-icon--success {
+  color: var(--lyx-color-toast-icon);
+}
+
+.lyx-toast-icon--danger {
+  color: var(--lyx-color-danger);
+}
+
 /* ---------- 二次确认（规范 第 5.3 节“二次确认弹窗”） ---------- */
 
 .lyx-confirm {
@@ -909,8 +1017,10 @@ body {
   gap: var(--lyx-space-16);
 }
 
+/* 说明属于弹窗头部：紧跟在标题下面（间距 4，抵掉头部下方的 16），右侧同样让出关闭按钮 */
 .lyx-confirm__desc {
-  margin: 0;
+  padding-inline-end: calc(var(--lyx-size-control-sm) + var(--lyx-space-12));
+  margin: calc(var(--lyx-space-4) - var(--lyx-space-16)) 0 0;
   font-size: var(--lyx-font-size-body);
   color: var(--lyx-color-text-secondary);
 }
