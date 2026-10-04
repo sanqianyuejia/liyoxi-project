@@ -12,7 +12,7 @@
 // 口径（清单里每个 kind 的判法；判不出的一律按放松算）：
 //   append         新增文件、加行算只增；删改已有行算放松；加的行像忽略、豁免、白名单也算放松
 //   workflow       同上，且加的每一段必须是整个步骤（“- ” 开头）或整个任务，否则算放松
-//   frozen         一动就算放松，新建也算
+//   frozen         一动就算放松，新建也算（它的条目在基线的清单里还没登记时，新建算只增）
 //   manifest       依赖只许新增；版本有变、删除算放松（升级要单独成 PR）
 //   root-manifest  同 manifest；脚本只许新增；engines、packageManager、pnpm 一动就算放松
 //   lockfile       packages 段只许新增条目；头部设置有变算放松
@@ -34,6 +34,8 @@ const END = "<!-- gate-diff:end -->";
 const TOUCH_LABEL = "gate-touch";
 const CHANGE_LABEL = "gate-change";
 const MAX_ITEMS = 40;
+/** 清单在仓库里的位置：只用来看基线上登记过哪些条目 */
+const REGISTRY_PATH = "infra/ci/gate-files.json";
 const DEP_FIELDS = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"];
 const ROOT_FROZEN_FIELDS = ["engines", "packageManager", "pnpm"];
 const EXEMPTION =
@@ -287,15 +289,27 @@ function byRegistry({ baseText, headText }) {
   const index = (doc) =>
     new Map((Array.isArray(doc.files) ? doc.files : []).map((e) => [e.pattern, e]));
   const [before, after] = [index(base), index(head)];
+  if (baseText === null) return { touch: [`新增门禁文件清单，共 ${after.size} 条`], loosen };
   for (const [pattern, entry] of after) {
-    if (!before.has(pattern)) touch.push(`新增门禁文件条目 ${pattern}（${entry.kind}）`);
+    if (!before.has(pattern)) touch.push(`新增门禁文件条目 \`${pattern}\`（${entry.kind}）`);
     else if (stable(before.get(pattern)) !== stable(entry))
-      loosen.push(`改了已有的门禁文件条目 ${pattern}`);
+      loosen.push(`改了已有的门禁文件条目 \`${pattern}\``);
   }
   for (const pattern of before.keys()) {
-    if (!after.has(pattern)) loosen.push(`删掉了门禁文件条目 ${pattern}`);
+    if (!after.has(pattern)) loosen.push(`删掉了门禁文件条目 \`${pattern}\``);
   }
   return { touch, loosen };
+}
+
+/**
+ * frozen：一动就算放松，新建也算。唯一的例外：这个路径在基线的清单里还没有登记
+ *（门禁与它的放行文件在同一个 PR 里一起建立），这时新建算只增，由业主在清单里看到。
+ */
+function byFrozen(change, entry) {
+  const note = entry.note ?? "放行或设置文件";
+  if (change.status !== "A") return { touch: [], loosen: [`改了${note}`] };
+  if (change.registeredAtBase(entry.pattern)) return { touch: [], loosen: [`新建了${note}`] };
+  return { touch: [`新建了${note}（它的门禁条目也是这次新增的）`], loosen: [] };
 }
 
 const KINDS = {
@@ -307,14 +321,7 @@ const KINDS = {
     change.status === "A"
       ? { touch: ["新增工作流文件"], loosen: [] }
       : byLines(change, { blocks: true }),
-  frozen: (change, entry) => ({
-    touch: [],
-    loosen: [
-      change.status === "A"
-        ? `新建了${entry.note ?? "放行或设置文件"}`
-        : `改了${entry.note ?? "设置"}`,
-    ],
-  }),
+  frozen: byFrozen,
   manifest: (change) => byManifest(change, { root: false }),
   "root-manifest": (change) => byManifest(change, { root: true }),
   lockfile: byLockfile,
@@ -357,6 +364,15 @@ const loosen = [];
 const outside = [];
 let changedFiles = 0;
 
+// 基线上已经登记的条目：判 frozen 文件的“新建”时要用（见 byFrozen）
+const basePatterns = new Set();
+try {
+  const text = git(["show", `${mergeBase}:${REGISTRY_PATH}`], { allowFail: true });
+  for (const entry of JSON.parse(text ?? "{}").files ?? []) basePatterns.add(entry.pattern);
+} catch {
+  // 基线上的清单解析不了：当作一条都没登记
+}
+
 for (let index = 0; index + 1 < nameStatus.length; index += 2) {
   const status = nameStatus[index];
   const path = nameStatus[index + 1];
@@ -379,6 +395,7 @@ for (let index = 0; index + 1 < nameStatus.length; index += 2) {
     baseText: status === "A" ? null : git(["show", `${mergeBase}:${path}`]),
     headText: git(["show", `${headSha}:${path}`]),
     hunks: status === "A" ? [] : hunksOf(mergeBase, headSha, path),
+    registeredAtBase: (pattern) => basePatterns.has(pattern),
   };
   for (const entry of applicable) {
     const verdict = KINDS[entry.kind](change, entry);
@@ -389,11 +406,11 @@ for (let index = 0; index + 1 < nameStatus.length; index += 2) {
 
 const verdict = loosen.length > 0 ? "loosen" : touch.length > 0 ? "touch" : "none";
 
-function listOf(title, items) {
+function listOf(title, items, limit) {
   if (items.length === 0) return [];
   const lines = ["", `${title} ${items.length} 项：`, ""];
-  for (const item of items.slice(0, MAX_ITEMS)) lines.push(`- \`${item.file}\`：${item.what}`);
-  if (items.length > MAX_ITEMS) lines.push(`- …另有 ${items.length - MAX_ITEMS} 项，见 CI 日志`);
+  for (const item of items.slice(0, limit)) lines.push(`- \`${item.file}\`：${item.what}`);
+  if (items.length > limit) lines.push(`- …另有 ${items.length - limit} 项，见 CI 日志`);
   return lines;
 }
 const verdictText = {
@@ -401,18 +418,18 @@ const verdictText = {
   touch: `只增（\`${TOUCH_LABEL}\`）`,
   loosen: `含放松类改动，只能在单独的 \`${CHANGE_LABEL}\` PR 里做`,
 }[verdict];
-const markdown = [
-  `**门禁改动清单**（CI 自动写入，不要手改。基线 \`${mergeBase.slice(0, 7)}\`，本次 \`${headSha.slice(0, 7)}\`）`,
-  "",
-  `判定：${verdictText}`,
-  ...listOf("放松", loosen),
-  ...listOf("只增", touch),
-].join("\n");
+/** 清单的 Markdown：PR 描述里每类最多列 limit 项，日志里全列 */
+const render = (limit) =>
+  [
+    `**门禁改动清单**（CI 自动写入，不要手改。基线 \`${mergeBase.slice(0, 7)}\`，本次 \`${headSha.slice(0, 7)}\`）`,
+    "",
+    `判定：${verdictText}`,
+    ...listOf("放松", loosen, limit),
+    ...listOf("只增", touch, limit),
+  ].join("\n");
+const markdown = render(MAX_ITEMS);
 
-console.log(markdown.replace(/[*`]/g, ""));
-for (const item of [...loosen.slice(MAX_ITEMS), ...touch.slice(MAX_ITEMS)]) {
-  console.log(`- ${item.file}：${item.what}`);
-}
+console.log(render(Infinity));
 if (options.out) {
   writeFileSync(
     options.out,

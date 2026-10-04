@@ -43,7 +43,12 @@ const LAYERS = {
   sameLayer: { L0: { policy: "free" }, L1: { policy: "whitelist", allow: {} } },
   nonModuleDirs: ["testing"],
 };
-const REGISTRY = { files: [{ pattern: "infra/ci/**", kind: "append" }] };
+const REGISTRY = {
+  files: [
+    { pattern: "infra/ci/**", kind: "append" },
+    { pattern: ".gitleaks.toml", kind: "frozen" },
+  ],
+};
 const ROOT = {
   name: "liyoxi",
   packageManager: "pnpm@10.34.5",
@@ -258,7 +263,7 @@ describe("只增：判为 gate-touch 并列出", () => {
     const result = classify({ "infra/ci/gate-files.json": json(next) });
     expect(result.verdict).toBe("touch");
     expect(whats(result.touch)).toEqual([
-      "infra/ci/gate-files.json: 新增门禁文件条目 infra/ci/colors.json（frozen）",
+      "infra/ci/gate-files.json: 新增门禁文件条目 `infra/ci/colors.json`（frozen）",
     ]);
   });
 
@@ -271,6 +276,31 @@ describe("只增：判为 gate-touch 并列出", () => {
     const result = classify({ "pnpm-lock.yaml": next });
     expect(result.verdict).toBe("touch");
     expect(whats(result.touch)).toEqual(["pnpm-lock.yaml: 锁文件新增 1 个版本：zod@4.6.5"]);
+  });
+
+  it("放行文件与它的门禁条目在同一个 PR 里新建：算只增，列出来给业主看", () => {
+    // .gitleaksignore 在真实清单里是 frozen，但这个临时仓库的基线清单里还没有登记它
+    const result = classify({ ".gitleaksignore": "abc:README.md:generic-api-key:1\n" });
+    expect(result.verdict).toBe("touch");
+    expect(whats(result.touch)).toEqual([
+      ".gitleaksignore: 新建了密钥扫描的放行项（它的门禁条目也是这次新增的）",
+    ]);
+  });
+
+  it("基线上没有门禁文件清单（门禁第一次建立）：新建清单只列一项", () => {
+    const temp = makeTempRepo("lyx-gate-", { "src/app.ts": "export const a = 1;\n" });
+    cleanups.push(temp.cleanup);
+    git(temp.dir, "commit", "-q", "-m", "base");
+    writeFiles(temp.dir, { "infra/ci/gate-files.json": json(REGISTRY), ".gitleaks.toml": "\n" });
+    git(temp.dir, "add", "-A");
+    git(temp.dir, "commit", "-q", "-m", "head");
+    const result = spawnSync("node", [script, "--base", "HEAD~1"], {
+      cwd: temp.dir,
+      encoding: "utf8",
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("`infra/ci/gate-files.json`：新增门禁文件清单，共 2 条");
+    expect(result.stdout).toContain("`.gitleaks.toml`：新建了密钥扫描的放行项");
   });
 });
 
@@ -393,7 +423,7 @@ describe("放松：没有 gate-change 标签即失败", () => {
           files: [{ pattern: "infra/ci/**", kind: "append", except: ["**"] }],
         }),
       },
-      "改了已有的门禁文件条目 infra/ci/**",
+      "改了已有的门禁文件条目 `infra/ci/**`",
     ],
     ["格式检查加忽略项", { ".prettierignore": "dist\nlegacy\n" }, "改了格式检查的忽略项"],
     ["新建密钥扫描的放行文件", { ".gitleaks.toml": "[allowlist]\n" }, "新建了密钥扫描的放行项"],
