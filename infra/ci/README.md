@@ -89,12 +89,12 @@ node infra/ci/classify-gate-changes.mjs --base origin/main --labels gate-change
 | `registry` | `gate-files.json` 新增条目 | 改、删已有条目 |
 
 - 删除任何门禁文件都算放松。判不出的按放松算。
-- 一个文件命中几条就按几条各判一遍。`except` 里的路径（本目录下的 `.md`）不逐行判，但仍算门禁路径。
+- 一个文件命中几条就按几条各判一遍。`except` 里的路径不按那一条判，但仍算门禁路径：本目录下的 `.md` 没有别的条目，不逐行判；检查脚本与 `selftest/` 由各自的 `new-file` 条目判。
 - 有放松项而 PR 没有 `gate-change` 标签：`gate-classify` 失败。带 `gate-change` 的 PR 改了门禁文件以外的路径：也失败。
 - 标签是在任务运行时从 PR 上读的。开 PR 之后才补打 `gate-change` 的，重跑 `gate-classify` 任务即可。
 - `gate-touch`、`gate-change` 两个标签由业主建。仓库里没有 `gate-touch` 时任务报错，不自己建。
 - 已知的限度：PR 上跑的是 PR 自己那份工作流文件。分类脚本与清单取自 main，PR 改不了它们对自己的判定；但一个 PR 若把 `gate-classify` 任务连同 `required` 里的那一行一起删掉，就没有任务来判它了。所以改 `.github/workflows/` 的 PR，业主要直接看工作流的差异，不只看顶部的清单。
-- 已知的限度：`append` 类文件（lint 装配与规则片段、tsconfig 预设、依赖方向配置、测试配置、提交钩子、用例与夹具）里加行，只靠关键字拦“关掉、降级”的写法，拦不全。清单里写“新增 N 行”的，业主要看差异。新步骤里的命令写了什么（比如 <code>&#124;&#124; true</code>）也不判，同样要看差异。
+- 已知的限度：`append` 类文件（lint 装配与规则片段、tsconfig 预设、依赖方向配置、测试配置、提交钩子、用例与夹具）里加行，只靠关键字拦“关掉、降级”的写法，拦不全。清单里写“新增 N 行”的，业主要看差异。新步骤里的命令写了什么（比如 `|| true`）也不判，同样要看差异。
 - 还没登记的：工作区包自己的 `tsconfig.json` 与 `vitest.config.ts`。在里面关 `strict`、收窄 `include` 现在判为“没有门禁改动”。按 `append` 登记会把正常的改写（一行拆成多行、往 `include` 里加一项）也判成放松；登记不登记、按什么口径，待业主定（`docs/plan/status/W0-03.md` 偏差 6）。
 
 登记新的门禁文件：往 `gate-files.json` 的 `files` 末尾加一条（`pattern`、`kind`、`note`）。`pattern` 里 `**` 跨目录、`*` 不跨目录。白名单、基线、黄金文件这类“一动就该让业主看”的用 `frozen`；规则与配置用 `append`。`infra/ci/` 下的检查脚本（`.mjs`）与 `selftest/` 已经被现有条目按 `new-file` 盖住，不用再登记；放在别处的检查脚本按 `new-file` 登记。
