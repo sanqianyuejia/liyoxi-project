@@ -107,13 +107,19 @@ describe("后台冒烟的受影响范围", () => {
     return run(process.execPath, [AFFECTED, "--base", base], repo.dir);
   }
 
-  it("改到后台、它依赖的两个包、锁文件、根清单或工作流：要跑", () => {
+  it("改到后台、它依赖的包与预设、设计变量的来源、安装设置、锁文件、根清单或工作流：要跑", () => {
     for (const file of [
       "apps/admin/src/lib/menu/merchant.ts",
       "packages/shared/src/design/generated/tokens.ts",
       "packages/contract/src/index.ts",
+      "packages/config/tsconfig/web-react19.json",
+      "design/tokens.json",
       "pnpm-lock.yaml",
       "package.json",
+      "pnpm-workspace.yaml",
+      ".npmrc",
+      ".nvmrc",
+      ".node-version",
       ".github/workflows/ci.yml",
     ]) {
       const result = decide({ [file]: "changed\n" });
@@ -123,11 +129,12 @@ describe("后台冒烟的受影响范围", () => {
     }
   });
 
-  it("只改了别处（服务端、文档、别的应用的 package.json）：不用跑", () => {
+  it("只改了别处（服务端、文档、别的应用的 package.json、设计目录里变量来源以外的文件）：不用跑", () => {
     const result = decide({
       "packages/services/src/kernel/index.ts": "x\n",
       "docs/08-development-plan.md": "x\n",
       "apps/api/package.json": "{}\n",
+      "design/design-spec.md": "x\n",
     });
     expect(result.status).toBe(0);
     expect(result.output).toContain("后台冒烟：不用跑");

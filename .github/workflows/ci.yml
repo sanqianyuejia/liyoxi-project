@@ -136,7 +136,7 @@ jobs:
       - name: 后台冒烟
         if: steps.admin-e2e.outputs.run == 'true'
         run: pnpm admin:e2e
-      # 截图都是 1440 × 900：01–04 是外壳与三种骨架，05–11 是几个状态；用例失败时另有现场。
+      # 截图都是 1440 × 900：01–04 是外壳与三种骨架，05–12 是几个状态；用例失败时另有现场。
       # 业主合并前在运行页面的 Artifacts 里下载来看
       - name: 上传后台冒烟截图
         if: always() && steps.admin-e2e.outputs.run == 'true'

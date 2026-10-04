@@ -5,7 +5,10 @@
 //   --base 给了（PR）：看 <base> 与 HEAD 的共同祖先之后改了哪些文件，改到下面“受影响范围”里的才跑。
 //   --base 为空（推到 main、手动）：一律跑。
 // 受影响范围：后台自己（apps/admin/）；它依赖的两个工作区包（packages/shared/、packages/contract/）；
-// 会改变装了什么或怎么跑的三个文件（pnpm-lock.yaml、根 package.json、.github/workflows/ci.yml）。
+// 它的 tsconfig 预设所在的 packages/config/；设计变量的来源 design/tokens.json（改了它要重新生成
+// packages/shared 下的生成物才生效，这里一并算上，免得只改来源的 PR 漏跑）；
+// 会改变装了什么或怎么跑的几个文件（pnpm-lock.yaml、根 package.json、pnpm-workspace.yaml、.npmrc、
+// .nvmrc、.node-version、.github/workflows/ci.yml）。
 // 结论打印出来；在 GitHub Actions 里另写进 $GITHUB_OUTPUT 的 run=true|false，后面的步骤按它决定跑不跑。
 // 拿不准（共同祖先找不到、git 出错）一律按要跑算：宁可多跑，不漏跑。
 // 退出码：0（结论在输出里）；2 用法错误。本脚本不引依赖。
@@ -17,8 +20,14 @@ const AFFECTING = [
   "apps/admin/",
   "packages/shared/",
   "packages/contract/",
+  "packages/config/",
+  "design/tokens.json",
   "pnpm-lock.yaml",
   "package.json",
+  "pnpm-workspace.yaml",
+  ".npmrc",
+  ".nvmrc",
+  ".node-version",
   ".github/workflows/ci.yml",
 ];
 
