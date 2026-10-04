@@ -1,0 +1,19 @@
+# 狸有戏 · 密钥扫描（gitleaks）的配置。规则全用 gitleaks 自带的默认规则，这里只放本仓库误报的最小放行。
+# 每一条放行都写明：放行什么、为什么是误报。新增或修改放行是放松类门禁改动，只在单独的 gate-change PR 里做。
+# 由 infra/ci/secret-scan.mjs 读取。
+
+[extend]
+useDefault = true
+
+# 放行 1：tools/api-check 下三个核对脚本里的文件名 00-conventions.md。
+# 原因：generic-api-key 规则见到 “api” 后面跟一个带引号的字符串就起疑，这里的字符串是接口约定文档的文件名
+# （docs/api/00-conventions.md），不是密钥。命中的三处都在提交 adcfe08 里：
+# check.py 第 60 行、gen_registries.py 第 59 行、gen_permissions.py 第 333 行。
+# 范围收到最小：只对这条规则、只对这个目录下的 .py 文件、只对含这个文件名的行生效。
+[[allowlists]]
+description = "tools/api-check：接口约定文档的文件名 00-conventions.md 被 generic-api-key 误判"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^tools/api-check/[a-z_]+\.py$''']
+regexTarget = "line"
+regexes = ['''00-conventions\.md''']

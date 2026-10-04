@@ -72,6 +72,8 @@ const args = [
   IMAGE,
   ...command,
   "--redact",
+  "--verbose",
+  "--no-color",
   "--no-banner",
   "--exit-code",
   String(LEAK_EXIT_CODE),
