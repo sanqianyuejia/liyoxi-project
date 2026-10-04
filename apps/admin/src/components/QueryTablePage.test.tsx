@@ -218,14 +218,20 @@ describe("空、加载、出错重试三态", () => {
     expect(html).not.toContain("共 ");
   });
 
-  it("空：标题加说明，不出表格；有筛选时提示换个条件", () => {
+  it("空：不出表格；没有数据写“暂无……”，筛选无结果写“没有符合条件的……”并提示换个条件", () => {
     const html = render({ status: "success", items: [], total: 0 });
     expect(html).toContain('data-state="empty"');
-    expect(html).toContain("没有符合条件的记录");
+    expect(html).toContain("暂无记录");
+    expect(html).not.toContain("没有符合条件的记录");
     expect(html).not.toContain("<table");
     expect(html).toContain("共 0 条");
-    expect(render({ status: "success", items: [], total: 0 }, { region: "成华区" })).toContain(
-      "换个筛选条件试试",
+    const filtered = render({ status: "success", items: [], total: 0 }, { region: "成华区" });
+    expect(filtered).toContain("没有符合条件的记录");
+    expect(filtered).toContain("换个筛选条件试试");
+    expect(filtered).not.toContain("暂无记录");
+    // 只换了页签不算筛选：还是“暂无……”
+    expect(render({ status: "success", items: [], total: 0 }, { tab: "pending" })).toContain(
+      "暂无记录",
     );
   });
 

@@ -27,11 +27,11 @@ const route = getRouteApi("/dev/queue");
 
 type Review = SampleReview & { result?: string };
 
-/** 冲突的两个码（别人先处理了）交给骨架去提示并跳下一条；其余失败留在这一条 */
+/** 冲突的两个码（别人先处理了）交给骨架去刷新队列并跳下一条，提示由请求层出；其余失败留在这一条 */
 function toResult(error: ErrorBody | undefined, done: QueueActionResult): QueueActionResult {
   if (!error) return done;
   if (error.error === "STATE_NOT_ALLOWED" || error.error === "VERSION_CONFLICT") {
-    return { outcome: "conflict", message: `${error.message}，已跳到下一条` };
+    return { outcome: "conflict" };
   }
   return { outcome: "failed", message: error.message };
 }
@@ -88,12 +88,8 @@ export function QueueSample() {
       return toResult(
         error,
         path.endsWith("approve")
-          ? { outcome: "done", tone: "success", message: `${item.storeName}：审核已通过` }
-          : {
-              outcome: "done",
-              tone: "danger",
-              message: `${item.storeName}：已驳回，商家会收到补正通知`,
-            },
+          ? { outcome: "done", message: `${item.storeName}：审核已通过` }
+          : { outcome: "done", message: `${item.storeName}：已驳回，商家会收到补正通知` },
       );
     };
 
@@ -161,12 +157,13 @@ export function QueueSample() {
           </div>
         )}
         checklist={tab === "pending" ? { items: SAMPLE_CHECKLIST } : undefined}
-        readOnlyHint={
-          tab !== "pending"
-            ? "已处理的事项只读"
-            : canEdit
-              ? undefined
-              : "你的权限只能查看，不能审核"
+        readOnlyHint={canEdit ? undefined : "你的权限只能查看，不能审核"}
+        settled={(item) =>
+          item.result === undefined
+            ? undefined
+            : item.result.startsWith("已驳回")
+              ? { tone: "danger", message: "已驳回，商家补正后会重新进入审核队列" }
+              : { tone: "success", message: `审核${item.result}，已通知商家` }
         }
         actions={[
           {

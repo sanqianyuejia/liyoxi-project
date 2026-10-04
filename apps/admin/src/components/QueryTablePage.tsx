@@ -77,7 +77,11 @@ export interface QueryTablePageProps<Row> {
   onRowClick?: (row: Row) => void;
   /** 行强调：超时或异常行 */
   rowTone?: (row: Row) => "danger" | undefined;
-  empty?: { title: string; description?: string };
+  /**
+   * 空状态的文案（规范 第 7 节）：没有数据写“暂无……”（title、description，缺省“暂无记录”）；
+   * 筛选无结果写“没有符合条件的……”（filteredTitle，缺省“没有符合条件的记录”）
+   */
+  empty?: { title: string; description?: string; filteredTitle?: string };
   /** 筛选条右侧的附加操作（导出按钮等） */
   toolbar?: ReactNode;
 }
@@ -190,12 +194,14 @@ export function QueryTablePage<Row extends object>({
         <ErrorState message={query.message} onRetry={onRetry} retrying={refreshing} />
       ) : null}
       {query.status === "success" && query.items.length === 0 ? (
-        <EmptyState
-          title={empty?.title ?? "没有符合条件的记录"}
-          description={
-            empty?.description ?? (hasActiveFilters(search) ? "换个筛选条件试试" : undefined)
-          }
-        />
+        hasActiveFilters(search) ? (
+          <EmptyState
+            title={empty?.filteredTitle ?? "没有符合条件的记录"}
+            description="换个筛选条件试试"
+          />
+        ) : (
+          <EmptyState title={empty?.title ?? "暂无记录"} description={empty?.description} />
+        )
       ) : null}
       {query.status === "success" && query.items.length > 0 ? (
         <Table<Row>

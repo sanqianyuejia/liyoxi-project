@@ -1,5 +1,6 @@
 // 分页（规范 第 5.2 节“分页”）：左侧“共 N 条 · 每页 N 条”，右侧上一页、当前页、“/ N 页”、下一页。
 // 每页条数可选 10、20、50，缺省 20（计划 第 4.2 节 Q5 的默认）。
+import { formatInteger } from "@liyoxi/shared/format/money";
 import { Select } from "antd";
 
 import { PAGE_SIZE_OPTIONS, pageCount } from "../lib/table-search";
@@ -25,7 +26,7 @@ export function SimplePager({
   return (
     <div className="lyx-pager">
       <div className="lyx-pager__summary">
-        <span>共 {total.toLocaleString("en-US")} 条</span>
+        <span>共 {formatInteger(total)} 条</span>
         <span aria-hidden="true">·</span>
         <span>每页</span>
         <Select

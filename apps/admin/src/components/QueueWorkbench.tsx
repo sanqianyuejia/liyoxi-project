@@ -3,12 +3,15 @@
 //   1. 当前页签、选中项、搜索词进 URL（?tab=&id=&q=）：本构件受控，由路由接到地址上（lib/queue.ts）。
 //   2. 清单没勾完，needsChecklist 的动作禁用；勾选状态只在本地，提交时把勾选结果交给动作函数。
 //   3. 动作带幂等键（一次意图一个键：选中一条时生成，处理完或换一条时换新）。记录的 lockVersion 由页面的动作函数回传。
-//      别人先处理了（VERSION_CONFLICT、STATE_NOT_ALLOWED）：动作函数返回 conflict，这里提示并跳到下一条。
-//   4. 处理完自动选中下一条；队列空时显示空态。
+//      别人先处理了（VERSION_CONFLICT、STATE_NOT_ALLOWED）：动作函数返回 conflict，这里刷新队列并跳到下一条；
+//      “已被某某处理”那句提示由请求层出（lib/api.ts 对这两个码已经弹右上角通知），这里不再重复同一句。
+//   4. 处理完自动选中下一条；队列空时显示空态。处理成功的提示是右上角通知（规范 第 8 节：带对勾，4 秒后消失）。
+//      已经处理过的事项（“已处理”页签里的）：底部操作条换成处理结果条，通过为成功色调，驳回为错误色调（规范 第 5.2 节）。
 //   5. 队列的定时静默刷新由取数一侧做（lib/query.ts 的 QUEUE_QUERY），不打断正在看的详情。
 import { Alert, Button } from "antd";
 import { useState, type ReactNode } from "react";
 
+import { showSuccessNotice } from "../app/feedback";
 import { newIdempotencyKey } from "../lib/idempotency";
 import { checklistDone, currentKey, nextKey, type QueueSearch } from "../lib/queue";
 
@@ -23,12 +26,18 @@ export type QueueState<Item> =
   | { status: "success"; items: readonly Item[] };
 
 export type QueueActionResult =
-  /** 处理成功：tone 决定结果条的色调（通过为成功、驳回为错误） */
-  | { outcome: "done"; tone: "success" | "danger"; message: string }
-  /** 已被别人处理：提示、刷新队列并跳到下一条 */
-  | { outcome: "conflict"; message: string }
+  /** 处理成功：message 进右上角通知（“已……”句式，规范 第 7 节），随后自动选中下一条 */
+  | { outcome: "done"; message: string }
+  /** 已被别人处理：刷新队列并跳到下一条；提示由请求层出，这里不重复 */
+  | { outcome: "conflict" }
   /** 没处理成：留在这一条，把原因显示在动作条左侧 */
   | { outcome: "failed"; message: string };
+
+/** 处理结果条的内容：通过为成功色调，驳回为错误色调 */
+export interface QueueSettled {
+  tone: "success" | "danger";
+  message: string;
+}
 
 export interface QueueActionContext<Item> {
   item: Item;
@@ -44,7 +53,7 @@ export interface QueueAction<Item> {
   kind: "primary" | "reject";
   /** 清单没勾完时禁用 */
   needsChecklist?: boolean;
-  /** 权限不够时不渲染：由页面按 useCan 的结果传 */
+  /** 权限不够时不渲染：由页面按 lib/permissions.ts 的 hasModuleLevel、canAction 的结果传 */
   hidden?: boolean;
   run: (context: QueueActionContext<Item>) => Promise<QueueActionResult>;
 }
@@ -66,12 +75,13 @@ export interface QueueWorkbenchProps<Item> {
   detail: (item: Item) => ReactNode;
   checklist?: { items: readonly CheckListItem[]; title?: string };
   actions: readonly QueueAction<Item>[];
-  /** 不能处理时（只读页签、等级只有查看）动作条换成这句说明 */
+  /** 不能处理时（等级只有查看）动作条换成这句说明 */
   readOnlyHint?: string;
+  /** 这一条已经处理过时给出处理结果：操作条换成处理结果条（规范 第 5.2 节）。没处理过的返回 undefined */
+  settled?: (item: Item) => QueueSettled | undefined;
+  /** 队列里没有数据时的文案，写“暂无……”（规范 第 7 节）；缺省“暂无事项” */
   empty?: { title: string; description?: string };
 }
-
-type ResultStrip = { tone: "success" | "danger" | "warning"; message: string };
 
 const SKELETON_ITEMS = 3;
 
@@ -82,8 +92,9 @@ interface QueueDetailProps<Item> {
   checklist?: { items: readonly CheckListItem[]; title?: string };
   actions: readonly QueueAction<Item>[];
   readOnlyHint?: string;
-  /** 处理成功或发现已被别人处理：交回外层去出结果条、选下一条、刷新队列 */
-  onSettled: (result: ResultStrip) => void;
+  settled?: QueueSettled;
+  /** 处理成功（带要提示的那句话）或发现已被别人处理（null）：交回外层去提示、选下一条、刷新队列 */
+  onSettled: (successMessage: string | null) => void;
 }
 
 /**
@@ -97,6 +108,7 @@ function QueueDetail<Item>({
   checklist,
   actions,
   readOnlyHint,
+  settled,
   onSettled,
 }: QueueDetailProps<Item>) {
   const [checked, setChecked] = useState<string[]>([]);
@@ -119,9 +131,7 @@ function QueueDetail<Item>({
     }
     setRunning(null);
     if (outcome.outcome === "failed") setFailure(outcome.message);
-    else if (outcome.outcome === "done")
-      onSettled({ tone: outcome.tone, message: outcome.message });
-    else onSettled({ tone: "warning", message: outcome.message });
+    else onSettled(outcome.outcome === "done" ? outcome.message : null);
   };
 
   return (
@@ -142,37 +152,46 @@ function QueueDetail<Item>({
           <CheckList items={checklist.items} checked={checked} onChange={setChecked} />
         </div>
       ) : null}
-      <div className="lyx-action-bar">
-        {readOnlyHint ? (
-          <span className="lyx-action-bar__hint">{readOnlyHint}</span>
-        ) : (
-          <>
-            {failure ? (
-              <span className="lyx-action-bar__hint lyx-action-bar__hint--block" role="alert">
-                {failure}
-              </span>
-            ) : checklist && !checklistOk ? (
-              <span className="lyx-action-bar__hint">核对清单全部勾选后才能通过</span>
-            ) : null}
-            {visibleActions.map((action) => (
-              <Button
-                key={action.key}
-                size="large"
-                type={action.kind === "primary" ? "primary" : "default"}
-                className={action.kind === "reject" ? "lyx-btn-reject" : undefined}
-                disabled={
-                  (action.needsChecklist && !checklistOk) ||
-                  (running !== null && running !== action.key)
-                }
-                loading={running === action.key}
-                onClick={() => void runAction(action)}
-              >
-                {action.label}
-              </Button>
-            ))}
-          </>
-        )}
-      </div>
+      {settled ? (
+        // 处理结果条：已经处理过的事项，操作条换成提示条
+        <Alert
+          type={settled.tone === "danger" ? "error" : "success"}
+          title={settled.message}
+          data-testid="queue-result"
+        />
+      ) : (
+        <div className="lyx-action-bar">
+          {readOnlyHint ? (
+            <span className="lyx-action-bar__hint">{readOnlyHint}</span>
+          ) : (
+            <>
+              {failure ? (
+                <span className="lyx-action-bar__hint lyx-action-bar__hint--block" role="alert">
+                  {failure}
+                </span>
+              ) : checklist && !checklistOk ? (
+                <span className="lyx-action-bar__hint">核对清单全部勾选后才能通过</span>
+              ) : null}
+              {visibleActions.map((action) => (
+                <Button
+                  key={action.key}
+                  size="large"
+                  type={action.kind === "primary" ? "primary" : "default"}
+                  className={action.kind === "reject" ? "lyx-btn-reject" : undefined}
+                  disabled={
+                    (action.needsChecklist && !checklistOk) ||
+                    (running !== null && running !== action.key)
+                  }
+                  loading={running === action.key}
+                  onClick={() => void runAction(action)}
+                >
+                  {action.label}
+                </Button>
+              ))}
+            </>
+          )}
+        </div>
+      )}
     </>
   );
 }
@@ -194,6 +213,7 @@ export function QueueWorkbench<Item>({
   checklist,
   actions,
   readOnlyHint,
+  settled,
   empty,
 }: QueueWorkbenchProps<Item>) {
   const items = queue.status === "success" ? queue.items : [];
@@ -201,7 +221,6 @@ export function QueueWorkbench<Item>({
   const selectedKey = currentKey(keys, search.id);
   const selected = items.find((item) => itemKey(item) === selectedKey);
   const activeTab = search.tab ?? defaultTab ?? tabs[0]?.key ?? "";
-  const [result, setResult] = useState<ResultStrip | null>(null);
 
   const select = (id: string | undefined) => onSearchChange({ ...search, id });
 
@@ -212,10 +231,7 @@ export function QueueWorkbench<Item>({
           label={`${label}的页签`}
           items={tabs}
           activeKey={activeTab}
-          onChange={(key) => {
-            setResult(null);
-            onSearchChange({ ...search, tab: key, id: undefined });
-          }}
+          onChange={(key) => onSearchChange({ ...search, tab: key, id: undefined })}
         />
         {searchPlaceholder !== undefined ? (
           <div className="lyx-queue__search">
@@ -239,10 +255,12 @@ export function QueueWorkbench<Item>({
         ) : null}
         {queue.status === "error" ? <ErrorState message={queue.message} onRetry={onRetry} /> : null}
         {queue.status === "success" && items.length === 0 ? (
-          <EmptyState
-            title={empty?.title ?? "队列里没有待处理的事项"}
-            description={empty?.description}
-          />
+          // 规范 第 7 节：搜索无结果写“没有符合条件的……”，没有数据写“暂无……”
+          search.q ? (
+            <EmptyState title="没有符合条件的事项" description="换个搜索词试试" />
+          ) : (
+            <EmptyState title={empty?.title ?? "暂无事项"} description={empty?.description} />
+          )
         ) : null}
         {items.length > 0 ? (
           <ul className="lyx-queue__items">
@@ -272,15 +290,6 @@ export function QueueWorkbench<Item>({
         ) : null}
       </section>
       <section className="lyx-card lyx-queue__detail" aria-label={`${label}的详情`}>
-        {result ? (
-          <Alert
-            type={result.tone === "danger" ? "error" : result.tone}
-            title={result.message}
-            closable
-            onClose={() => setResult(null)}
-            data-testid="queue-result"
-          />
-        ) : null}
         {selected && selectedKey ? (
           <QueueDetail
             key={selectedKey}
@@ -290,8 +299,9 @@ export function QueueWorkbench<Item>({
             checklist={checklist}
             actions={actions}
             readOnlyHint={readOnlyHint}
-            onSettled={(settled) => {
-              setResult(settled);
+            settled={settled?.(selected)}
+            onSettled={(successMessage) => {
+              if (successMessage !== null) showSuccessNotice(successMessage);
               // 自动选中下一条；队列只有这一条时回到空态
               select(nextKey(keys, selectedKey));
               onQueueChanged();
@@ -304,7 +314,7 @@ export function QueueWorkbench<Item>({
             </div>
           </div>
         ) : (
-          <EmptyState title="没有选中的事项" description="队列处理完了，或换一个页签看看" />
+          <EmptyState title="暂无选中的事项" description="队列处理完了，或换一个页签看看" />
         )}
       </section>
     </div>
