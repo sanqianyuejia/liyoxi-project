@@ -1,0 +1,1020 @@
+/*
+ * 后台的全局样式与构件样式。颜色、字号、尺寸一律取 var(--lyx-…)（css-vars.ts 由设计变量铺出），不写色值。
+ * 出处：设计规范 第 2.3、3、5.1–5.4、12 节。类名前缀 lyx-。
+ * Ant Design 主题管不到的地方（二级菜单的高度与缩进、表格首末列留白、页签计数徽标等）在这里覆盖。
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--lyx-font-family-sans);
+  font-size: var(--lyx-font-size-base);
+  line-height: var(--lyx-line-height-body);
+  color: var(--lyx-color-text-primary);
+  background: var(--lyx-color-bg-page);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 所有数字纵向对齐（规范 第 2.4 节） */
+.lyx-num,
+.lyx-table,
+.lyx-pager,
+.lyx-tabs__count {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 键盘聚焦环（规范 第 12 节）：浅色光晕在白底上看不见，按钮、链接、可点的行用主色环 */
+.lyx-focusable:focus-visible {
+  outline: none;
+  box-shadow: var(--lyx-shadow-focus-ring);
+}
+
+/* ---------- 外壳（规范 第 5.1 节） ---------- */
+
+.lyx-shell {
+  display: flex;
+  /* 按视口算高度：antd 的 App 在外面包了一层没有高度的 div，百分比高度传不下来 */
+  height: 100vh;
+  min-width: var(--lyx-layout-min-width);
+}
+
+.lyx-shell__sider {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: var(--lyx-layout-sidebar-width);
+  background: var(--lyx-color-sidebar-bg);
+  color: var(--lyx-color-sidebar-text);
+}
+
+.lyx-shell__brand {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  justify-content: center;
+  height: 64px;
+  padding: 0 var(--lyx-space-20);
+  border-bottom: var(--lyx-border-width-default) solid var(--lyx-color-sidebar-divider);
+}
+
+.lyx-shell__brand-name {
+  font-family: var(--lyx-font-family-serif);
+  font-size: 19px;
+  font-weight: var(--lyx-font-weight-black);
+  line-height: var(--lyx-line-height-title);
+  letter-spacing: 3px;
+  color: var(--lyx-color-text-inverse);
+}
+
+.lyx-shell__brand-sub {
+  font-size: var(--lyx-font-size-caption);
+  line-height: var(--lyx-line-height-title);
+  color: var(--lyx-color-sidebar-text-muted);
+}
+
+.lyx-shell__nav {
+  flex: 1;
+  min-height: 0;
+  padding: var(--lyx-space-12) var(--lyx-space-10);
+  overflow-y: auto;
+}
+
+.lyx-shell__nav .ant-menu {
+  border-inline-end: 0;
+  font-size: var(--lyx-font-size-base);
+}
+
+/* 展开中的父级：白字 600、无底色 */
+.lyx-shell__nav .ant-menu-submenu-open > .ant-menu-submenu-title,
+.lyx-shell__nav .ant-menu-submenu-selected > .ant-menu-submenu-title {
+  font-weight: var(--lyx-font-weight-semibold);
+  color: var(--lyx-color-text-inverse);
+}
+
+.lyx-shell__nav .ant-menu-item-selected {
+  font-weight: var(--lyx-font-weight-semibold);
+}
+
+/* 二级菜单：高 32，13px，左缩进 40 */
+.lyx-shell__nav .ant-menu-sub .ant-menu-item {
+  height: var(--lyx-size-control-sm);
+  padding-inline-start: 40px !important;
+  font-size: var(--lyx-font-size-body);
+  line-height: var(--lyx-size-control-sm);
+}
+
+.lyx-menu-label {
+  display: flex;
+  gap: var(--lyx-space-8);
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.lyx-menu-label__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 菜单角标：高 18，最小宽 20，圆角 9；落在选中项上时改为白底 */
+.lyx-menu-badge {
+  flex: none;
+  min-width: 20px;
+  height: var(--lyx-size-badge);
+  padding: 0 var(--lyx-space-6);
+  font-size: var(--lyx-font-size-caption);
+  font-weight: var(--lyx-font-weight-bold);
+  line-height: var(--lyx-size-badge);
+  color: var(--lyx-color-sidebar-badge-text);
+  text-align: center;
+  background: var(--lyx-color-sidebar-badge-bg);
+  border-radius: 9px;
+}
+
+.ant-menu-item-selected .lyx-menu-badge {
+  color: var(--lyx-color-primary-text);
+  background: var(--lyx-color-text-inverse);
+}
+
+/* V1.1 小标记：11px，方角 4 */
+.lyx-menu-v11 {
+  flex: none;
+  padding: 0 var(--lyx-space-4);
+  font-size: var(--lyx-font-size-mini);
+  line-height: 16px;
+  color: var(--lyx-color-sidebar-text-muted);
+  border: var(--lyx-border-width-default) solid var(--lyx-color-sidebar-tag-border);
+  border-radius: var(--lyx-radius-sm);
+}
+
+.lyx-shell__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lyx-shell__header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--lyx-layout-header-height);
+  padding: 0 var(--lyx-space-24);
+  background: var(--lyx-color-bg-card);
+  border-bottom: var(--lyx-border-width-default) solid var(--lyx-color-border-light);
+}
+
+.lyx-crumbs {
+  display: flex;
+  gap: var(--lyx-space-8);
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  font-size: var(--lyx-font-size-body);
+  color: var(--lyx-color-text-secondary);
+  list-style: none;
+}
+
+.lyx-crumbs__link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+}
+
+.lyx-crumbs__link:hover {
+  color: var(--lyx-color-text-primary);
+  text-decoration: underline;
+}
+
+.lyx-crumbs__current {
+  font-weight: var(--lyx-font-weight-semibold);
+  color: var(--lyx-color-text-primary);
+}
+
+.lyx-user {
+  display: flex;
+  gap: var(--lyx-space-10);
+  align-items: center;
+}
+
+/* 头像 32 圆形，取姓氏 */
+.lyx-user__avatar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  font-family: var(--lyx-font-family-serif);
+  font-size: var(--lyx-font-size-base);
+  font-weight: var(--lyx-font-weight-bold);
+  color: var(--lyx-color-primary-text);
+  background: var(--lyx-color-primary-bg);
+  border-radius: 50%;
+}
+
+.lyx-user__name {
+  font-size: var(--lyx-font-size-base);
+  font-weight: var(--lyx-font-weight-semibold);
+  line-height: var(--lyx-line-height-title);
+}
+
+.lyx-user__role {
+  font-size: var(--lyx-font-size-caption);
+  line-height: var(--lyx-line-height-title);
+  color: var(--lyx-color-text-secondary);
+}
+
+.lyx-shell__notice {
+  flex: none;
+}
+
+/* 内容区：内边距 20px 24px 24px，区块间距 16，纵向滚动 */
+.lyx-shell__content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--lyx-layout-section-gap);
+  min-height: 0;
+  padding: var(--lyx-layout-content-padding);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* ---------- 页头 ---------- */
+
+.lyx-page-header {
+  display: flex;
+  gap: var(--lyx-space-16);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.lyx-page-header__main {
+  min-width: 0;
+}
+
+.lyx-page-header__title-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lyx-space-10);
+  align-items: center;
+}
+
+.lyx-page-header__title {
+  margin: 0;
+  font-family: var(--lyx-font-family-serif);
+  font-size: var(--lyx-font-size-h1);
+  font-weight: var(--lyx-font-weight-bold);
+  line-height: var(--lyx-line-height-title);
+}
+
+.lyx-page-header__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lyx-space-8);
+  align-items: center;
+}
+
+.lyx-page-header__subtitle {
+  margin: var(--lyx-space-4) 0 0;
+  font-size: var(--lyx-font-size-body);
+  color: var(--lyx-color-text-secondary);
+}
+
+.lyx-page-header__extra {
+  display: flex;
+  flex: none;
+  gap: var(--lyx-space-10);
+  align-items: center;
+}
+
+/* ---------- 状态标签与属性胶囊 ---------- */
+
+.lyx-tag {
+  display: inline-flex;
+  align-items: center;
+  height: var(--lyx-size-tag);
+  padding: 0 var(--lyx-space-8);
+  font-size: var(--lyx-font-size-caption);
+  font-weight: var(--lyx-font-weight-semibold);
+  white-space: nowrap;
+  border-radius: var(--lyx-radius-pill);
+}
+
+.lyx-tag--lg {
+  height: 24px;
+  padding: 0 var(--lyx-space-10);
+  font-size: var(--lyx-font-size-body);
+}
+
+.lyx-tag--success {
+  color: var(--lyx-color-success);
+  background: var(--lyx-color-success-bg);
+}
+
+.lyx-tag--info {
+  color: var(--lyx-color-info);
+  background: var(--lyx-color-info-bg);
+}
+
+.lyx-tag--warning {
+  color: var(--lyx-color-warning);
+  background: var(--lyx-color-warning-bg);
+}
+
+.lyx-tag--danger {
+  color: var(--lyx-color-danger);
+  background: var(--lyx-color-danger-bg);
+}
+
+.lyx-tag--neutral {
+  color: var(--lyx-color-neutral);
+  background: var(--lyx-color-neutral-bg);
+}
+
+.lyx-tag--purple {
+  color: var(--lyx-color-purple);
+  background: var(--lyx-color-purple-bg);
+}
+
+.lyx-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 var(--lyx-space-10);
+  font-size: var(--lyx-font-size-body);
+  color: var(--lyx-color-text-regular);
+  background: var(--lyx-color-fill-neutral);
+  border-radius: var(--lyx-radius-pill);
+}
+
+/* ---------- 卡片 ---------- */
+
+.lyx-card {
+  background: var(--lyx-color-bg-card);
+  border: var(--lyx-border-width-default) solid var(--lyx-color-border-light);
+  border-radius: var(--lyx-radius-card);
+}
+
+/* ---------- 页签（表格卡、详情页、队列共用；规范 第 5.2 节） ---------- */
+
+.lyx-tabs {
+  display: flex;
+  gap: var(--lyx-space-4);
+  padding: 0 var(--lyx-space-6);
+  border-bottom: var(--lyx-border-width-default) solid var(--lyx-color-border-light);
+}
+
+.lyx-tabs__item {
+  display: inline-flex;
+  gap: var(--lyx-space-6);
+  align-items: center;
+  height: var(--lyx-size-tab);
+  padding: 0 var(--lyx-space-10);
+  margin-bottom: -1px;
+  font: inherit;
+  font-size: var(--lyx-font-size-base);
+  color: var(--lyx-color-text-secondary);
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-bottom: var(--lyx-border-width-strong) solid transparent;
+}
+
+.lyx-tabs__item:hover {
+  color: var(--lyx-color-text-primary);
+}
+
+.lyx-tabs__item[aria-selected="true"] {
+  font-weight: var(--lyx-font-weight-semibold);
+  color: var(--lyx-color-text-primary);
+  border-bottom-color: var(--lyx-color-primary);
+}
+
+.lyx-tabs__item:disabled {
+  color: var(--lyx-color-text-disabled);
+  cursor: not-allowed;
+}
+
+.lyx-tabs__count {
+  padding: 0 var(--lyx-space-6);
+  font-size: var(--lyx-font-size-caption);
+  font-weight: var(--lyx-font-weight-semibold);
+  line-height: 18px;
+  color: var(--lyx-color-text-secondary);
+  background: var(--lyx-color-fill-neutral);
+  border-radius: 10px;
+}
+
+.lyx-tabs__item[aria-selected="true"] .lyx-tabs__count {
+  color: var(--lyx-color-primary-text);
+  background: var(--lyx-color-primary-bg);
+}
+
+/* ---------- 筛选表格页（规范 第 5.2 节） ---------- */
+
+.lyx-table-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.lyx-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lyx-space-10);
+  align-items: center;
+  padding: var(--lyx-space-10) var(--lyx-space-16);
+  border-bottom: var(--lyx-border-width-default) solid var(--lyx-color-border-light);
+}
+
+.lyx-filter-bar__reset {
+  margin-inline-start: auto;
+}
+
+.lyx-table .ant-table-thead > tr > th {
+  height: var(--lyx-size-table-header);
+  padding-block: 0;
+  font-size: var(--lyx-font-size-caption);
+  font-weight: var(--lyx-font-weight-semibold);
+  border-bottom: var(--lyx-border-width-default) solid var(--lyx-color-border-light);
+}
+
+.lyx-table .ant-table-tbody > tr > td {
+  height: var(--lyx-size-table-row);
+  padding-block: var(--lyx-space-6);
+}
+
+.lyx-table .ant-table-cell:first-child {
+  padding-inline-start: var(--lyx-space-16);
+}
+
+.lyx-table .ant-table-cell:last-child {
+  padding-inline-end: var(--lyx-space-16);
+}
+
+.lyx-table .ant-table-tbody > tr:last-child > td {
+  border-bottom: 0;
+}
+
+/* 行强调：超时或异常行 */
+.lyx-table .lyx-row--danger > td {
+  background: var(--lyx-color-danger-bg-subtle);
+}
+
+.lyx-table .lyx-row--clickable {
+  cursor: pointer;
+}
+
+/* 双行单元格：主行 13px（名称 600），副行 12px，间距 2 */
+.lyx-cell-2 {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lyx-space-2);
+  min-width: 0;
+  line-height: var(--lyx-line-height-title);
+}
+
+.lyx-cell-2__main {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lyx-cell-2__main--strong {
+  font-weight: var(--lyx-font-weight-semibold);
+}
+
+.lyx-cell-2__sub {
+  overflow: hidden;
+  font-size: var(--lyx-font-size-caption);
+  color: var(--lyx-color-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 操作列的文字链 */
+.lyx-link {
+  padding: 0;
+  font: inherit;
+  font-size: var(--lyx-font-size-body);
+  color: var(--lyx-color-primary-text);
+  text-decoration: none;
+  cursor: pointer;
+  background: none;
+  border: 0;
+}
+
+.lyx-link:hover {
+  text-decoration: underline;
+}
+
+.lyx-link--danger {
+  color: var(--lyx-color-danger);
+}
+
+/* 表格骨架：首次加载显示 5 行 */
+.lyx-skeleton-rows {
+  padding: var(--lyx-space-6) var(--lyx-space-16);
+}
+
+.lyx-skeleton-row {
+  display: flex;
+  gap: var(--lyx-space-12);
+  align-items: center;
+  height: var(--lyx-size-table-row);
+  border-bottom: var(--lyx-border-width-default) solid var(--lyx-color-divider);
+}
+
+.lyx-skeleton-row:last-child {
+  border-bottom: 0;
+}
+
+.lyx-skeleton-bar {
+  flex: 1;
+  height: 12px;
+  background: var(--lyx-color-fill-neutral);
+  border-radius: var(--lyx-radius-sm);
+}
+
+.lyx-skeleton-bar--short {
+  flex: 0 0 18%;
+}
+
+/* 分页：左侧“共 N 条 · 每页 N 条”，右侧上一页、当前页、“/ N 页”、下一页 */
+.lyx-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--lyx-space-10) var(--lyx-space-16);
+  font-size: var(--lyx-font-size-body);
+  color: var(--lyx-color-text-secondary);
+  border-top: var(--lyx-border-width-default) solid var(--lyx-color-border-light);
+}
+
+.lyx-pager__summary,
+.lyx-pager__nav {
+  display: flex;
+  gap: var(--lyx-space-8);
+  align-items: center;
+}
+
+.lyx-pager__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--lyx-size-control-sm);
+  height: var(--lyx-size-control-sm);
+  padding: 0;
+  color: var(--lyx-color-text-primary);
+  cursor: pointer;
+  background: var(--lyx-color-bg-card);
+  border: var(--lyx-border-width-default) solid var(--lyx-color-border);
+  border-radius: var(--lyx-radius-icon-button);
+}
+
+.lyx-pager__button:hover:not(:disabled) {
+  border-color: var(--lyx-color-primary);
+}
+
+.lyx-pager__button:disabled {
+  color: var(--lyx-color-text-disabled);
+  cursor: not-allowed;
+}
+
+.lyx-pager__current {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--lyx-size-control-sm);
+  height: var(--lyx-size-control-sm);
+  padding: 0 var(--lyx-space-8);
+  font-weight: var(--lyx-font-weight-semibold);
+  color: var(--lyx-color-text-inverse);
+  background: var(--lyx-color-bg-inverse);
+  border-radius: var(--lyx-radius-icon-button);
+}
+
+/* ---------- 空状态、出错重试、整页说明 ---------- */
+
+.lyx-state {
+  padding: 56px var(--lyx-space-24);
+  text-align: center;
+}
+
+.lyx-state__title {
+  font-size: var(--lyx-font-size-title-md);
+  font-weight: var(--lyx-font-weight-semibold);
+}
+
+.lyx-state__desc {
+  margin-top: var(--lyx-space-6);
+  font-size: var(--lyx-font-size-body);
+  color: var(--lyx-color-text-secondary);
+}
+
+.lyx-state__action {
+  margin-top: var(--lyx-space-16);
+}
+
+.lyx-full-notice {
+  padding: 72px var(--lyx-space-24);
+  text-align: center;
+}
+
+.lyx-full-notice__title {
+  margin: 0;
+  font-family: var(--lyx-font-family-serif);
+  font-size: var(--lyx-font-size-h1);
+  font-weight: var(--lyx-font-weight-bold);
+}
+
+.lyx-full-notice__desc {
+  margin: var(--lyx-space-8) 0 0;
+  font-size: var(--lyx-font-size-body);
+  color: var(--lyx-color-text-secondary);
+}
+
+/* ---------- 审核工作台（规范 第 5.2 节“队列工作台”） ---------- */
+
+.lyx-queue {
+  display: flex;
+  gap: var(--lyx-layout-section-gap);
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.lyx-queue__list {
+  flex: none;
+  width: var(--lyx-size-queue-list);
+  overflow: hidden;
+}
+
+.lyx-queue__search {
+  padding: var(--lyx-space-10) var(--lyx-space-12) 0;
+}
+
+.lyx-queue__items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lyx-space-6);
+  padding: var(--lyx-space-8);
+  margin: 0;
+  list-style: none;
+}
+
+/* 队列项：整项可点，内边距 12，圆角 10，三行内容 */
+.lyx-queue-item {
+  display: block;
+  width: 100%;
+  padding: var(--lyx-space-12);
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+  background: var(--lyx-color-bg-card);
+  border: var(--lyx-border-width-default) solid var(--lyx-color-divider);
+  border-radius: var(--lyx-radius-inner);
+}
+
+.lyx-queue-item[aria-current="true"] {
+  /* 选中是 2px 描边：内边距各减 1，内容不跳动 */
+  padding: 11px;
+  background: var(--lyx-color-primary-bg-subtle);
+  border: var(--lyx-border-width-strong) solid var(--lyx-color-primary);
+}
+
+.lyx-queue-item__head {
+  display: flex;
+  gap: var(--lyx-space-8);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lyx-queue-item__title {
+  overflow: hidden;
+  font-size: var(--lyx-font-size-base);
+  font-weight: var(--lyx-font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lyx-queue-item__line {
+  margin-top: var(--lyx-space-4);
+  overflow: hidden;
+  font-size: var(--lyx-font-size-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lyx-queue-item__meta {
+  margin-top: var(--lyx-space-4);
+  overflow: hidden;
+  font-size: var(--lyx-font-size-caption);
+  color: var(--lyx-color-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lyx-queue__detail {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--lyx-space-16);
+  min-width: 0;
+  padding: var(--lyx-space-20);
+}
+
+.lyx-queue__detail-head {
+  display: flex;
+  gap: var(--lyx-space-16);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.lyx-queue__detail-title {
+  margin: 0;
+  font-size: var(--lyx-font-size-title-lg);
+  font-weight: var(--lyx-font-weight-semibold);
+  line-height: var(--lyx-line-height-title);
+}
+
+.lyx-queue__detail-desc {
+  margin: var(--lyx-space-4) 0 0;
+  font-size: var(--lyx-font-size-body);
+  color: var(--lyx-color-text-secondary);
+}
+
+/* 核对清单：每项高 40，圆角 8；已勾变绿底绿边，复选框为绿色 */
+.lyx-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lyx-space-8);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.lyx-checklist__item {
+  display: flex;
+  align-items: center;
+  min-height: var(--lyx-size-control-lg);
+  padding: 0 var(--lyx-space-12);
+  font-size: var(--lyx-font-size-body);
+  background: var(--lyx-color-bg-card);
+  border: var(--lyx-border-width-default) solid var(--lyx-color-divider);
+  border-radius: var(--lyx-radius-control);
+}
+
+.lyx-checklist__item[data-checked="true"] {
+  background: var(--lyx-color-success-bg-subtle);
+  border-color: var(--lyx-color-success-border);
+}
+
+.lyx-checklist__item .ant-checkbox-wrapper {
+  width: 100%;
+  font-size: var(--lyx-font-size-body);
+}
+
+/* 底部操作条：右对齐，间距 10，按钮高 40；左侧放 12px 的提示 */
+.lyx-action-bar {
+  display: flex;
+  gap: var(--lyx-space-10);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.lyx-action-bar__hint {
+  margin-inline-end: auto;
+  font-size: var(--lyx-font-size-caption);
+  color: var(--lyx-color-text-secondary);
+}
+
+.lyx-action-bar__hint--block {
+  color: var(--lyx-color-danger);
+}
+
+/* 驳回按钮：白底、描边、危险色字 600 */
+.lyx-btn-reject.ant-btn {
+  font-weight: var(--lyx-font-weight-semibold);
+  color: var(--lyx-color-danger);
+  border-color: var(--lyx-color-danger-border);
+}
+
+/* 主按钮字重 600；禁用主按钮的底与字（规范 第 5.3 节） */
+.ant-btn-primary {
+  font-weight: var(--lyx-font-weight-semibold);
+}
+
+.ant-btn-primary:disabled,
+.ant-btn-primary.ant-btn-disabled {
+  color: var(--lyx-color-text-regular);
+  background: var(--lyx-color-fill-disabled);
+  border-color: var(--lyx-color-fill-disabled);
+}
+
+/* ---------- 详情页（规范 第 5.2 节“详情页”） ---------- */
+
+.lyx-detail {
+  display: flex;
+  gap: var(--lyx-layout-section-gap);
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.lyx-detail__main {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.lyx-detail__panel {
+  padding: var(--lyx-space-20);
+}
+
+.lyx-detail__aside {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--lyx-space-12);
+  width: var(--lyx-size-detail-aside);
+}
+
+.lyx-side-card {
+  padding: var(--lyx-space-14) var(--lyx-space-16);
+}
+
+.lyx-side-card__title {
+  margin: 0 0 var(--lyx-space-10);
+  font-size: var(--lyx-font-size-title-sm);
+  font-weight: var(--lyx-font-weight-semibold);
+}
+
+/* 信息分组：两列网格，标签宽 64（长标签 84 或 110），13px，行距 8，列距 12 */
+.lyx-info {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: var(--lyx-space-8) var(--lyx-space-12);
+  margin: 0;
+  font-size: var(--lyx-font-size-body);
+}
+
+.lyx-info--wide {
+  grid-template-columns: 84px minmax(0, 1fr);
+}
+
+.lyx-info--xwide {
+  grid-template-columns: 110px minmax(0, 1fr);
+}
+
+.lyx-info dt {
+  color: var(--lyx-color-text-secondary);
+}
+
+.lyx-info dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.lyx-section-title {
+  margin: 0 0 var(--lyx-space-12);
+  font-size: var(--lyx-font-size-title-md);
+  font-weight: var(--lyx-font-weight-semibold);
+}
+
+/* ---------- 二次确认（规范 第 5.3 节“二次确认弹窗”） ---------- */
+
+.lyx-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lyx-space-16);
+}
+
+.lyx-confirm__desc {
+  margin: 0;
+  font-size: var(--lyx-font-size-body);
+  color: var(--lyx-color-text-secondary);
+}
+
+/* 回显关键信息的信息块 */
+.lyx-confirm__echo {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: var(--lyx-space-8) var(--lyx-space-12);
+  padding: var(--lyx-space-12) var(--lyx-space-14);
+  margin: 0;
+  font-size: var(--lyx-font-size-body);
+  background: var(--lyx-color-bg-subtle);
+  border-radius: var(--lyx-radius-inner);
+}
+
+.lyx-confirm__echo dt {
+  color: var(--lyx-color-text-secondary);
+}
+
+.lyx-confirm__echo dd {
+  margin: 0;
+}
+
+/* 关键金额：16px / 700 */
+.lyx-confirm__key-value {
+  font-size: var(--lyx-font-size-stat-inline);
+  font-weight: var(--lyx-font-weight-bold);
+  color: var(--lyx-color-primary-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.lyx-confirm__field-label {
+  display: block;
+  margin-bottom: var(--lyx-space-6);
+  font-size: var(--lyx-font-size-body);
+  font-weight: var(--lyx-font-weight-semibold);
+}
+
+/* 带框勾选行：高 40，圆角 10；勾选后变绿底绿边 */
+.lyx-confirm__check {
+  display: flex;
+  align-items: center;
+  min-height: var(--lyx-size-control-lg);
+  padding: 0 var(--lyx-space-12);
+  font-size: var(--lyx-font-size-body);
+  border: var(--lyx-border-width-default) solid var(--lyx-color-border);
+  border-radius: var(--lyx-radius-inner);
+}
+
+.lyx-confirm__check[data-checked="true"] {
+  background: var(--lyx-color-success-bg-subtle);
+  border-color: var(--lyx-color-success-border);
+}
+
+.lyx-confirm__footer {
+  display: flex;
+  gap: var(--lyx-space-10);
+  justify-content: flex-end;
+}
+
+/* ---------- 上传区（规范 第 5.3 节“上传区”） ---------- */
+
+.lyx-upload .ant-upload-wrapper {
+  display: block;
+}
+
+.lyx-upload .ant-upload.ant-upload-select {
+  display: block;
+}
+
+.lyx-upload__zone {
+  display: flex;
+  gap: var(--lyx-space-8);
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 64px;
+  font: inherit;
+  font-size: var(--lyx-font-size-body);
+  color: var(--lyx-color-text-regular);
+  cursor: pointer;
+  background: var(--lyx-color-bg-subtle);
+  border: var(--lyx-border-width-default) dashed var(--lyx-color-border-strong);
+  border-radius: var(--lyx-radius-inner);
+}
+
+.lyx-upload__zone:hover:not(:disabled) {
+  border-color: var(--lyx-color-primary);
+}
+
+.lyx-upload__zone:disabled {
+  color: var(--lyx-color-text-disabled);
+  cursor: not-allowed;
+}
+
+.lyx-upload__hint {
+  margin-top: var(--lyx-space-6);
+  font-size: var(--lyx-font-size-caption);
+  color: var(--lyx-color-text-secondary);
+}
+
+.lyx-upload__error {
+  margin-top: var(--lyx-space-6);
+  font-size: var(--lyx-font-size-caption);
+  color: var(--lyx-color-danger);
+}
