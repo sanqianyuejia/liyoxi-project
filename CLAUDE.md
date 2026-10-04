@@ -164,6 +164,11 @@
 | `python3 tools/api-check/check.py` | 核对接口文档自洽。见 [README](tools/api-check/README.md) |
 | `python3 tools/api-check/gen_registries.py`、`gen_permissions.py` | 重新生成接口索引、错误码与权限点登记表 |
 | `pnpm install --frozen-lockfile` | 按锁文件安装，顺带装上提交钩子。pnpm 的版本由 `packageManager` 锁定，会自动切过去 |
+| `pnpm infra:up`、`pnpm infra:down` | 起、停本地依赖（PostgreSQL 17、Redis 7.4、MinIO），要本机 Docker 在运行。`infra:up` 等到三个服务都健康才返回；`infra:down` 不删数据卷。只有一份共享实例，在哪个 worktree 里跑都是同一套容器。端口、账号见 [local.yml](infra/compose/local.yml)，连接串的写法见表后 |
+| `pnpm gates:selftest` | 门禁自测：对固定的反例逐个跑对应的检查，断言检查失败且原因对得上。其中两例要 Docker 与外网。怎么加反例见 [README](infra/ci/README.md) 第 4 节 |
+| `pnpm status:summary` | 重新生成状态汇总 `docs/plan/status/SUMMARY.md`。改了状态文件就跑一次并提交 |
+| `node infra/ci/check-env-example.mjs` | 核对 `.env.example`：键集合等于 `loadEnv` 的键集合，值都是占位 |
+| `node infra/ci/classify-gate-changes.mjs --base origin/main` | 本地试跑门禁改动分类：看本分支的改动会被判成只增还是放松。口径见 [README](infra/ci/README.md) 第 5 节 |
 | `pnpm lint`（`pnpm lint:fix` 自动修） | ESLint。规则片段在 `packages/config/eslint/`，装配在根 `eslint.config.js` |
 | `pnpm format:check`（`pnpm format` 改写） | Prettier 格式检查。不碰 `docs/`、`design/`、`tools/` 与全部 `*.md` |
 | `pnpm typecheck` | 类型检查：根、`infra`、五份 tsconfig 预设的最小工程（见 [README](infra/ci/fixtures/README.md)）、各工作区包 |
@@ -173,11 +178,18 @@
 | `pnpm check:rename` | 换名检查：出现参考工程的旧名或旧的小程序目录即失败。口径见 [脚本](infra/ci/check-rename.mjs) 开头的注释 |
 | `node infra/ci/check-release-age.mjs`（加 `--since <git 引用>` 只查新增的版本） | 锁文件里每个版本都发布满 7 天。用法见 [脚本](infra/ci/check-release-age.mjs) 开头的注释 |
 
+本地连接参数：配置只经 `loadEnv`（`packages/services/src/kernel/env.ts`）读环境变量，会话与测试不建、不读 `.env`，在命令前或 shell 里给出。取值出处是 [local.yml](infra/compose/local.yml)，账号与口令是固定的开发值，只对本机这套容器有效；CI 的服务容器用同一组值。
+
+```sh
+export APP_ENV=local   # 测试里写 test；stg、prod 下连接串只认 *_FILE
+export DATABASE_URL=postgresql://liyoxi:lyx-local-dev@localhost:5442/liyoxi
+export REDIS_URL=redis://localhost:6389/0
+```
+
 计划已定名、要等对应工作包合并后才有：
 
 | 命令 | 由谁提供 | 做什么 |
 | --- | --- | --- |
-| `pnpm gates:selftest` | W0-03 | 对变异夹具逐个跑检查并断言失败 |
 | `contract:check` | W0-08 | 契约生成物与源码无差异 |
 | `contract:docs-check` | W0-10 | 路由元数据与 routemap.json 逐字段对账 |
 | `pnpm demo:m0` | W0-30 | 一条命令重放 M0 样例用例 |
