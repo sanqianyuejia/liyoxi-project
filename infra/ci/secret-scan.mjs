@@ -4,10 +4,14 @@
 // 用法：node infra/ci/secret-scan.mjs [--dir <目录>]
 //   不带参数  扫当前仓库的 git 历史：HEAD 能到的全部提交。在仓库根目录跑；CI 检出时要带完整历史。
 //             只扫 HEAD 这一条线，别的分支、标签上的提交不扫：CI 检出带着全部分支，照 gitleaks 的缺省（--all）扫，
-//             别人分支上的一处命中会让每个 PR 都红。各分支的提交由它自己的 PR 扫到
+//             别人分支上的一处命中会让每个 PR 都红。各分支的提交由它自己的 PR 扫到。
+//             合并提交也扫：按它相对第一个父提交的差异扫（--diff-merges=first-parent）。gitleaks 缺省不看合并提交
+//             自己的改动，合并时手工写进去的内容（比如解决冲突时加的）会漏掉。代价是合并进来的那一侧被再扫一遍
 //   --dir     不看 git，扫一个目录里的文件（反例与临时核对用）
 // 放行项只写在仓库根的 .gitleaks.toml：需要时才建，只放本仓库误报的最小放行，逐条写原因；
-// 改它是放松类门禁改动。命中的内容一律打码（--redact），日志里不出现密钥本身。
+// 改它是放松类门禁改动。gitleaks 另认一种写在被扫文件里的放行：命中的那一行带 “gitleaks:allow” 注释就不报。
+// 这种注释写在业务文件里，门禁改动分类看不到，所以这里用 --ignore-gitleaks-allow 把它关掉：带了注释照样命中。
+// 命中的内容一律打码（--redact），日志里不出现密钥本身。
 // 要求本机 Docker 在运行。镜像的标签在下面写死，升级单独成 PR。
 // 退出码：0 没有命中；1 有命中；2 用法或环境错误（Docker 没在运行、镜像拉不下来等）。
 // 本脚本不引依赖。
@@ -61,8 +65,9 @@ if (options.dir !== null) {
   mounts.push(`${root}:${root}:ro`);
   const commonDir = resolve(root, gitOutput(["rev-parse", "--git-common-dir"], root).trim());
   if (!commonDir.startsWith(`${root}/`)) mounts.push(`${commonDir}:${commonDir}:ro`);
-  // gitleaks 把这一串按空格拆开接在 git log -p -U0 后面；不给时它用 --full-history --all
-  command.push("git", root, "--log-opts", "--full-history HEAD");
+  // gitleaks 把这一串按空格拆开接在 git log -p -U0 后面；不给时它用 --full-history --all。
+  // git log -p 缺省不出合并提交的差异，加 --diff-merges=first-parent 才出
+  command.push("git", root, "--log-opts", "--full-history --diff-merges=first-parent HEAD");
   if (existsSync(join(root, ".gitleaks.toml"))) {
     command.push("--config", join(root, ".gitleaks.toml"));
   }
@@ -74,6 +79,7 @@ const args = [
   ...mounts.flatMap((mount) => ["-v", mount]),
   IMAGE,
   ...command,
+  "--ignore-gitleaks-allow",
   "--redact",
   "--verbose",
   "--no-color",
