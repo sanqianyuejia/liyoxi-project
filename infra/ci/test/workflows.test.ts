@@ -183,7 +183,8 @@ describe("ci.yml", () => {
     expect(commands).toEqual([
       "pnpm install --frozen-lockfile",
       "pnpm lint",
-      "pnpm format:check",
+      // 只认 .prettierignore：不让 .gitignore（不是门禁文件）决定哪些文件不查格式
+      "pnpm format:check --ignore-path .prettierignore",
       "pnpm check:rename",
       "pnpm typecheck",
       "pnpm depcheck",

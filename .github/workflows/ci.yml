@@ -72,8 +72,10 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: lint
         run: pnpm lint
+      # 忽略项只认 .prettierignore（门禁文件）。Prettier 缺省把 .gitignore 也当忽略文件读：
+      # 往 .gitignore 加一行，就能让已入库的文件不被检查，而 .gitignore 不是门禁文件
       - name: 格式
-        run: pnpm format:check
+        run: pnpm format:check --ignore-path .prettierignore
       - name: 换名检查
         run: pnpm check:rename
       - name: 类型
