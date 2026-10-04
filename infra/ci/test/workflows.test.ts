@@ -50,9 +50,9 @@ describe("全部工作流", () => {
 });
 
 describe("ci.yml", () => {
-  it("PR 与推到 main 时触发；按分支分组并发，PR 上新提交取消在途的运行", () => {
+  it("PR 与推到 main 时触发；PR 按分支分组，新提交取消在途的运行；推到 main 一个提交一组，互不顶替", () => {
     expect(ci).toMatch(/^on:\n {2}pull_request:\n {2}push:\n {4}branches: \[main\]\n/m);
-    expect(ci).toContain("group: ci-${{ github.head_ref || github.ref }}");
+    expect(ci).toContain("group: ci-${{ github.head_ref || github.sha }}");
     expect(ci).toContain("cancel-in-progress: ${{ github.event_name == 'pull_request' }}");
   });
 

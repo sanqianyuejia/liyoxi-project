@@ -15,9 +15,11 @@ on:
   push:
     branches: [main]
 
-# 同一个分支的新提交取消在途的运行；main 上的运行不取消，每次合并都跑完
+# PR：按分支分组，同一个分支的新提交取消在途的运行。
+# 推到 main：按提交分组，一个提交一组，互不取消。不按分支分组，是因为同一组里排队的运行
+# 会被更新的一个顶掉：连着合并几次时，中间那几次就不跑了。
 concurrency:
-  group: ci-${{ github.head_ref || github.ref }}
+  group: ci-${{ github.head_ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
