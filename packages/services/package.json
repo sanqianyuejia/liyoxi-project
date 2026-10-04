@@ -18,6 +18,7 @@
   "dependencies": {
     "@liyoxi/contract": "workspace:*",
     "@liyoxi/db": "workspace:*",
-    "@liyoxi/shared": "workspace:*"
+    "@liyoxi/shared": "workspace:*",
+    "zod": "4.6.5"
   }
 }
