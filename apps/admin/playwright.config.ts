@@ -3,7 +3,7 @@
 // 接口由用例用路由拦截给夹具，不起 api。
 // 浏览器：缺省用 Playwright 自带的 Chromium（CI 里先 playwright install）。本机没装那一版时，
 // 可用 LYX_E2E_CHANNEL=chrome 改用已装的 Chrome。
-// 产物都在 dist/ 下（不入库）：dist/e2e-shots 是截图（01–04 外壳与三种骨架，05–11 几个状态），
+// 产物都在 dist/ 下（不入库）：dist/e2e-shots 是截图（01–04 外壳与三种骨架，05–12 几个状态），
 // dist/e2e-results 是失败时的现场。
 import { defineConfig, devices } from "@playwright/test";
 

@@ -1,11 +1,12 @@
 // 后台冒烟（任务书 第 7 节第 2、3、11 条）：一条用例走完
 //   打开外壳 → 样例筛选表格页翻页、改筛选（URL 查询参数随之变）→ 样例审核工作台处理一条并自动跳到下一条 → 样例详情页。
-// 另断言：1366 × 768 下三个样例页没有横向滚动；请求带齐约定的请求头；二次确认勾选前不能点。
+// 另断言：1366 × 768 下三个样例页没有横向滚动；请求带齐约定的请求头；二次确认勾选前不能点；
+// 规范写明数值的几处（双行数据行高 56、高 40 的按钮圆角 8、主按钮悬停加深、弹窗关闭按钮 32 × 32 且距边 24）。
 // 截图（1440 × 900）写到 dist/e2e-shots，CI 当产物上传：01–04 是验收要的外壳与三种骨架，
-// 05–11 是顺路留的几个状态（空、出错、处理后、冲突、上传失败、二次确认、403）。断言用角色与文字定位，不用样式类名。
+// 05–12 是顺路留的几个状态（空、出错、处理后、冲突、上传失败、二次确认、403、已处理的事项）。断言用角色与文字定位，不用样式类名。
 import { mkdirSync } from "node:fs";
 
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import {
   createSampleBackend,
@@ -81,6 +82,30 @@ async function shot(page: Page, name: string): Promise<void> {
 
 const searchOf = (page: Page): URLSearchParams => new URL(page.url()).searchParams;
 
+/** 一个设计变量算出来的颜色（浏览器的写法）：用例里不写色值，拿它与元素的颜色比 */
+async function tokenColor(page: Page, variable: string): Promise<string> {
+  return page.evaluate((name) => {
+    const probe = document.createElement("span");
+    probe.style.color = `var(${name})`;
+    document.body.appendChild(probe);
+    const value = getComputedStyle(probe).color;
+    probe.remove();
+    return value;
+  }, variable);
+}
+
+/** 元素的高、宽与圆角 */
+async function boxOf(target: Locator): Promise<{ width: number; height: number; radius: string }> {
+  return target.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      width: rect.width,
+      height: rect.height,
+      radius: getComputedStyle(element).borderRadius,
+    };
+  });
+}
+
 test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page }) => {
   mkdirSync(SHOTS_DIR, { recursive: true });
   const backend = createSampleBackend();
@@ -148,6 +173,12 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     await expect(table.getByText("/ 3 页")).toBeVisible();
     expect(searchOf(page).toString()).toBe("");
     await expectNoHorizontalScroll(page, "筛选表格");
+    // 行高（规范 第 5.2 节“数据行”）：表头 40；样例的每一行都有双行单元格，取 56 那一档
+    const rowHeights = await table
+      .getByRole("row")
+      .evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
+    expect(rowHeights[0]).toBe(40);
+    expect([...new Set(rowHeights.slice(1))]).toEqual([56]);
     await shot(page, "02-query-table");
 
     await table.getByRole("button", { name: "下一页" }).click();
@@ -226,12 +257,18 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
 
     for (const box of await detail.getByRole("checkbox").all()) await box.check();
     await expect(approve).toBeEnabled();
+    // 高 40 的按钮圆角 8（规范 第 5.3 节）；主按钮悬停时底加深为文字主色，不是变浅（规范 第 12 节）
+    for (const button of [approve, detail.getByRole("button", { name: "驳回" })]) {
+      expect(await boxOf(button)).toMatchObject({ height: 40, radius: "8px" });
+    }
+    await approve.hover();
+    await expect
+      .poll(() => approve.evaluate((element) => getComputedStyle(element).backgroundColor))
+      .toBe(await tokenColor(page, "--lyx-color-primary-text"));
     await approve.click();
 
-    // 处理结果条；自动选中下一条；选中项进 URL；计数变化
-    await expect(page.getByTestId("queue-result")).toContainText(
-      "青柠茶饮（春熙路店）：审核已通过",
-    );
+    // 处理成功的提示是右上角通知；自动选中下一条；选中项进 URL；计数变化
+    await expect(page.getByText("青柠茶饮（春熙路店）：审核已通过")).toBeVisible();
     await expect(detail.getByRole("heading", { level: 2 })).toHaveText("好运来便利店");
     await expect(page).toHaveURL(/[?&]id=rv-2(&|$)/);
     await expect(queue.getByRole("tab", { name: /待审核/ })).toContainText("3");
@@ -252,14 +289,25 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     await queue.getByRole("button", { name: /晴天洗衣/ }).click();
     await expect(page).toHaveURL(/[?&]id=rv-3(&|$)/);
     await detail.getByRole("button", { name: "驳回" }).click();
-    await expect(page.getByTestId("queue-result")).toContainText("该事项已被林晓处理");
+    // 提示由请求层出（右上角通知），同一句话只出现一处
+    await expect(page.getByText("该事项已被林晓处理")).toBeVisible();
+    await expect(page.getByText("该事项已被林晓处理")).toHaveCount(1);
     await expect(detail.getByRole("heading", { level: 2 })).toHaveText("XX 火锅（春熙店）");
     await shot(page, "08-queue-conflict");
 
-    // 换页签进 URL；已处理的只读
+    // 换页签进 URL；已处理的事项只读：操作条换成处理结果条（通过为成功色调），没有动作按钮
     await queue.getByRole("tab", { name: /今日已审核/ }).click();
     await expect(page).toHaveURL(/[?&]tab=done(&|$)/);
-    await expect(detail.getByText("已处理的事项只读")).toBeVisible();
+    await expect(page.getByTestId("queue-result")).toContainText("审核已通过");
+    await expect(detail.getByRole("button", { name: "审核通过" })).toHaveCount(0);
+    await expect(detail.getByRole("button", { name: "驳回" })).toHaveCount(0);
+    // 通知（规范 第 8 节）：成功的 4 秒后自己消失；失败的不自动消失，要手动关
+    await expect(page.getByText("青柠茶饮（春熙路店）：审核已通过")).toHaveCount(0);
+    const failure = page.getByRole("alert").filter({ hasText: "该事项已被林晓处理" });
+    await expect(failure).toBeVisible();
+    await failure.getByRole("button", { name: "关闭" }).click();
+    await expect(failure).toHaveCount(0);
+    await shot(page, "12-queue-settled");
   });
 
   await test.step("详情页：从列表进入；父列表的菜单项保持选中；页签进 URL；二次确认与上传", async () => {
@@ -309,6 +357,21 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     await expect(confirm).toBeDisabled();
     await dialog.getByRole("textbox", { name: "请输入联系电话后 4 位" }).fill("5018");
     await expect(confirm).toBeEnabled();
+    // 弹窗（规范 第 5.3 节）：关闭按钮 32 × 32、圆角 8，贴着 24 的内边距；底部按钮高 40、圆角 8
+    // 弹窗打开有一段缩放动画，量出来的尺寸要等它停稳：用轮询
+    const close = dialog.getByRole("button", { name: "关闭" });
+    await expect.poll(() => boxOf(close)).toEqual({ width: 32, height: 32, radius: "8px" });
+    await expect
+      .poll(async () => {
+        const outer = await dialog.boundingBox();
+        const inner = await close.boundingBox();
+        if (!outer || !inner) return null;
+        return { top: inner.y - outer.y, right: outer.x + outer.width - (inner.x + inner.width) };
+      })
+      .toEqual({ top: 24, right: 24 });
+    for (const button of [confirm, dialog.getByRole("button", { name: "取消" })]) {
+      await expect.poll(() => boxOf(button)).toMatchObject({ height: 40, radius: "8px" });
+    }
     await shot(page, "10-detail-confirm-dialog");
     await confirm.click();
     await expect(page.getByText("晴天洗衣：账号已禁用")).toBeVisible();
