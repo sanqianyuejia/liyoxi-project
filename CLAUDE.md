@@ -165,7 +165,7 @@
 | `python3 tools/api-check/gen_registries.py`、`gen_permissions.py` | 重新生成接口索引、错误码与权限点登记表 |
 | `pnpm install --frozen-lockfile` | 按锁文件安装，顺带装上提交钩子。pnpm 的版本由 `packageManager` 锁定，会自动切过去 |
 | `pnpm infra:up`、`pnpm infra:down` | 起、停本地依赖（PostgreSQL 17、Redis 7.4、MinIO），要本机 Docker 在运行。`infra:up` 等到三个服务都健康才返回；`infra:down` 不删数据卷。只有一份共享实例，在哪个 worktree 里跑都是同一套容器。端口、账号见 [local.yml](infra/compose/local.yml)，连接串的写法见表后 |
-| `pnpm gates:selftest` | 门禁自测：对固定的反例逐个跑对应的检查，断言检查失败且原因对得上。其中三例要外部条件：两例要 Docker，一例要外网。怎么加反例见 [README](infra/ci/README.md) 第 4 节 |
+| `pnpm gates:selftest` | 门禁自测：对固定的反例逐个跑对应的检查，断言检查失败且原因对得上。其中几例要外部条件：密钥扫描的要 Docker，依赖审计的要外网。怎么加反例见 [README](infra/ci/README.md) 第 4 节 |
 | `pnpm status:summary` | 重新生成状态汇总 `docs/plan/status/SUMMARY.md`。改了状态文件就跑一次并提交 |
 | `node infra/ci/check-env-example.mjs` | 核对 `.env.example`：键集合等于 `loadEnv` 的键集合，值都是占位 |
 | `node infra/ci/classify-gate-changes.mjs --base origin/main` | 本地试跑门禁改动分类：看本分支的改动会被判成只增还是放松。口径见 [README](infra/ci/README.md) 第 5 节 |

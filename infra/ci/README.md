@@ -11,7 +11,7 @@
 | `check-release-age.mjs` | 锁文件里的版本都发布满 7 天 | CI（`--since` 只查新增的） |
 | `check-layers.mjs`、`layers.json` | 模块分层登记与目录一一对应 | `pnpm depcheck`；CI |
 | `check-env-example.mjs` | `.env.example` 的键集合等于 `loadEnv` 的键集合，值都是占位 | CI |
-| `secret-scan.mjs` | 密钥扫描：gitleaks 官方镜像的固定标签，扫 HEAD 能到的全部提交（别的分支上的提交由它自己的 PR 扫）。放行项只在仓库根的 `.gitleaks.toml`，逐条写原因 | CI；本机要有 Docker |
+| `secret-scan.mjs` | 密钥扫描：gitleaks 官方镜像的固定标签，扫 HEAD 能到的全部提交，合并提交按它相对第一个父提交的差异扫（别的分支上的提交由它自己的 PR 扫）。放行项只在仓库根的 `.gitleaks.toml`，逐条写原因；写在被扫文件里的行内放行注释（`gitleaks:allow`）不认 | CI；本机要有 Docker |
 | `classify-gate-changes.mjs`、`gate-files.json` | 门禁改动分类：只增（`gate-touch`）与放松（`gate-change`） | CI 的 `gate-classify` 任务 |
 | `ci-required.mjs` | 汇总任务 `required`：判定必过任务的结论，统计耗时，出 `ci-duration.json` | CI 的 `required` 任务 |
 | `status-summary.mjs` | 生成 `docs/plan/status/SUMMARY.md` | `pnpm status:summary`；CI 用 `--check` 核对无差异 |
@@ -63,7 +63,7 @@ export default {
 - 判定是“检查的退出码非 0，且输出对得上 `reason`”。`reason` 写具体（规则名、报错里的关键句），不要写成任何失败都对得上的字。
 - 形似密钥、真实配置、旧名的字符串在运行时拼出来，不作为字面量入库。
 - 本地跑单个反例：`node infra/ci/selftest/run.mjs --only <文件名里的一段>`。
-- 三个反例要用到外部条件：`secret-scan-fake-key`、`secret-scan-history` 要本机 Docker 在运行，`audit-vulnerable-dep` 要能连 `registry.npmjs.org`。条件不具备时这几例会红，不会被悄悄跳过。
+- 有几例要用到外部条件：名字以 `secret-scan-` 开头的要本机 Docker 在运行，`audit-vulnerable-dep` 要能连 `registry.npmjs.org`。条件不具备时这几例会红，不会被悄悄跳过。
 
 ## 5. 门禁改动分类
 
@@ -81,10 +81,11 @@ node infra/ci/classify-gate-changes.mjs --base origin/main --labels gate-change
 | `append` | 新增文件；在已有文件里加行 | 删改已有行；加的行像是忽略、豁免、白名单（按关键字判，如 `ignore`、`exclude`、`allow`、`skip`、`eslint-disable`），或像是关掉、降级检查（规则级别 `"off"`、`"warn"`、数字 0 与 1，`process.exit`、`exit 0`、`doNotFollow`、`passWithNoTests`） |
 | `new-file` | 新增文件 | 改已有的文件，加一行也算（检查脚本、门禁自测的框架与反例：加一行就能让它空转，逐行判不出） |
 | `workflow` | 新增工作流文件；新增整个步骤或任务；`needs` 里加一行 | 删改已有行；往已有的步骤或任务里加行；新增的一段里夹带步骤或任务之外的行（比如跟在新步骤后面的任务级 `if:`）；`continue-on-error`、`paths-ignore` 之类 |
-| `frozen` | 新建，且它的条目在 main 的清单里还没登记（门禁与放行文件同一个 PR 建立） | 其余任何改动；条目已登记后的新建（放行文件、安装设置、格式规则） |
-| `manifest` | 新增依赖；已有的 `typecheck`、`test`、`lint` 脚本由占位（`echo`）换成真实命令，或去掉 `--passWithNoTests` | 依赖版本有变、删除依赖（升级要单独成 PR）；已有的 `typecheck`、`test`、`lint` 脚本被删、改成空转（`true`、`echo`、后面接 <code>&#124;&#124; true</code>）或换了别的写法。`build` 与其余脚本不管 |
-| `root-manifest` | 新增依赖；新增根脚本 | 依赖同上；改、删已有的根脚本；改 `engines`、`packageManager`、`pnpm`、`resolutions`、`overrides`（加也算） |
-| `lockfile` | `packages` 段新增条目 | 条目被移除或替换；已有条目的内容有变（来源、校验值）；头部设置有变 |
+| `frozen` | 新建，且它的条目是同一个 PR 的差异里新登记的（门禁与放行文件同一个 PR 建立） | 其余任何改动；条目已登记后的新建（放行文件、安装设置、格式规则、会遮蔽已登记配置的文件） |
+| `tsconfig` | 新增文件；新增键、往数组里加项；把严格性开关由松改严。按解析后的键值判（允许注释与行尾逗号），只改排版不算改动 | 删、改已有的键值；把严格性开关关掉（新增 `"noImplicitAny": false`、`skipLibCheck` 由 `false` 改 `true` 之类）；新增 `exclude`、`include`、`files`、`extends`，往 `exclude` 里加项；新增的键或项命中 `append` 的关键字；解析不了 |
+| `manifest` | 新增依赖，写精确版本（工作区内部包写 `workspace:`）；已有的 `typecheck`、`test`、`lint` 脚本由占位（`echo`）换成真实命令，或去掉 `--passWithNoTests` | 新增的依赖不是精确版本（`^`、`~`、`*`、`latest`、区间、别名、`catalog:`）；依赖版本有变、删除依赖（升级要单独成 PR）；已有的 `typecheck`、`test`、`lint` 脚本被删、改成空转（`true`、`echo`、后面接 <code>&#124;&#124; true</code>）或换了别的写法；动了 `prettier`、`lint-staged`、`commitlint`、`eslintConfig` 这几个键。`build` 与其余脚本、其余的键不管 |
+| `root-manifest` | 新增依赖（同上）；新增根脚本 | 依赖同上；改、删已有的根脚本；改 `engines`、`packageManager`、`pnpm`、`resolutions`、`overrides`（加也算）；已知集合以外的顶层键有变，新增也算（已知集合：依赖、脚本、上面五个字段，以及 `name`、`version`、`private`、`description`、`type`、`license` 等说明性的键） |
+| `lockfile` | `packages` 段新增条目（`importers`、`snapshots` 两段跟着新增的不单列） | `packages` 段的条目被移除或替换，已有条目的内容有变（来源、校验值）；头部设置有变；`importers` 段里已有依赖的 specifier、解析版本有变或被删；`snapshots` 段里已有条目的依赖版本有变或被删。版本后面括号里的 peer 解析不比（加一个依赖就会让它变） |
 | `layers` | 新增模块登记 | 改已登记模块的层；改同层策略或白名单；改非模块目录名单 |
 | `registry` | `gate-files.json` 新增条目 | 改、删已有条目 |
 
@@ -94,10 +95,13 @@ node infra/ci/classify-gate-changes.mjs --base origin/main --labels gate-change
 - 标签是在任务运行时从 PR 上读的。开 PR 之后才补打 `gate-change` 的，重跑 `gate-classify` 任务即可。
 - `gate-touch`、`gate-change` 两个标签由业主建。仓库里没有 `gate-touch` 时任务报错，不自己建。
 - 已知的限度：PR 上跑的是 PR 自己那份工作流文件。分类脚本与清单取自 main，PR 改不了它们对自己的判定；但一个 PR 若把 `gate-classify` 任务连同 `required` 里的那一行一起删掉，就没有任务来判它了。所以改 `.github/workflows/` 的 PR，业主要直接看工作流的差异，不只看顶部的清单。
-- 已知的限度：`append` 类文件（lint 装配与规则片段、tsconfig 预设、依赖方向配置、测试配置、提交钩子、用例与夹具）里加行，只靠关键字拦“关掉、降级”的写法，拦不全。清单里写“新增 N 行”的，业主要看差异。新步骤里的命令写了什么（比如 `|| true`）也不判，同样要看差异。
-- 还没登记的：工作区包自己的 `tsconfig.json` 与 `vitest.config.ts`。在里面关 `strict`、收窄 `include` 现在判为“没有门禁改动”。按 `append` 登记会把正常的改写（一行拆成多行、往 `include` 里加一项）也判成放松；登记不登记、按什么口径，待业主定（`docs/plan/status/W0-03.md` 偏差 6）。
+- 遮蔽：ESLint 从被检文件所在目录向上找配置；Prettier、commitlint、lint-staged 先读 `package.json` 里的同名键，再按一串文件名找。新增一个文件或一个键，就能让已登记的那份配置不再生效，而已登记的文件一行没动。所以 `eslint.config.*`、`.prettierrc*`、`prettier.config.*`、`.commitlintrc*`、`commitlint.config.*`、`.lintstagedrc*`、`lint-staged.config.*` 在任何目录下都按 `frozen` 登记（根上已登记为 `append` 的那三份除外），新增即算放松；`package.json` 里的工具配置键见上表。
+- 已知的限度：`append` 类文件（lint 装配与规则片段、依赖方向配置、测试配置、提交钩子、用例与夹具）里加行，只靠关键字拦“关掉、降级”的写法，拦不全。清单里写“新增 N 行”的，业主要看差异。新步骤里的命令写了什么（比如 `|| true`）也不判，同样要看差异。
+- 已知的限度：`tsconfig` 的严格性开关是照 TypeScript 5.9 列的一张表（脚本里的 `TS_STRICT_WHEN_TRUE`、`TS_STRICT_WHEN_FALSE`）。表外的新增键只列出、不判松紧，业主要看；升级 TypeScript 时这张表要跟着看一遍。
+- 已知的限度：遮蔽只登记了上面几个文件名与 `package.json` 的几个键。没盖到的有：`apps/*`、`packages/*` 之外的目录里新增的 `package.json`（里面同样可以写 `prettier` 键）、`package.yaml`、`.editorconfig`（Prettier 会读，只影响缩进一类的格式）。
+- 还没登记的：工作区包自己的 `tsconfig.json` 与 `vitest.config.ts`。在里面关 `strict`、收窄 `include` 现在判为“没有门禁改动”。`vitest.config.ts` 按 `append` 登记会把正常的改写（一行拆成多行、往 `include` 里加一项）也判成放松；`tsconfig.json` 现在可以按 `tsconfig` 登记，没有这个问题。登记不登记、按什么口径，待业主定（`docs/plan/status/W0-03.md` 偏差 6）。
 
-登记新的门禁文件：往 `gate-files.json` 的 `files` 末尾加一条（`pattern`、`kind`、`note`）。`pattern` 里 `**` 跨目录、`*` 不跨目录。白名单、基线、黄金文件这类“一动就该让业主看”的用 `frozen`；规则与配置用 `append`。`infra/ci/` 下的检查脚本（`.mjs`）与 `selftest/` 已经被现有条目按 `new-file` 盖住，不用再登记；放在别处的检查脚本按 `new-file` 登记。
+登记新的门禁文件：往 `gate-files.json` 的 `files` 末尾加一条（`pattern`、`kind`、`note`）。`pattern` 里 `**` 跨目录、`*` 不跨目录。白名单、基线、黄金文件这类“一动就该让业主看”的用 `frozen`；规则与配置用 `append`；tsconfig 用 `tsconfig`。新依赖一律写精确版本，写成范围会被判成放松。`infra/ci/` 下的检查脚本（`.mjs`）与 `selftest/` 已经被现有条目按 `new-file` 盖住，不用再登记；放在别处的检查脚本按 `new-file` 登记。
 
 ## 6. 状态汇总
 
