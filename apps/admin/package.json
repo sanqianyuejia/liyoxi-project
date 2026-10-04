@@ -6,17 +6,28 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "echo '占位：前端测试由 W0-28 接'",
-    "build": "echo '占位：真实构建由 W0-28 接'"
+    "test": "vitest run",
+    "build": "vite build && node scripts/check-build.mjs dist/app --app admin",
+    "dev": "vite",
+    "build:e2e": "vite build --mode e2e",
+    "e2e": "pnpm build:e2e && playwright test"
   },
   "dependencies": {
     "@liyoxi/contract": "workspace:*",
     "@liyoxi/shared": "workspace:*",
+    "@tanstack/react-query": "5.103.3",
+    "@tanstack/react-router": "1.170.39",
+    "antd": "6.6.5",
+    "openapi-fetch": "0.17.0",
+    "openapi-react-query": "0.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@types/react": "19.3.0",
-    "@types/react-dom": "19.3.0"
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "vite": "8.3.1"
   }
 }

@@ -6,17 +6,21 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "echo '占位：前端测试由 W0-28 接'",
-    "build": "echo '占位：真实构建由 W0-28 接'"
+    "test": "vitest run",
+    "build": "vite build && node ../admin/scripts/check-build.mjs dist/app --app portal",
+    "dev": "vite"
   },
   "dependencies": {
     "@liyoxi/contract": "workspace:*",
     "@liyoxi/shared": "workspace:*",
+    "antd": "6.6.5",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@types/react": "19.3.0",
-    "@types/react-dom": "19.3.0"
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "vite": "8.3.1"
   }
 }
