@@ -1,15 +1,19 @@
-// 事务单元（W0-07）：开事务的唯一入口、带品牌的事务句柄、保存点、“在事务中”标记。
+// 事务单元（W0-07）：开事务的唯一入口、带品牌的事务句柄、有限重试与错误映射、保存点、“在事务中”标记。
 // 依据：01 第 5 节调用规则 2、3，第 7.1 节；ADR-005、ADR-012；D7 第 2.3 节第 4、5 条，第 8.3 节。
 //
 //   1. 全仓只有这里调 prisma.$transaction（lint 规则拦别处）。改库的服务函数第一个参数写 tx: Tx；
 //      Tx 带品牌，普通 Prisma 客户端传不进去。只有用例函数调 run；run 里再 run 即抛错。
-//   2. 提交前探一句 SELECT 1：数据库错误被接住又没回滚到保存点时，PostgreSQL 会把 COMMIT 悄悄当成 ROLLBACK，
+//   2. 死锁（40P01）、序列化失败（40001）、锁等待超时（55P03）各重试 TX_RETRIES 次，耗尽报 BUSY；
+//      事务超时（Prisma P2028）不重试，报 BUSY；语句超时（57014）不重试，报 UPSTREAM_TIMEOUT。
+//      重试是把用例函数体整个再跑一遍：函数体里不得有事务外的副作用（发请求、改内存里的共享状态、入队）。
+//   3. 提交前探一句 SELECT 1：数据库错误被接住又没回滚到保存点时，PostgreSQL 会把 COMMIT 悄悄当成 ROLLBACK，
 //      Prisma 照样报成功。探这一句让它在这里报错，不让用例以为写进去了。
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import type { PrismaClient } from "@liyoxi/db";
 
 import type { AppEnv } from "./env.js";
+import { AppError } from "./errors.js";
 
 declare const TX_BRAND: unique symbol;
 /** 借自参考工程 identity.service.ts 的写法：从 $transaction 的回调参数取事务客户端的类型 */
@@ -21,6 +25,8 @@ export type Tx = TxClient & { readonly [TX_BRAND]: true };
 export const TX_TIMEOUT_MS = 10_000;
 export const TX_MAX_WAIT_MS = 3_000;
 export const TX_TIMEOUT_MAX_MS = 60_000;
+/** 可重试的错误重试几次（任务书 第 11 节第 1 项） */
+export const TX_RETRIES = 1;
 
 export type KernelViolationKind =
   "nested_transaction" | "external_call_in_transaction" | "lock_order";
@@ -66,6 +72,25 @@ export function txState(tx: Tx): TxState {
 /** 当前这段异步调用链是不是在事务里 */
 export const isInTransaction = (): boolean => scope.getStore()?.open === true;
 
+/** PostgreSQL 的 SQLSTATE。Prisma 7 加 pg 适配器：原生 SQL 与模型查询的数据库错误都把它放在这个位置 */
+export function sqlStateOf(error: unknown): string | undefined {
+  const meta = (error as { meta?: { driverAdapterError?: { cause?: { originalCode?: unknown } } } })
+    ?.meta;
+  const code = meta?.driverAdapterError?.cause?.originalCode;
+  return typeof code === "string" ? code : undefined;
+}
+
+const RETRYABLE = new Set(["40P01", "40001", "55P03"]);
+
+/** 归类一条从事务里出来的错误：重试、映射成哪个错误码，或原样抛出 */
+function classify(error: unknown): "retry" | "BUSY" | "UPSTREAM_TIMEOUT" | "aborted" | undefined {
+  const state = sqlStateOf(error);
+  if (state !== undefined && RETRYABLE.has(state)) return "retry";
+  if (state === "57014") return "UPSTREAM_TIMEOUT";
+  if (state === "25P02") return "aborted";
+  return (error as { code?: unknown })?.code === "P2028" ? "BUSY" : undefined;
+}
+
 export interface TxRunnerOptions {
   prisma: PrismaClient;
   /** local、test 下违规即抛错；stg、prod 下上报后继续 */
@@ -82,9 +107,12 @@ export interface TxRunOptions {
 }
 
 export interface TxRunner {
-  /** 开事务跑用例函数体 */
+  /** 开事务跑用例函数体。可重试的错误会让 fn 整个再跑一遍 */
   run<T>(fn: (tx: Tx) => Promise<T>, options?: TxRunOptions): Promise<T>;
 }
+
+const backoff = (): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, 20 + Math.random() * 60));
 
 export function createTxRunner({ prisma, appEnv, report }: TxRunnerOptions): TxRunner {
   const strict = appEnv === "local" || appEnv === "test";
@@ -109,20 +137,38 @@ export function createTxRunner({ prisma, appEnv, report }: TxRunnerOptions): TxR
           `事务超时要在 1 到 ${TX_TIMEOUT_MAX_MS} 毫秒之间，等连接的上限要大于 0`,
         );
       }
-      return prisma.$transaction(
-        async (client) => {
-          const state: TxState = { open: true, savepoints: 0, held: [], violate };
-          states.set(client, state);
-          try {
-            const result = await scope.run(state, () => fn(client as Tx));
-            await client.$queryRawUnsafe("SELECT 1");
-            return result;
-          } finally {
-            state.open = false;
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          return await prisma.$transaction(
+            async (client) => {
+              const state: TxState = { open: true, savepoints: 0, held: [], violate };
+              states.set(client, state);
+              try {
+                const result = await scope.run(state, () => fn(client as Tx));
+                await client.$queryRawUnsafe("SELECT 1");
+                return result;
+              } finally {
+                state.open = false;
+              }
+            },
+            { timeout, maxWait },
+          );
+        } catch (error) {
+          const kind = classify(error);
+          if (kind === undefined) throw error;
+          if (kind === "retry" && attempt < TX_RETRIES) {
+            await backoff();
+            continue;
           }
-        },
-        { timeout, maxWait },
-      );
+          if (kind === "aborted") {
+            throw new Error(
+              "事务已被数据库中止：有数据库错误被接住之后没有回滚。要接住数据库错误并接着写，用 savepoint 包住那一段",
+              { cause: error },
+            );
+          }
+          throw new AppError(kind === "retry" ? "BUSY" : kind, { cause: error });
+        }
+      }
     },
   };
 }
