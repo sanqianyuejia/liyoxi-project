@@ -42,10 +42,52 @@
   line-height: $lyx-line-height-body;
 }
 
+// 目录页的一组：组名在左，规范的节号在右；下面一行是这一组要对的要点
 .lyx-gallery-index__group {
-  margin: $lyx-space-16 0 $lyx-space-8;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: $lyx-space-8;
+  margin: $lyx-space-20 0 $lyx-space-4;
+}
+
+.lyx-gallery-index__group-name {
+  font-size: $lyx-font-size-heading;
+  font-weight: $lyx-font-weight-semibold;
+}
+
+.lyx-gallery-index__group-spec {
+  flex: none;
+  color: $lyx-color-primary-text;
+  font-size: $lyx-font-size-tag;
+}
+
+.lyx-gallery-index__points {
+  margin-bottom: $lyx-space-8;
   color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-tag;
+  line-height: $lyx-line-height-body;
+}
+
+// 预览页顶上的对照说明：这一页对规范的哪一节、要对哪些要点
+.lyx-gallery-spec {
+  margin-bottom: $lyx-space-16;
+  padding: $lyx-space-10 $lyx-space-12;
+  border-radius: $lyx-radius-lg;
+  background: $lyx-color-primary-bg-subtle;
+}
+
+.lyx-gallery-spec__title {
+  color: $lyx-color-primary-text;
   font-size: $lyx-font-size-caption;
+  font-weight: $lyx-font-weight-semibold;
+}
+
+.lyx-gallery-spec__points {
+  margin-top: $lyx-space-4;
+  color: $lyx-color-text-regular;
+  font-size: $lyx-font-size-tag;
+  line-height: $lyx-line-height-body;
 }
 
 .lyx-gallery-index__list {

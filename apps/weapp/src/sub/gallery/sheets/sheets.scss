@@ -1,0 +1,260 @@
+// 基础样张自己的版式：只在开发用的陈列分包里。颜色、字号、圆角一律取样式变量（$lyx-*），不写色值。
+// 下面三张表的键与 design/tokens.json 的键相同；少了哪个变量的类，用例（src/gallery.test.ts）会指出来。
+
+// ---- 颜色（规范 第 1 节）
+$sheet-colors: (
+  "primary": $lyx-color-primary,
+  "primary-text": $lyx-color-primary-text,
+  "primary-bg": $lyx-color-primary-bg,
+  "primary-bg-subtle": $lyx-color-primary-bg-subtle,
+  "text-primary": $lyx-color-text-primary,
+  "text-regular": $lyx-color-text-regular,
+  "text-secondary": $lyx-color-text-secondary,
+  "text-disabled": $lyx-color-text-disabled,
+  "text-inverse": $lyx-color-text-inverse,
+  "bg-page": $lyx-color-bg-page,
+  "bg-card": $lyx-color-bg-card,
+  "bg-subtle": $lyx-color-bg-subtle,
+  "bg-inverse": $lyx-color-bg-inverse,
+  "fill-neutral": $lyx-color-fill-neutral,
+  "fill-disabled": $lyx-color-fill-disabled,
+  "border": $lyx-color-border,
+  "border-light": $lyx-color-border-light,
+  "divider": $lyx-color-divider,
+  "border-strong": $lyx-color-border-strong,
+  "mask": $lyx-color-mask,
+  "success": $lyx-color-success,
+  "success-bg": $lyx-color-success-bg,
+  "info": $lyx-color-info,
+  "info-bg": $lyx-color-info-bg,
+  "warning": $lyx-color-warning,
+  "warning-bg": $lyx-color-warning-bg,
+  "danger": $lyx-color-danger,
+  "danger-bg": $lyx-color-danger-bg,
+  "danger-border": $lyx-color-danger-border,
+  "neutral": $lyx-color-neutral,
+  "neutral-bg": $lyx-color-neutral-bg,
+  "fill-track": $lyx-color-fill-track,
+  "accent-on-dark": $lyx-color-accent-on-dark,
+  "text-on-dark-secondary": $lyx-color-text-on-dark-secondary,
+  "fill-on-dark": $lyx-color-fill-on-dark,
+  "switch-on": $lyx-color-switch-on,
+  "badge-bg": $lyx-color-badge-bg,
+);
+
+.lyx-sheet-swatch {
+  display: flex;
+  align-items: center;
+  gap: $lyx-space-12;
+}
+
+// 色块外面套一圈描边：白色、页面底色这类浅色在白底上也看得出边界
+.lyx-sheet-swatch__chip {
+  flex: none;
+  width: 44px;
+  height: 28px;
+  border: $lyx-border-width-default solid $lyx-color-border;
+  border-radius: $lyx-radius-thumb;
+}
+
+@each $name, $value in $sheet-colors {
+  .lyx-sheet-swatch__chip--#{$name} {
+    background: $value;
+  }
+}
+
+// 半透明的白要垫在深色底上才看得见
+.lyx-sheet-swatch__chip--fill-on-dark {
+  background:
+    linear-gradient($lyx-color-fill-on-dark, $lyx-color-fill-on-dark), $lyx-color-bg-inverse;
+}
+
+.lyx-sheet-swatch__name {
+  flex: 1;
+  font-size: $lyx-font-size-caption;
+}
+
+.lyx-sheet-swatch__value {
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-tag;
+  font-variant-numeric: tabular-nums;
+}
+
+// ---- 文字（规范 第 2.2、2.4 节）
+$sheet-font-sizes: (
+  "title": $lyx-font-size-title,
+  "heading": $lyx-font-size-heading,
+  "body": $lyx-font-size-body,
+  "body-sm": $lyx-font-size-body-sm,
+  "caption": $lyx-font-size-caption,
+  "tag": $lyx-font-size-tag,
+  "mini": $lyx-font-size-mini,
+  "display": $lyx-font-size-display,
+  "number-lg": $lyx-font-size-number-lg,
+  "number-md": $lyx-font-size-number-md,
+  "number-sm": $lyx-font-size-number-sm,
+);
+
+.lyx-sheet-type {
+  display: flex;
+  align-items: center;
+  gap: $lyx-space-12;
+}
+
+.lyx-sheet-type__meta {
+  flex: none;
+  width: 108px;
+}
+
+.lyx-sheet-type__name {
+  font-size: $lyx-font-size-caption;
+}
+
+.lyx-sheet-type__spec {
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-mini;
+}
+
+.lyx-sheet-type__sample {
+  flex: 1;
+  min-width: 0;
+}
+
+@each $name, $value in $sheet-font-sizes {
+  .lyx-sheet-type__sample--#{$name} {
+    font-size: $value;
+  }
+}
+
+.lyx-sheet-type__sample--number-lg {
+  line-height: 1.1;
+}
+
+.lyx-sheet-type__sample--semibold {
+  font-weight: $lyx-font-weight-semibold;
+}
+
+.lyx-sheet-type__sample--bold {
+  font-weight: $lyx-font-weight-bold;
+}
+
+// 展示型标题：衬线、900、字间距 1px
+.lyx-sheet-type__sample--display {
+  font-family: $lyx-font-family-serif;
+  font-weight: $lyx-font-weight-black;
+  letter-spacing: 1px;
+}
+
+// ---- 间距、圆角与描边（规范 第 3 节）
+$sheet-spaces: (
+  "2": $lyx-space-2,
+  "4": $lyx-space-4,
+  "6": $lyx-space-6,
+  "8": $lyx-space-8,
+  "10": $lyx-space-10,
+  "12": $lyx-space-12,
+  "14": $lyx-space-14,
+  "16": $lyx-space-16,
+  "20": $lyx-space-20,
+  "24": $lyx-space-24,
+);
+
+$sheet-radii: (
+  "tag": $lyx-radius-tag,
+  "thumb": $lyx-radius-thumb,
+  "cover": $lyx-radius-cover,
+  "input": $lyx-radius-input,
+  "tile": $lyx-radius-tile,
+  "card": $lyx-radius-card,
+  "card-lg": $lyx-radius-card-lg,
+  "pill": $lyx-radius-pill,
+);
+
+.lyx-sheet-space {
+  display: flex;
+  align-items: center;
+  gap: $lyx-space-12;
+}
+
+.lyx-sheet-space__label {
+  flex: none;
+  width: 24px;
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-tag;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+// 条的宽度就是这一档间距
+.lyx-sheet-space__bar {
+  height: 12px;
+  border-radius: $lyx-radius-xs;
+  background: $lyx-color-primary;
+}
+
+@each $name, $value in $sheet-spaces {
+  .lyx-sheet-space__bar--#{$name} {
+    width: $value;
+  }
+}
+
+.lyx-sheet-radius {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: $lyx-space-6;
+  width: 68px;
+}
+
+.lyx-sheet-radius__box {
+  width: 56px;
+  height: 40px;
+  background: $lyx-color-primary-bg;
+}
+
+@each $name, $value in $sheet-radii {
+  .lyx-sheet-radius__box--#{$name} {
+    border-radius: $value;
+  }
+}
+
+.lyx-sheet-radius__label {
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-mini;
+}
+
+.lyx-sheet-border {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88px;
+  height: 44px;
+  border-radius: $lyx-radius-input;
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-tag;
+}
+
+.lyx-sheet-border--default {
+  border: $lyx-border-width-default solid $lyx-color-border;
+}
+
+.lyx-sheet-border--strong {
+  border: $lyx-border-width-strong solid $lyx-color-primary;
+}
+
+.lyx-sheet-border--dashed {
+  border: $lyx-border-width-default dashed $lyx-color-border-strong;
+  background: $lyx-color-bg-subtle;
+}
+
+.lyx-sheet-card {
+  margin-bottom: $lyx-space-section;
+  padding: $lyx-space-card-padding;
+  border-radius: $lyx-radius-card;
+  background: $lyx-color-bg-card;
+  font-size: $lyx-font-size-caption;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}

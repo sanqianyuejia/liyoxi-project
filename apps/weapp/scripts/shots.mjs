@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 // 小程序页面截图。根脚本是 pnpm weapp:shots（= pnpm --filter @liyoxi/weapp shots）。
 //
-// 用法：pnpm weapp:shots [-- --page <路由> …] [--component <组件名> …] [--no-build]
+// 用法：pnpm weapp:shots [-- --page <路由> …] [--component <组件名> …] [--sheet <样张名> …] [--no-build]
 //   不带参数           页面清单（src/pages.ts）里已建的页各出一张；组件陈列（src/gallery.ts）的目录页一张、
-//                      每个组件的预览各一张
+//                      每个组件的预览各一张、每张基础样张各一张
 //   --page <路由>      只出这一页，可给多次。路由照页面清单的写法，如 pages/home/index
 //   --component <名字> 只出这个组件的预览，可给多次。名字是 src/components/ 下的目录名，如 Button
+//   --sheet <名字>     只出这张基础样张，可给多次。名字照 src/gallery.ts 的 GALLERY_SHEETS，如 colors
 //   --no-build         不重新构建，直接用上一次的 H5 产物
 // 组件预览的图（W0-27b）：文件名 gallery__<组件名>.png，截整页（预览比一屏长），其余的页只截一屏。
+// 基础样张的图（W0-29）：文件名 gallery__sheet-<样张名>.png，同样截整页；陈列的目录页也截整页（看样要看全各组的节号与要点）。
 // 做法（任务书 W0-27a 第 11 节第 1 项）：先出一份 Taro 的 H5 构建（shots/dist/h5/），本机起一个只服务这个目录的
 // 静态服务，用 Playwright 的 Chromium 按 375 × 812、1 倍像素打开每一页截图。产物在 shots/dist/png/，
 // 文件名是路由把 / 换成 __，宽 375；不入库，CI 把这个目录作为产物 weapp-shots 上传。
@@ -48,6 +50,7 @@ function fail(message, code = 2) {
 const args = process.argv.slice(2).filter((arg) => arg !== "--");
 const wanted = [];
 const wantedComponents = [];
+const wantedSheets = [];
 let build = true;
 for (let index = 0; index < args.length; index += 1) {
   if (args[index] === "--no-build") build = false;
@@ -59,6 +62,10 @@ for (let index = 0; index < args.length; index += 1) {
     const name = args[(index += 1)];
     if (!name) fail("--component 后面要跟一个组件名，如 Button");
     wantedComponents.push(name);
+  } else if (args[index] === "--sheet") {
+    const name = args[(index += 1)];
+    if (!name) fail("--sheet 后面要跟一个样张名，如 colors");
+    wantedSheets.push(name);
   } else fail(`不认识的参数 ${args[index]}`);
 }
 
@@ -67,7 +74,7 @@ const { WEAPP_PAGES, isBuilt } = await import(
   pathToFileURL(path.join(appRoot, "src/pages.ts")).href
 );
 // 组件陈列（开发用的分包，H5 构建一律带）：目录页照普通页面出，每个组件的预览另出一张整页的
-const { GALLERY_ITEMS, GALLERY_INDEX_ROUTE, GALLERY_PREVIEW_ROUTE } = await import(
+const { GALLERY_ITEMS, GALLERY_SHEETS, GALLERY_INDEX_ROUTE, GALLERY_PREVIEW_ROUTE } = await import(
   pathToFileURL(path.join(appRoot, "src/gallery.ts")).href
 );
 const builtRoutes = [...WEAPP_PAGES.filter(isBuilt).map((item) => item.route), GALLERY_INDEX_ROUTE];
@@ -80,19 +87,30 @@ const unknownComponents = wantedComponents.filter((name) => !componentNames.incl
 if (unknownComponents.length > 0) {
   fail(`这些组件不在陈列的登记（src/gallery.ts）里：${unknownComponents.join("、")}`, 1);
 }
-const all = wanted.length === 0 && wantedComponents.length === 0;
+const sheetNames = GALLERY_SHEETS.map((item) => item.name);
+const unknownSheets = wantedSheets.filter((name) => !sheetNames.includes(name));
+if (unknownSheets.length > 0) {
+  fail(`这些样张不在陈列的登记（src/gallery.ts）里：${unknownSheets.join("、")}`, 1);
+}
+const all = wanted.length === 0 && wantedComponents.length === 0 && wantedSheets.length === 0;
 /** 要出的图：url 是 # 后面的部分，file 是不带扩展名的文件名，fullPage 为真截整页 */
 const targets = [
   ...(all ? builtRoutes : wanted).map((route) => ({
     label: route,
     url: route,
     file: route.replaceAll("/", "__"),
-    fullPage: false,
+    fullPage: route === GALLERY_INDEX_ROUTE,
   })),
   ...(all ? componentNames : wantedComponents).map((name) => ({
     label: `组件 ${name}`,
     url: `${GALLERY_PREVIEW_ROUTE}?name=${name}`,
     file: `gallery__${name}`,
+    fullPage: true,
+  })),
+  ...(all ? sheetNames : wantedSheets).map((name) => ({
+    label: `样张 ${name}`,
+    url: `${GALLERY_PREVIEW_ROUTE}?sheet=${name}`,
+    file: `gallery__sheet-${name}`,
     fullPage: true,
   })),
 ];
@@ -153,6 +171,8 @@ async function shoot(target) {
       // Taro 的 H5 页面在自己的容器里滚动，整页截图要先把视口撑到内容那么高
       const height = await taroPage.evaluate((node) => Math.ceil(node.scrollHeight));
       await page.setViewportSize({ width: VIEWPORT.width, height: Math.max(height, 200) });
+      // 视口刚撑高，新露出来的那一段可能还没重画：并着截、机器忙的时候截到过上一屏的残影（W0-29），等一下再截
+      await page.waitForTimeout(200);
     }
     const file = path.join(outDir, `${target.file}.png`);
     await page.screenshot({ path: file });
