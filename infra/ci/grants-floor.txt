@@ -1,0 +1,48 @@
+# 授权下限清单（W0-06a）：应用角色 lyx_app 在受限的表上最多能有什么权限。
+# 本文件受门禁口径管（infra/ci/README.md 第 5 节的 append）：加行算“只增”，删行、改行算“放松”。
+# 期望的授权 packages/db/src/grants.expected.json 不是门禁文件，所以另有这一份把下限钉住。手写的，不是生成物。
+#
+# 一行一张表，空格分隔：表名  表级权限的上限（按字母序、逗号连接）  另许列级 UPDATE 的列（可以没有，可以几个）
+# 核对的是“不得超过”：期望数据与库里实际的授权，都不能比这一行写的多。
+# 期望数据里受限的表（表级权限不是 DELETE,INSERT,SELECT,UPDATE 全套的，或列在只增清单 appendOnly 里的）都得在这里有一行。
+#
+# 加一张受限的表：加一行，与建它的迁移、期望数据放同一个 PR（只增）。
+# 收紧一张已登记的表：不用动这里（这里只管上限）；想把上限跟着收紧，另开 gate-change PR 改那一行。
+# 放开一张表（多给权限、多许一列）：先用单独的 gate-change PR 把那一行改大，业主同意、合并之后，
+#   工作包 PR 再改迁移与期望数据。只改这一行、不动迁移时各项检查照样通过，两个 PR 不会互相卡住。
+#   只删掉一行而期望数据里它还是受限的，算漏登记，不通过；一张表彻底放开之后，那一行可以再用 gate-change PR 删掉。
+# 同一张表不得登记两次（加一行更宽的盖不掉原来那一行）。
+#
+# 谁在核对：infra/ci/db-verify-grants.mjs（规则在 db-grants-rules.mjs）、用例 infra/ci/test/grants-floor.test.ts、
+# 门禁自测的反例 infra/ci/selftest/cases/db-verify-grants-floor-opened-ledger.mjs。说明见 packages/db/README.md 第 9 节。
+outbox_event INSERT,SELECT published_at
+status_transition INSERT,SELECT
+assignment_history INSERT,SELECT contact_due_at sla_snapshot contacted_at contacted_by_staff_id contact_voided_at updated_at
+audit_log INSERT,SELECT
+auth_event INSERT,SELECT
+drama_copyright_revision INSERT,SELECT
+file_object INSERT,SELECT,UPDATE
+price_tier_revision INSERT,SELECT
+subscription_event INSERT,SELECT
+ledger_operation INSERT,SELECT
+point_ledger_entry INSERT,SELECT
+billing_order INSERT,SELECT,UPDATE
+payment_txn INSERT,SELECT,UPDATE
+transfer_proof INSERT,SELECT,UPDATE
+refund_request INSERT,SELECT,UPDATE
+refund_txn INSERT,SELECT,UPDATE
+payment_exception INSERT,SELECT,UPDATE
+wx_bill_file INSERT,SELECT,UPDATE
+wx_bill_line INSERT,SELECT,UPDATE
+recon_day INSERT,SELECT,UPDATE
+invoice_request INSERT,SELECT,UPDATE
+invoice_doc INSERT,SELECT,UPDATE
+finance_config_revision INSERT,SELECT effective_at
+delivery_download_log INSERT,SELECT client_ack client_ack_at
+service_ticket INSERT,SELECT,UPDATE
+service_ticket_entry INSERT,SELECT
+service_ticket_ref DELETE,INSERT,SELECT
+manual_reminder_log INSERT,SELECT
+agreement_consent INSERT,SELECT
+param_value INSERT,SELECT cancelled_at
+analytics_event INSERT,SELECT

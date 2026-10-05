@@ -40,10 +40,13 @@ interface Catalog {
 }
 interface Rules {
   CATALOG_SQL: string;
+  FLOOR_FILE: string;
   MIN_VERSION_NUM: number;
+  parseFloor(text: string): { tables: Map<string, unknown>; problems: string[] };
   judge(
     catalog: Catalog,
     expected: unknown,
+    floor: unknown,
   ): { notes: string[]; problems: string[]; review: string[] };
   versionProblem(versionNum: number | string, versionText: string): string | null;
 }
@@ -72,6 +75,8 @@ const expected = JSON.parse(
   columnUpdate: Record<string, string[]>;
   definerFunctions: Record<string, string[]>;
 };
+/** 下限清单：核对脚本读的同一份（门禁文件）。它自己对期望数据的核对在 grants-floor.test.ts */
+const floor = rules.parseFloor(readFileSync(join(repoRoot, rules.FLOOR_FILE), "utf8"));
 
 // ===== 要动手脚的对象：从期望里按权限集合现挑，别的现查系统目录 =====
 
@@ -148,12 +153,13 @@ function verify(databaseUrl: string | undefined, args: string[] = []) {
   return { status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 
-/** 动一处手脚，核对要失败并报出这一句；再还原 */
-function tampered(change: string, revert: string, message: string | RegExp): void {
+/** 动一处手脚，核对要失败并报出这一句（给数组就是这几句都要有）；再还原 */
+function tampered(change: string, revert: string, message: string | RegExp | string[]): void {
   lib.sqlOrThrow(DB, change);
   try {
     const result = verify(urlOf(DB));
-    expect(result.stdout).toMatch(message);
+    for (const part of Array.isArray(message) ? message : [message])
+      expect(result.stdout).toMatch(part);
     expect(result.stdout).toContain("结论：不通过。");
     expect(result.status).toBe(1);
   } finally {
@@ -296,6 +302,7 @@ describe("db-verify-grants.mjs", () => {
       `- lyx_app 的表级权限（${logical} 张逻辑表，逐张与期望相同）：${spread}\n`,
       `- 分区子表与 _prisma_migrations（${all - logical} 张）：lyx_app 没有任何权限`,
       `- 只增表 ${expected.appendOnly.length} 张：改、删、清空都没有权限；列级 UPDATE 只有 ${columns.length} 列（${columns.join("、")}）`,
+      `- 下限清单 ${floor.tables.size} 张表：期望与库里的授权都没有超过它写的上限，受限的表都登记了`,
       `- file_object：${expected.tables.file_object}，没有 DELETE`,
       `- 序列 ${sequences} 个：lyx_app 都有 USAGE（取号），没有 UPDATE（改当前值）`,
       "- 表与序列之外的关系（视图、物化视图、外部表，别的模式里的对象）0 个：",
@@ -352,12 +359,15 @@ describe("db-verify-grants.mjs", () => {
     } finally {
       lib.sqlOrThrow(DB, `REVOKE DELETE ON ${first}, ${second} FROM lyx_app`);
     }
-    // 只增表另有一条不看期望清单的核对：必须恰好是 INSERT、SELECT
+    // 只增表另有两条不看期望清单的核对：必须恰好是 INSERT、SELECT；不得超过下限清单里那一行
     for (const privilege of ["DELETE", "UPDATE"])
       tampered(
         `GRANT ${privilege} ON ${appendOnly} TO lyx_app`,
         `REVOKE ${privilege} ON ${appendOnly} FROM lyx_app`,
-        `只增表上 lyx_app 的表级权限不是恰好 INSERT、SELECT：${appendOnly}`,
+        [
+          `只增表上 lyx_app 的表级权限不是恰好 INSERT、SELECT：${appendOnly}`,
+          `库里的授权超过下限清单（${rules.FLOOR_FILE}）：${appendOnly}（实际 ${plus("INSERT,SELECT", privilege)}，下限只许 INSERT,SELECT）`,
+        ],
       );
     // 四种读写之外的权限也算：清空、建触发器，PostgreSQL 17 起另有 MAINTAIN
     tampered(
@@ -395,7 +405,10 @@ describe("db-verify-grants.mjs", () => {
     tampered(
       `GRANT UPDATE (${extraColumn}) ON ${columnTable} TO lyx_app`,
       `REVOKE UPDATE (${extraColumn}) ON ${columnTable} FROM lyx_app`,
-      `期望之外的列级授权：${columnTable}.${extraColumn}（lyx_app UPDATE）`,
+      [
+        `期望之外的列级授权：${columnTable}.${extraColumn}（lyx_app UPDATE）`,
+        `库里的授权超过下限清单（${rules.FLOOR_FILE}）：${columnTable}.${extraColumn}（实际另有列级 UPDATE，下限没有许这一列）`,
+      ],
     );
     tampered(
       `REVOKE UPDATE (${exceptionColumn}) ON ${columnTable} FROM lyx_app`,
@@ -747,7 +760,7 @@ describe("判定规则：成员（拿改过的目录文档验，不动实例）"
   });
   const judged = (members: Member[]) => {
     const catalog = readCatalog();
-    return rules.judge({ ...catalog, members: [...catalog.members, ...members] }, expected);
+    return rules.judge({ ...catalog, members: [...catalog.members, ...members] }, expected, floor);
   };
 
   it("目录文档原样：没有问题；加一个规矩的登录成员：照样没有问题，报告里列出它", () => {
@@ -811,13 +824,48 @@ describe("判定规则：成员（拿改过的目录文档验，不动实例）"
       acl: [...acl, ...privileges.map(grant)],
     });
     const listed = { ...expected, views: ["lyx_listed_view"] };
-    expect(rules.judge(withView(["SELECT"]), listed).problems).toEqual([]);
-    expect(rules.judge(withView(["SELECT"]), expected).problems).toHaveLength(1);
-    expect(rules.judge(withView(["SELECT", "UPDATE"]), listed).problems).toEqual([
+    expect(rules.judge(withView(["SELECT"]), listed, floor).problems).toEqual([]);
+    expect(rules.judge(withView(["SELECT"]), expected, floor).problems).toHaveLength(1);
+    expect(rules.judge(withView(["SELECT", "UPDATE"]), listed, floor).problems).toEqual([
       expect.stringContaining("视图等 lyx_listed_view（lyx_app SELECT,UPDATE）"),
     ]);
-    expect(rules.judge(catalog, listed).problems).toEqual([
+    expect(rules.judge(catalog, listed, floor).problems).toEqual([
       "期望清单的 views 里有而库里没有的视图：lyx_listed_view",
     ]);
+  });
+
+  it("下限清单：库里的授权与期望数据一起放开一张只增表（期望照样对得上），仍然不通过", () => {
+    // 模拟“迁移里多授、期望同步改掉”：目录文档里给这张表补上 UPDATE、DELETE，期望那一行改成全套读写并从只增清单拿掉
+    const catalog = readCatalog();
+    const grant = (privilege: string) => ({
+      kind: "table",
+      name: appendOnly,
+      owned: false,
+      grantee: "lyx_app",
+      privilege,
+      grantable: false,
+    });
+    const opened = {
+      ...catalog,
+      acl: [...(catalog.acl as unknown[]), grant("UPDATE"), grant("DELETE")],
+    };
+    const inStep = {
+      ...expected,
+      tables: { ...expected.tables, [appendOnly]: FULL },
+      appendOnly: expected.appendOnly.filter((table) => table !== appendOnly),
+    };
+    expect(rules.judge(opened, inStep, floor).problems).toEqual([
+      `期望的授权超过下限清单（${rules.FLOOR_FILE}）：${appendOnly}（期望 ${FULL}，下限只许 INSERT,SELECT）`,
+      `库里的授权超过下限清单（${rules.FLOOR_FILE}）：${appendOnly}（实际 ${FULL}，下限只许 INSERT,SELECT）`,
+    ]);
+    // 先用单独的门禁 PR 把那一行的上限改大，之后同样的改动就通过
+    const raised = rules.parseFloor(
+      readFileSync(join(repoRoot, rules.FLOOR_FILE), "utf8").replace(
+        new RegExp(`^${appendOnly} .*$`, "m"),
+        `${appendOnly} ${FULL}`,
+      ),
+    );
+    expect(rules.judge(opened, inStep, raised).problems).toEqual([]);
+    expect(rules.judge(catalog, expected, raised).problems).toEqual([]);
   });
 });
