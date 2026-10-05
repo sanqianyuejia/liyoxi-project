@@ -30,6 +30,7 @@ const TABLES = [
   "site_config_revision",
   "work_calendar_day",
   "staff_role",
+  "staff_group",
   "wx_template_slot",
   "sms_template",
   "notify_scene",
@@ -112,6 +113,7 @@ describe("播种", () => {
       site_config_revision: 2,
       work_calendar_day: 730,
       staff_role: 8,
+      staff_group: 8,
       wx_template_slot: 12,
       sms_template: 9,
       notify_scene: NOTIFY_SCENES.length,
@@ -250,7 +252,8 @@ describe("播种", () => {
     const { prisma } = await setup();
     const now = clock.now();
     const staffId = uuidv7();
-    // staff.I8：少一个角色
+    // staff.I8：少一个角色（它的默认组有外键指着，先删）
+    await prisma.staffGroup.deleteMany({ where: { staffRoleKey: "channel_ops" } });
     await prisma.staffRole.delete({ where: { key: "channel_ops" } });
     // config.N9：商城配置没有已发布的一版；同时生效的 Banner 超过上限（默认 5 张）
     await prisma.siteConfigRevision.updateMany({
