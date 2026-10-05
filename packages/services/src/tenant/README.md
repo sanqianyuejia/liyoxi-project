@@ -13,7 +13,7 @@ W1-03 交最小集：懒创建主体、成员关系解析、门店列表与额�
 | `stores.ts` | 门店列表、记住当前门店 |
 | `qualification.ts` | 给 profile 的三个写函数 |
 | `machines.ts` | 五条状态链的登记：随迁列、活动流默认描述、本包十行迁移的守卫 |
-| `ports.ts`、`billing-account-stub.ts` | 计费账户端口与它的桩 |
+| `ports.ts` | 计费账户端口（实现在 billing） |
 | `invariants.ts`、`register.ts` | `tenant.I1`、`I7`、`I27`、`I29` 与本模块的登记 |
 | `repo.ts` | 本模块的查询 |
 
@@ -44,7 +44,7 @@ await tenant.setDeliveryManager(tx, ctx, { storeId, staffId });
 
 ## 3. 计费账户端口
 
-`billingAccountPort`（`ports.ts`）由 tenant 定义、billing 实现，建主体的事务里调一次。没有默认实现：没人实现就装配失败。W1-11a 合并之前由 `billing-account-stub.ts` 顶着（什么都不建）；它注册真实现时删掉桩文件与 `register.ts` 里登记它的那一行。测试里换实现：`assembleForTest({ withoutRealPorts: [billingAccountPort], extra: [样例登记] })`。
+`billingAccountPort`（`ports.ts`）由 tenant 定义、billing 实现，建主体的事务里调一次。没有默认实现：没人实现就装配失败。实现在 `billing/ports.ts`（W1-11a 起）：建 `billing_account` 行并锁住它，时间取主体行的 `created_at`。测试里换实现：`assembleForTest({ withoutRealPorts: [billingAccountPort], extra: [样例登记] })`。
 
 ## 4. 跑用例
 

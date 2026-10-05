@@ -1,11 +1,10 @@
 // tenant 模块的登记（W1-03）：
-//   端口     声明计费账户端口；W1-11a 合并之前由桩顶着（它注册真实现时删掉下面登记桩的那一行与桩文件）。
+//   端口     声明计费账户端口；实现由 billing 登记（W1-11a 起，建主体的事务里建 billing_account 行）。
 //   状态机   entity、store、entity_member 五条链的随迁列、活动流默认描述，与本包用到的十行迁移的守卫。
 //   不变量   tenant.I1、I7、I27、I29；调度与落库由 ops（W0-24）。
 // 订阅者 tenant.onEntitlementChanged、定时器 invitation.expire 随 M2。
-import { defineRegistration, implement } from "../kernel/index.js";
+import { defineRegistration } from "../kernel/index.js";
 import type { InvariantRegistration } from "../kernel/index.js";
-import { billingAccountStub } from "./billing-account-stub.js";
 import {
   findI1Violations,
   findI27Violations,
@@ -22,10 +21,7 @@ const check = (
 
 export const registration = defineRegistration("tenant", {
   ports: [billingAccountPort],
-  portImplementations: [
-    implement(billingAccountPort, billingAccountStub),
-    ...machineImplementations(),
-  ],
+  portImplementations: [...machineImplementations()],
   invariants: [
     check("tenant.I1", (tx) => findI1Violations(tx)),
     check("tenant.I7", (tx) => findI7Violations(tx)),

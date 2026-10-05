@@ -64,3 +64,4 @@ export type {
   FulfillOutcome,
   FulfillStep,
 } from "./subscription/index.js";
+export { billingAccountOpener, billingMerchantFacts, openAccountForEntity } from "./ports.js";
