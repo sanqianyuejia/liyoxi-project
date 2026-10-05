@@ -1,6 +1,6 @@
 // 审计的两条每日校验与对象类型的启动自检（W0-14；03 分组 第 2.10 节“不变量”）。
-// 形状照 D7 第 9.6 节的 InvariantCheck。调度与落库在 ops（W0-24）：装配机制（register.ts）到位前这里只导出，
-// 由 W0-24 登记（docs/plan/tasks/README.md 第 5 节移交表第 5 行）。audit.I1（敏感操作与审计配对）随 M1。
+// 形状照 D7 第 9.6 节的 InvariantCheck。调度与落库在 ops：这里只给检查，登记在 register.ts
+//（W0-24 补，docs/plan/tasks/README.md 第 5 节移交表第 5 行）。audit.I1（敏感操作与审计配对）随 M1。
 // 违规说明 audit.record 有缺陷：修代码，不改历史行。
 import { unknownAuditTargetTypes } from "@liyoxi/contract";
 import type { PrismaClient } from "@liyoxi/db";

@@ -10,7 +10,7 @@
 | `assemble.ts` | `assemble`：按环境过滤，查重名与缺实现，问题一次报全（`AssemblyError`） |
 | `collect.ts` | `collectRegistrations`：从模块入口里取 `registration`；`auditModuleEntries`：入口清单与模块目录对账 |
 | `../../assembly.ts` | 组合根：全部模块的入口清单、`assembleServices`。经 `@liyoxi/services` 的入口给 api 与 worker |
-| `../../testing/assembly.ts` | 测试装配 `assembleForTest`：真实登记之外追加样例登记 |
+| `../../testing/assembly.ts` | 测试装配 `assembleForTest`：真实登记之外追加样例登记；样例的端口实现顶替真实实现，可不带真实模块的某几类登记 |
 | `__fixtures__/` | 两个样例模块，各带一个 `register.ts`，只在用例里装配 |
 
 ## 2. 模块怎么登记
@@ -34,7 +34,7 @@ export { registration } from "./register.js";
 - 只动自己的目录：组合根把各模块的 `index.ts` 整体引入，入口里有 `registration` 就收，不用改任何共用的清单。
 - 建了 `register.ts` 却忘了在入口再导出，`src/assembly.test.ts` 会红。模块名要与目录名相同。
 - `providers` 不参加收集：依赖规则只许 kernel 引它的入口，它也没有要登记的东西。
-- 六类的字段见 `types.ts`。要给某一类加字段（节奏、模式、租期、关键类……）：在 `types.ts` 里只增可选字段，不改已有字段。
+- 六类的字段见 `types.ts`。要给某一类加字段（节奏、模式、租期、关键类……）：在 `types.ts` 里只增可选字段，不改已有字段。不变量与清理项怎么写、谁来跑，见 [../../ops/invariants/README.md](../../ops/invariants/README.md)。
 - 名字在不在契约的登记里、关键类与契约一不一致，这里不查：由 events、timers 在装配后对照。这里只查写法。
 
 ## 3. 端口

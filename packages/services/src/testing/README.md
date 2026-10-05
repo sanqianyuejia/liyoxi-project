@@ -174,7 +174,7 @@ import { assembleForTest } from "@liyoxi/services/testing";
 const assembly = assembleForTest({ entry: "worker", extra: [sampleRegistration] }); // appEnv 缺省 test
 ```
 
-真实模块的登记之外，再追加用例自己的样例登记（W0-07b）；查重名与缺实现的口径与生产装配相同。样例的名字用 `lyxtest` 前缀（模块名 `lyxtest_…`，订阅者、kind、事件 `lyxtest.…`），不进契约的正式登记。要看预发专用的登记项写 `appEnv: "stg"`；只装样例写 `isolated: true`。登记怎么写见 [../kernel/assembly/README.md](../kernel/assembly/README.md)。
+真实模块的登记之外，再追加用例自己的样例登记（W0-07b）；查重名与缺实现的口径与生产装配相同，两处例外（W0-24）：样例登记实现了某个单实现的端口（如 `createRecordingPorts()` 的告警、违规上报）时，真实模块对同一个端口的实现让位；写 `omitReal: ["recurringJobs"]` 这样的选项时，真实模块的那几类登记不带（只想跑样例周期任务的用例这么写，真实的不变量与清理任务就不会被补登记、被扫描循环领走）。样例的名字用 `lyxtest` 前缀（模块名 `lyxtest_…`，订阅者、kind、事件 `lyxtest.…`），不进契约的正式登记。要看预发专用的登记项写 `appEnv: "stg"`；只装样例写 `isolated: true`。登记怎么写见 [../kernel/assembly/README.md](../kernel/assembly/README.md)。
 
 ## 11. 任务进程的样例（W0-23）
 

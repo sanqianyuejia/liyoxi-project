@@ -1,6 +1,6 @@
-// 不变量上报端口 invariants.report（W0-17）。kernel 定义，ops 注册实现（W0-24）；没人实现时是空实现。
+// 不变量上报端口 invariants.report（W0-17）。kernel 定义，ops 注册实现（W0-24，ops/invariants/report.ts）；没人实现时是空实现。
 // 依据：01 分组 第 5.2 节；15 分组 第 5.2 节。写入方式同告警：独立短事务，失败不抛给调用方。
-// 由框架按 modes 运行的检查项不走这里（它们登记 run，由 W0-24 调度）；这里给巡检循环之类自己发现违规的地方用。
+// 由框架按 modes 运行的检查项不走这里（它们登记 run，由 ops 调度）；这里给巡检循环之类自己发现违规的地方用。
 import { definePort } from "../assembly/index.js";
 import type { Assembly, InvariantSeverity, InvariantSubject } from "../assembly/index.js";
 import { portLog, quiet } from "./log.js";

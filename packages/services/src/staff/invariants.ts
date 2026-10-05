@@ -1,5 +1,5 @@
 // staff.I8 写成 SQL 断言（W0-21）：staff_role 恰有契约登记的 8 个角色（03 分组 第 2.1 节）。
-// 违规对象用角色键。登记进不变量框架随 W1-01b。
+// 违规对象用角色键。已登记进不变量框架（register.ts，W0-24）；staff 的其余检查项随 W1-01b。
 import { STAFF_ROLE_KEY } from "@liyoxi/contract";
 
 import type { SqlAssertion } from "../kernel/index.js";

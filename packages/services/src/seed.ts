@@ -68,7 +68,7 @@ export async function runSeed(deps: SeedDeps): Promise<SeedReport> {
 
 /**
  * 六条配置类不变量的 SQL 断言：staff.I8、config.N9、N16、N17、N19、N20。
- * W0-24 把 config 的五条登记进不变量框架，staff.I8 随 W1-01b 登记；在那之前由播种命令与用例跑。
+ * 六条都已登记进不变量框架（W0-24；config、staff 各自的 register.ts），随 invariant.full 每日跑；播种命令与用例也照跑。
  */
 export function seedAssertions(now: Date): SqlAssertion[] {
   return [...staffSeedAssertions(), ...configSeedAssertions(now)];

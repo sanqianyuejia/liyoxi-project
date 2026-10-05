@@ -1,5 +1,5 @@
 // config 的五条配置类不变量，各写成一句 SQL 断言（W0-21）：config.N9、N16、N17、N19、N20（14 分组 第 5.4 节）。
-// 查询返回违规行（subject_key、detail），0 行即通过。接入不变量框架在 W0-24：它拿这里的清单去登记。
+// 查询返回违规行（subject_key、detail），0 行即通过。已接入不变量框架：register.ts 拿这里的清单登记（W0-24）。
 // 要对照代码的（参数定义、开关登记、系统枚举、清单编码）把清单作 JSON 参数传入。
 // “现在”取调用方给的时刻（注入的时钟），SQL 里不写 now()。
 import { CHECKLIST_TEMPLATE_CODE, FLAGS, SITE_CONFIG_REVISION_CONFIG_KEY } from "@liyoxi/contract";

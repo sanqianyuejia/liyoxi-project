@@ -35,7 +35,7 @@ export const IDEMPOTENCY_PURGE_LIMIT = 1_000;
 
 /**
  * 删过期的幂等行：只删 expires_at 已过的，按过期先后，单轮不超过 limit；正被别的事务锁着的跳过。返回删了几行。
- * 用数据库时间比（基础设施表，01 分组 第 2 节）。属主模块是 kernel：由 W0-24 登记给 ops.retention，每小时跑。
+ * 用数据库时间比（基础设施表，01 分组 第 2 节）。属主模块是 kernel：登记在 register.ts（清理项 kernel.idempotency_record），由 ops.retention 每小时跑。
  */
 export async function purgeExpiredIdempotencyRecords(
   tx: Tx,

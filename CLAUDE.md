@@ -236,6 +236,7 @@
 | `pnpm weapp:shots`（只出一页加 `-- --page pages/home/index`） | 小程序页面截图：出一份 H5 构建，用 Chromium 按 375 宽给已建的页各截一张，产物在 `apps/weapp/shots/dist/png/`。本机没装 Playwright 自带的浏览器时前面加 `LYX_E2E_CHANNEL=chrome`。H5 是近似，与真机的差异见 [README](apps/weapp/README.md) 末节 |
 | `pnpm weapp:shots -- --component Button`（可给多次） | 只出某个组件的预览图 `apps/weapp/shots/dist/png/gallery__<组件名>.png`（整页）。不带参数时，页面之外另给组件陈列的目录页与每个组件各出一张。组件名是 `apps/weapp/src/components/` 下的目录名。见 [README](apps/weapp/README.md)“通用组件” |
 | `WEAPP_GALLERY=1 pnpm weapp:build` | 出带组件陈列分包（`sub/gallery`，开发用）的小程序包，看样时用；同样过体积门禁。不给这个变量时，生产的小程序包不带陈列分包（H5 截图构建与开发构建一律带） |
+| `pnpm --filter @liyoxi/services exec vitest run src/ops/`（任务进程里的那一份：`pnpm --filter @liyoxi/worker exec vitest run test/ops-jobs.test.ts`） | 只跑不变量与清理框架的用例：带种子的库上 full 0 违规、人为造一条违规能发现并去重、三种自愈策略、上报端口、清理的限量与出错隔离；真实装配里的三个周期任务（`invariant.full`、`invariant.quick`、`ops.retention`）经任务进程跑。除一份外都连库，要本地的 PostgreSQL 与 `DATABASE_URL`，任务进程的那一份另要 `REDIS_URL`。检查项与清理项怎么登记、手工跑一次（`runInvariants`）怎么调，见 [README](packages/services/src/ops/invariants/README.md) |
 
 本地连接参数：配置只经 `loadEnv`（`packages/services/src/kernel/env.ts`）读环境变量，会话与测试不建、不读 `.env`，在命令前或 shell 里给出。取值出处是 [local.yml](infra/compose/local.yml)，账号与口令是固定的开发值，只对本机这套容器有效；CI 的服务容器用同一组值。
 

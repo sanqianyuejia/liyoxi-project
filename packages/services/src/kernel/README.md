@@ -140,7 +140,7 @@ assertIdempotencyUsed(idem, { appEnv: env.APP_ENV, report });
 - 请求哈希：`sha256` 算在 `[方法（大写）, 路径参数, 请求体, storeId]` 规范化之后的 JSON 上。规范化 = 对象的键排序、去掉值为 `undefined` 的键、数组顺序不变。
 - 等锁的 3 秒只对登记那一句设（`SET LOCAL`），之后恢复连接原来的 `lock_timeout`。
 - 行过了 `expires_at` 而还没被清理删掉时，仍按有效的记录重放。
-- 过期清理：`purgeExpiredIdempotencyRecords(tx, limit)` 只删 `expires_at` 已过的行，单轮缺省至多 1,000 行，返回删了几行。登记给 `ops.retention`（每小时）是 W0-24 的事。
+- 过期清理：`purgeExpiredIdempotencyRecords(tx, limit)` 只删 `expires_at` 已过的行，单轮缺省至多 1,000 行，返回删了几行。已登记成清理项 `kernel.idempotency_record`（`register.ts`），由 `ops.retention` 每小时调一轮（W0-24）。
 - `natural` 的路由自己按约束名处理：`isUniqueViolation(error, ["uq_…"])` 认出“撞的是我声明的那个唯一约束”。唯一冲突会让事务中止，那一句要包在 `savepoint` 里。
 
 ## 10. 业务单号（W0-13）

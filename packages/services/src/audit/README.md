@@ -69,7 +69,7 @@ await tx.run(async (handle) => {
 
 ## 6. 还没接的
 
-- 两条每日校验与对象类型的启动自检只导出了函数：调度与落库由 W0-24 登记，启动自检由 W0-22、W0-23 接（`docs/plan/tasks/README.md` 第 5 节移交表第 1、5 行）。
+- 两条每日校验已登记进不变量框架（`register.ts`，W0-24），随 `invariant.full` 每日跑。对象类型的启动自检只导出了函数，由 W0-22、W0-23 接（`docs/plan/tasks/README.md` 第 5 节移交表第 1 行）。
 - `audit.I1`（敏感操作与审计配对）随 M1；查询与导出、“先写 `access` 审计再给明文”随 G2-A；状态迁移补写活动流由 W0-16 调这里的 `record`。
 
 ## 7. 跑用例

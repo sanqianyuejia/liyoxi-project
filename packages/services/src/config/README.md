@@ -63,7 +63,7 @@ const name = await config.dicts.label("industry", "C0101"); // 不看启用状�
 | 开关的值类型、默认值、规则与登记对不上（`config.N19`） | 登记的默认值，不带规则 |
 | 已发布的站点配置、清单模板的条目不合结构 | 当作没有，返回 `null` |
 
-`config.selfCheck()` 给出参数与开关的问题清单（连待生效的参数值一起查），由 W0-24 登记成不变量。
+`config.selfCheck()` 给出参数与开关的问题清单（连待生效的参数值一起查）。其中“参数值不合定义”已登记成不变量 `config.N8`，与 W0-21 的五条 SQL 断言（`config.N9`、`N16`、`N17`、`N19`、`N20`）一起在 `register.ts`，随 `invariant.full` 每日跑（W0-24）。
 
 ## 5. 跑用例
 
