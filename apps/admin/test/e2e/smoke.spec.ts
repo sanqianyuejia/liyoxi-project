@@ -993,6 +993,23 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
       "tabular-nums",
     );
 
+    // 标签在上，标签文字的下沿到控件的上沿是 6；上一个控件的下沿到下一个标签的上沿是 14（规范 第 3、5.3 节）
+    const spaceOf = (step: number): Promise<number> =>
+      page.evaluate(
+        (name) =>
+          Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)),
+        `--lyx-space-${step}`,
+      );
+    const nameLabel = await edgesOf(form.getByText("主体名称", { exact: true }));
+    const nameInput = await edgesOf(form.getByRole("textbox", { name: "主体名称" }));
+    const codeLabel = await edgesOf(form.getByText("统一社会信用代码", { exact: true }));
+    expect(Math.round((nameInput.top - nameLabel.bottom) * 100) / 100, "标签到控件").toBe(
+      await spaceOf(6),
+    );
+    expect(Math.round((codeLabel.top - nameInput.bottom) * 100) / 100, "字段之间").toBe(
+      await spaceOf(14),
+    );
+
     // 表单比一屏长：用滚轮滚到底，“保存档案”才看得全；这时第一个没填的必填项（所在区域）在视野之外
     await expectWheelReaches(page, "表单样例", { "“保存档案”": save });
     const district = form.getByRole("combobox", { name: "所在区域" });
