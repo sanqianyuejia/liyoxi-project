@@ -38,8 +38,11 @@
 | `draft-freeze.mjs`、`draft-freeze.sha256` | 草稿冻结守卫（W0-06b）：`docs/data-model/schema.prisma` 与 `constraints/` 的 sha256 等于登记值。登记值按 `frozen` 登记，改它走单独的 `gate-change` PR。不连库 | `pnpm db:draft-freeze:check`；CI |
 | `check-mp-size.mjs` | 小程序体积门禁（W0-27a）：主包 ≤1,500KB、各分包 ≤800KB；分包取产物里 `app.json` 的声明，主包是总量减各分包；打印各包体积 | `pnpm weapp:build` 的最后一步；CI 的“小程序体积门禁”一步 |
 | `apps/weapp/scripts/shots-affected.mjs`（不在本目录） | 小程序截图的受影响范围判断：PR 改到小程序或页面上看得见的设计变量才跑，推到 main 一律跑。截图是页面证据，不是门禁 | CI 的“小程序截图要不要跑”一步 |
+| `infra/stack/up.mjs`、`smoke.mjs`（不在本目录） | 本地整套环境（W1-22）：构建三个镜像、起停、冒烟。不是门禁；用法见 [infra/stack/README.md](../stack/README.md) | `pnpm stack:build`、`stack:up`、`stack:smoke`、`stack:down`；`stack-smoke.yml`；用例 `test/stack.test.ts`（`docker` 桩掉，在 `test-infra` 里） |
 
 工作流在 `.github/workflows/`：`ci.yml`（每个 PR 与推到 main）、`nightly.yml`（每晚，Node 26，失败只告警）。
+
+另有 `stack-smoke.yml`（W1-22）：构建三个镜像、起本地整套环境、冒烟、收场。改到镜像定义、Compose、起停脚本、两个服务端应用或迁移的 PR 与推到 main 时跑，超时 15 分钟；不是必过检查，不进 `required`（镜像构建进必过是 M2 的事，W2-25）。往它里面加一步时，在 `test/workflows.test.ts`“stack-smoke.yml”一组的命令清单里同一位置加一行。
 
 ## 2. CI 的结构
 
