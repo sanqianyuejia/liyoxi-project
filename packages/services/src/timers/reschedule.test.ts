@@ -4,10 +4,16 @@ import { beforeAll, describe, expect, it } from "vitest";
 import type { TxRunner } from "../kernel/index.js";
 import { SAMPLE_TIMER_KINDS, useTestDatabase } from "../testing/index.js";
 import { force, newSubject, runner, sampleTimers, SLOW, timerRows } from "./__fixtures__/db.js";
-import { currentTimerId, runAsCurrentTimer, timerKey, timerKeyPrefix } from "./index.js";
+import {
+  claimTimers,
+  currentTimerId,
+  runAsCurrentTimer,
+  timerKey,
+  timerKeyPrefix,
+} from "./index.js";
 
-// 任务书 第 7 节验收 3：同键 arm 只改 fire_at 与 payload；cancel({ subject, keyPrefix }) 只取消前缀匹配的
-// scheduled、dispatched 行，并跳过正在执行的这一条。
+// 任务书 第 7 节验收 3：同键 arm 改 fire_at 与 payload（到期时间变了，另把失败重试清掉，KF-1 改）；
+// cancel({ subject, keyPrefix }) 只取消前缀匹配的 scheduled、dispatched 行，并跳过正在执行的这一条。
 
 const db = useTestDatabase("services");
 const timers = sampleTimers();
@@ -33,8 +39,15 @@ async function wholeRow(id: string): Promise<Record<string, unknown>> {
 }
 
 describe("改期：同键再 arm 一次", () => {
+  /** 扮一次失败后的重试排期：失败过两次，重试时刻已到 */
+  const failTwice = (id: string): Promise<number> =>
+    prisma.$executeRawUnsafe(
+      "UPDATE timer SET attempts = 2, retry_at = now() - interval '1 second', dispatch_no = 3, last_error = '样例' WHERE id = $1::uuid",
+      id,
+    );
+
   it(
-    "只改 fire_at 与 payload（另有 updated_at）；不带 payload 的改期把参数清掉",
+    "到期时间变了：改 fire_at 与 payload，失败重试重来（retry_at 置空、attempts 归零），别的列不动",
     async () => {
       const subject = newSubject();
       const key = timerKey(plain, subject, "2027-06-30");
@@ -42,11 +55,7 @@ describe("改期：同键再 arm 一次", () => {
       const first = await tx.run((handle) =>
         timers.arm(handle, { ...input, fireAt: T0, payload: { policy: "ticket.assign" } }),
       );
-      // 扮一次失败后的重试排期：改期不动 retry_at 与 attempts
-      await prisma.$executeRawUnsafe(
-        "UPDATE timer SET attempts = 2, retry_at = now(), dispatch_no = 3, last_error = '样例' WHERE id = $1::uuid",
-        first.id,
-      );
+      await failTwice(first.id);
       const before = await wholeRow(first.id);
 
       const second = await tx.run((handle) =>
@@ -57,12 +66,82 @@ describe("改期：同键再 arm 一次", () => {
       const changed = Object.keys(after).filter(
         (column) => JSON.stringify(after[column]) !== JSON.stringify(before[column]),
       );
-      expect(changed.sort()).toEqual(["fire_at", "payload", "updated_at"]);
-      expect(after["payload"]).toEqual({ policy: "ticket.plan_confirm" });
+      expect(changed.sort()).toEqual(["attempts", "fire_at", "payload", "retry_at", "updated_at"]);
+      expect(after).toMatchObject({
+        payload: { policy: "ticket.plan_confirm" },
+        attempts: 0,
+        retry_at: null,
+        // 认领序号与最近一次的错误摘要留着
+        dispatch_no: 3,
+        last_error: "样例",
+      });
       expect(new Date(after["fire_at"] as string)).toEqual(T1);
+    },
+    SLOW,
+  );
 
-      await tx.run((handle) => timers.arm(handle, { ...input, fireAt: T1 }));
-      expect((await wholeRow(first.id))["payload"]).toBeNull();
+  it(
+    "到期时间没变：只换 payload（不带即清掉），重试进度不动",
+    async () => {
+      const subject = newSubject();
+      const key = timerKey(plain, subject, "2027-07-31");
+      const input = { kind: plain, subject, key, fireAt: T1 };
+      const first = await tx.run((handle) =>
+        timers.arm(handle, { ...input, payload: { policy: "ticket.assign" } }),
+      );
+      await failTwice(first.id);
+      const before = await wholeRow(first.id);
+
+      expect(await tx.run((handle) => timers.arm(handle, input))).toMatchObject({
+        outcome: "rescheduled",
+      });
+      const after = await wholeRow(first.id);
+      const changed = Object.keys(after).filter(
+        (column) => JSON.stringify(after[column]) !== JSON.stringify(before[column]),
+      );
+      expect(changed.sort()).toEqual(["payload", "updated_at"]);
+      expect(after).toMatchObject({ payload: null, attempts: 2 });
+      expect(after["retry_at"]).toEqual(before["retry_at"]);
+    },
+    SLOW,
+  );
+
+  // KF-1：复审查出的缺陷。失败重试中的行改期到更晚，retry_at 原样留着，扫描按 COALESCE(retry_at, fire_at) 照旧时刻认领
+  it(
+    "失败重试中的行改期到更晚：扫描到了旧的重试时刻不认领它",
+    async () => {
+      const subject = newSubject();
+      const key = timerKey(plain, subject, "2027-08-31");
+      const input = { kind: plain, subject, key };
+      const hour = 3_600_000;
+      const first = await tx.run((handle) =>
+        timers.arm(handle, { ...input, fireAt: new Date(Date.now() - hour) }),
+      );
+      await failTwice(first.id);
+      /** 扫描认领一轮看认领到了谁，随后整个回滚：不动同一个库里别的用例留下的行 */
+      const claimedIds = async (): Promise<string[]> => {
+        const rollback = new Error("只看不留");
+        let ids: string[] = [];
+        await tx
+          .run(async (handle) => {
+            const { claimed } = await claimTimers(handle, timers.registry, new Date());
+            ids = claimed.map((ref) => ref.timerId);
+            throw rollback;
+          })
+          .catch((error: unknown) => {
+            if (error !== rollback) throw error;
+          });
+        return ids;
+      };
+      // 对照：改期之前，重试时刻已到，扫描认领得到它
+      expect(await claimedIds()).toContain(first.id);
+
+      await tx.run((handle) =>
+        timers.arm(handle, { ...input, fireAt: new Date(Date.now() + hour) }),
+      );
+      expect(await claimedIds()).not.toContain(first.id);
+      const [row] = await timerRows(prisma, key);
+      expect(row).toMatchObject({ status: "scheduled", attempts: 0, retry_at: null });
     },
     SLOW,
   );

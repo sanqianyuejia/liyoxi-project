@@ -358,7 +358,7 @@ erDiagram
 | 当前状态 | 事件 | 新状态 | 守卫 | 触发者 |
 | --- | --- | --- | --- | --- |
 | —（无行，或同键只有 `cancelled`） | `timers.arm` | `scheduled` | 调用方已持有主体业务行锁 | 业务事务；周期任务由 `ensureRecurring` 与认领时登记下一期 |
-| `scheduled` | `timers.arm`（同键） | `scheduled` | 更新 `fire_at` 与 `payload`。这就是“改期”，不另设接口（如未分享的邀请卡片复用时改 `fire_at`，02 分组） | 业务事务 |
+| `scheduled` | `timers.arm`（同键） | `scheduled` | 更新 `fire_at` 与 `payload`；`fire_at` 变了的，失败重试一并重来：`retry_at = null`、`attempts = 0`（不清的话扫描仍按旧的 `retry_at` 认领），没变的不动重试进度。这就是“改期”，不另设接口（如未分享的邀请卡片复用时改 `fire_at`，02 分组） | 业务事务 |
 | `dispatched` | `timers.arm`（同键） | 不变 | 正在执行，不动 | — |
 | `fired` | `timers.arm`（同键） | 不变 | 同一语义目标已处理过，不重复创建 | — |
 | `skipped` | `timers.arm`（同键），kind 未声明跳过后可复活 | 不变 | 同上；需要再登记的目标换新键（键里带轮次） | — |
