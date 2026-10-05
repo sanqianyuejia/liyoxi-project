@@ -1,5 +1,5 @@
-// 样例路由（任务书 第 11 节第 4 项）：三种骨架各一页，另有一页整行可点的表格（筛选表格骨架的 onRowClick），
-// 只用夹具数据，给冒烟与看样用。W0-29 的看样页另建。
+// 样例路由（任务书 第 11 节第 4 项）：三种骨架各一页，另有一页整行可点的表格（筛选表格骨架的 onRowClick）、
+// 一页长表单（提交有错时滚到第一个出错的字段），只用夹具数据，给冒烟与看样用。W0-29 的看样页另建。
 // 生产构建不包含样例页：__LYX_DEV_FIXTURES__ 为 false 时页面组件与夹具整段被摇掉，
 // 这里只剩几条访问即“页面不存在”的空路由（scripts/check-build.mjs 断言产物里没有夹具的标记）。
 // 本文件会进生产构建，不得静态引入 src/dev/ 下的任何模块。
@@ -62,4 +62,22 @@ export const devRowsRoute = createRoute({
     : undefined,
 });
 
-export const devRoutes = [devTableRoute, devQueueRoute, devDetailRoute, devRowsRoute] as const;
+/** 表单样例（一张比一屏长的表单，提交有错时滚到第一个出错的字段）：借用“员工账号”的菜单位置 */
+export const devFormRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/dev/form",
+  staticData: { pageKey: "system.staff" },
+  validateSearch: passthrough,
+  beforeLoad: devOnly,
+  component: __LYX_DEV_FIXTURES__
+    ? lazyRouteComponent(() => import("../../dev/FormSample"), "FormSample")
+    : undefined,
+});
+
+export const devRoutes = [
+  devTableRoute,
+  devQueueRoute,
+  devDetailRoute,
+  devRowsRoute,
+  devFormRoute,
+] as const;

@@ -10,6 +10,8 @@
 // 第四轮复审之后加的两步：规范写明数值的又几处（卡片内的分区标题 14px、下拉左右内边距 10、数字等宽）；
 // 整行可点的表格（样例页 /dev/rows，截图 13）：点行里的文字链、按钮，或焦点在它们上面按回车，不触发整行的动作；
 // 分段控件用 Tab 走到的两站（容器自己、里面的项）都是主色聚焦环；抽屉用键盘打开时根节点上没有描边。键盘一律真按 Tab 走。
+// 第五轮复审之后加的两步：各级标题的行高 1.3、没有另写行高的正文段落 1.6（规范 第 2.3 节），表单控件里的数字同样等宽（第 2.4 节）；
+// 表单提交有错时滚到第一个出错的字段（样例页 /dev/form，截图 14）：字段落在内容区中间，标签与错误提示一起看得见（第 8 节）。
 import { mkdirSync } from "node:fs";
 
 import { expect, test, type Locator, type Page } from "@playwright/test";
@@ -265,6 +267,31 @@ async function framePadding(
 /** 元素的 font-variant-numeric（规范 第 2.4 节：所有数字等宽） */
 async function numericOf(target: Locator): Promise<string> {
   return target.evaluate((element) => getComputedStyle(element).fontVariantNumeric);
+}
+
+/** 行高是字号的几倍（三位小数）。规范 第 2.3 节：标题与双行单元格 1.3，段落 1.6 */
+async function lineHeightRatio(target: Locator): Promise<number> {
+  return target.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const ratio = Number.parseFloat(style.lineHeight) / Number.parseFloat(style.fontSize);
+    return Math.round(ratio * 1000) / 1000;
+  });
+}
+
+/** 一个取值是数的设计变量（行高的倍数）：用例里不写数值，拿它与元素的行高比 */
+async function tokenNumber(page: Page, variable: string): Promise<number> {
+  return page.evaluate(
+    (name) => Number(getComputedStyle(document.documentElement).getPropertyValue(name)),
+    variable,
+  );
+}
+
+/** 元素的上沿、下沿、中线（相对视口） */
+async function edgesOf(target: Locator): Promise<{ top: number; bottom: number; middle: number }> {
+  return target.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { top: rect.top, bottom: rect.bottom, middle: (rect.top + rect.bottom) / 2 };
+  });
 }
 
 test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page }) => {
@@ -814,6 +841,167 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     await page.keyboard.press("Enter");
     await expect(log).toContainText("整行动作 2 次 · 行内按钮 2 次 · 正在看的凭证：pay-1");
     await expect(drawer).toBeHidden();
+  });
+
+  await test.step("各级标题的行高 1.3，没有另写行高的正文段落 1.6；表单控件里的数字等宽", async () => {
+    const title = await tokenNumber(page, "--lyx-line-height-title");
+    const body = await tokenNumber(page, "--lyx-line-height-body");
+    expect(title).toBeLessThan(body);
+    const expectRatios = async (
+      expected: number,
+      targets: Readonly<Record<string, Locator>>,
+    ): Promise<void> => {
+      for (const [name, target] of Object.entries(targets)) {
+        await expect(target, name).toBeVisible();
+        expect(await lineHeightRatio(target), `${name}的行高`).toBe(expected);
+      }
+    };
+
+    // 审核工作台：页头标题、详情卡标题、卡片内的分区标题是标题；页头副标题、详情卡说明、队列项、核对项、操作条提示是正文
+    await page.goto("/dev/queue");
+    const queue = page.getByRole("region", { name: "资质审核的队列" });
+    const detail = page.getByRole("region", { name: "资质审核的详情" });
+    await expect(detail.getByRole("heading", { level: 2 })).toBeVisible();
+    await expectRatios(title, {
+      页头标题: page.getByRole("heading", { level: 1 }),
+      详情卡标题: detail.getByRole("heading", { level: 2 }),
+      "分区标题“核对清单”": detail.getByRole("heading", { level: 3, name: "核对清单" }),
+      "分区标题“营业执照 · 识别结果”": detail.getByRole("heading", {
+        level: 3,
+        name: "营业执照 · 识别结果",
+      }),
+    });
+    await expectRatios(body, {
+      页头副标题: page.getByText("样例页：审核工作台骨架", { exact: false }),
+      详情卡的说明: detail.getByRole("heading", { level: 2 }).locator("xpath=following-sibling::p"),
+      队列项: queue.getByRole("button", { name: /XX 火锅/ }),
+      信息列表的值: detail.getByRole("definition").first(),
+      核对项的文字: detail.getByRole("checkbox").first().locator("xpath=ancestor::label"),
+      操作条左侧的提示: detail.getByText("核对清单全部勾选后才能通过"),
+    });
+
+    // 详情页：面板里卡片这一级的标题、侧栏信息卡标题、弹窗标题是标题；信息列表的值、弹窗的说明是正文
+    // （st-01 在前面那一步已经禁用了，没有“禁用账号”按钮，这里换一家）
+    await page.goto("/dev/detail/st-02");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("悦心瑜伽");
+    await expectRatios(title, {
+      "面板里的标题“基础信息”": page.getByRole("heading", { level: 2, name: "基础信息" }),
+      "侧栏信息卡标题“套餐与积分”": page.getByRole("heading", { level: 2, name: "套餐与积分" }),
+    });
+    await expectRatios(body, {
+      信息列表的值: page.getByRole("tabpanel").getByRole("definition").first(),
+    });
+    await page.getByRole("button", { name: "禁用账号" }).click();
+    const dialog = page.getByRole("dialog", { name: "禁用商家账号" });
+    await expectRatios(title, { 弹窗标题: dialog.getByText("禁用商家账号", { exact: true }) });
+    await expectRatios(body, {
+      弹窗的说明: dialog.locator("p").first(),
+      弹窗里信息块的值: dialog.getByRole("definition").first(),
+    });
+    // 输入框里的数字同样等宽：浏览器给表单控件的缺省字体会把这个属性重置掉，样式里显式继承了
+    const phoneTail = dialog.getByRole("textbox", { name: "请输入联系电话后 4 位" });
+    expect(await numericOf(phoneTail), "弹窗里的输入框").toBe("tabular-nums");
+    expect(await numericOf(dialog.getByRole("button", { name: "确认禁用" })), "按钮").toBe(
+      "tabular-nums",
+    );
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+
+    // 筛选表格：单元格的文字是正文；搜索框、分页的小按钮里的数字等宽；空状态的标题是标题、说明是正文
+    await page.goto("/dev/table");
+    const table = page.getByRole("region", { name: "商家列表" });
+    await expect(table.getByText("共 46 条")).toBeVisible();
+    await expectRatios(body, { 单元格的文字: table.getByRole("cell", { name: "销售" }).first() });
+    const keyword = table.getByRole("searchbox", { name: "商家、主体名称" });
+    expect(await numericOf(keyword), "搜索框").toBe("tabular-nums");
+    expect(await numericOf(table.getByRole("button", { name: "下一页" })), "分页的小按钮").toBe(
+      "tabular-nums",
+    );
+    await keyword.fill("没有这家店");
+    await keyword.press("Enter");
+    await expectRatios(title, { 空状态的标题: table.getByText("没有符合条件的记录") });
+    await expectRatios(body, { 空状态的说明: table.getByText("换个筛选条件试试") });
+
+    // 抽屉：标题是标题，里面的信息列表是正文
+    await page.goto("/dev/rows");
+    const rows = page.getByRole("region", { name: "对公付款单" });
+    await rows.getByRole("row").nth(1).getByRole("cell").first().click();
+    const drawer = page.getByRole("dialog", { name: "付款单详情" });
+    await expectRatios(title, { 抽屉标题: drawer.getByText("付款单详情", { exact: true }) });
+    await expectRatios(body, { 抽屉里信息列表的值: drawer.getByRole("definition").first() });
+    await page.keyboard.press("Escape");
+    await expect(drawer).toBeHidden();
+
+    // 整页说明（页面不存在）：标题是标题，说明是正文
+    await page.goto("/no/such/page");
+    await expectRatios(title, {
+      整页说明的标题: page.getByRole("heading", { name: "页面不存在" }),
+    });
+    await expectRatios(body, {
+      整页说明的说明: page.getByText("地址可能写错了", { exact: false }),
+    });
+  });
+
+  await test.step("表单提交有错：滚到第一个出错的字段，落在内容区中间，标签与错误提示一起看得见", async () => {
+    await page.goto("/dev/form");
+    const form = page.getByRole("form", { name: "商家档案" });
+    const content = page.getByTestId("shell-content");
+    const save = form.getByRole("button", { name: "保存档案" });
+    await expect(form.getByRole("textbox", { name: "主体名称" })).toHaveValue(/晴天/);
+    await expectNoHorizontalScroll(page, "表单样例");
+    // antd 卡片的标题是标题（行高 1.3）；字段下方的辅助说明是正文（1.6）；多行输入里的数字等宽
+    expect(await lineHeightRatio(form.getByText("主体信息", { exact: true })), "卡片标题").toBe(
+      await tokenNumber(page, "--lyx-line-height-title"),
+    );
+    expect(await lineHeightRatio(form.getByText("只有运营看得到", { exact: false }))).toBe(
+      await tokenNumber(page, "--lyx-line-height-body"),
+    );
+    expect(await numericOf(form.getByRole("textbox", { name: "备注（选填）" })), "多行输入").toBe(
+      "tabular-nums",
+    );
+
+    // 表单比一屏长：用滚轮滚到底，“保存档案”才看得全；这时第一个没填的必填项（所在区域）在视野之外
+    await expectWheelReaches(page, "表单样例", { "“保存档案”": save });
+    const district = form.getByRole("combobox", { name: "所在区域" });
+    const frame = district.locator("xpath=ancestor::*[contains(@class, 'ant-select')][1]");
+    expect((await visibilityOf(frame)).visible, "滚到底时“所在区域”应当在视野之外").toBe(false);
+    await save.click();
+
+    // 出错的字段：控件标记为无效，下方出现错误提示（规范 第 5.3 节“错误提示”、第 10 节“出错的控件标记为无效”）
+    const error = form.getByText("请选择所在区域", { exact: true });
+    await expect(error).toBeVisible();
+    await expect(district).toHaveAttribute("aria-invalid", "true");
+    expect(await lineHeightRatio(error), "错误提示的行高").toBe(
+      await tokenNumber(page, "--lyx-line-height-body"),
+    );
+    // 落点：控件的中线在内容区的中线上（差不过 2px），标签的上沿、错误提示的下沿都在内容区之内。
+    // antd 的缺省是让控件贴着滚动区的上沿，标签被顶栏挡住；等滚动停稳再量
+    const label = form.getByText("所在区域", { exact: true });
+    await expect
+      .poll(
+        async () => {
+          const area = await edgesOf(content);
+          const control = await edgesOf(frame);
+          const top = (await edgesOf(label)).top;
+          const bottom = (await edgesOf(error)).bottom;
+          return {
+            centered: Math.abs(control.middle - area.middle) <= 2,
+            labelVisible: top >= area.top,
+            errorVisible: bottom <= area.bottom,
+          };
+        },
+        { message: "出错的字段应当落在内容区中间，标签与错误提示都看得见" },
+      )
+      .toEqual({ centered: true, labelVisible: true, errorVisible: true });
+    await shot(page, "14-form-error");
+
+    // 填上之后再提交：校验通过
+    await district.click();
+    await page.getByTitle("成华区", { exact: true }).click();
+    await form.getByRole("textbox", { name: "详细地址" }).fill("建设路 2 号");
+    await form.getByRole("textbox", { name: "联系电话" }).fill("13800005018");
+    await save.click();
+    await expect(page.getByText("校验通过。样例页不提交。")).toBeVisible();
   });
 
   await test.step("权限：换成客服的权限后看不到财务菜单，直接访问财务的地址去 403 页", async () => {
