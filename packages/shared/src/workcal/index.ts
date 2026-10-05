@@ -39,7 +39,10 @@ export interface WorkcalMinutes extends FallbackInfo {
   minutes: number;
 }
 
-/** 时限策略（参数 sla.* 的值）。unit 的取值来自契约，M0 合流时改为引用契约常量 */
+/**
+ * 时限策略（参数 sla.* 的值）。unit 的五个取值只在这里定义：它是参数值的一部分，不是库里的列，
+ * 契约的枚举里没有对应的常量（M0 合流时核对过，W0-30）；参数定义的 SlaUnit 引的就是这里
+ */
 export interface SlaPolicy {
   /** same_day_cutoff 时是截止时刻距零点的分钟数（18:00 = 1080），其余是数量 */
   amount: number;

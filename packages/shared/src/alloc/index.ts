@@ -7,6 +7,7 @@
 // 各份之和一定等于总额，尾差放最后一份。
 //
 // 这里只做排序与分配，不筛选：哪些批次属于当前周期、是否已到期，由调用方按账本时钟筛好再传入。
+import type { PointLotKind } from "@liyoxi/contract/enums";
 
 function nonNegativeInteger(value: number, label: string): number {
   if (!Number.isSafeInteger(value) || value < 0) {
@@ -25,8 +26,8 @@ function positiveInteger(value: number, label: string): number {
 /** 可供扣减的一个积分批次。字段与 point_lot 同义 */
 export interface DeductibleLot {
   id: string;
-  /** 套餐积分或加购积分。取值来自契约，M0 合流时改为引用契约常量 */
-  kind: "plan" | "addon";
+  /** 套餐积分或加购积分：取值是契约的 POINT_LOT_KIND（point_lot.kind） */
+  kind: PointLotKind;
   /** 可用数量 */
   availableQty: number;
   /** 入账时刻 */
