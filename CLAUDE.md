@@ -212,6 +212,8 @@
 | `pnpm weapp:shots`（只出一页加 `-- --page pages/home/index`） | 小程序页面截图：出一份 H5 构建，用 Chromium 按 375 宽给已建的页各截一张，产物在 `apps/weapp/shots/dist/png/`。本机没装 Playwright 自带的浏览器时前面加 `LYX_E2E_CHANNEL=chrome`。H5 是近似，与真机的差异见 [README](apps/weapp/README.md) 末节 |
 | `pnpm weapp:shots -- --component Button`（可给多次） | 只出某个组件的预览图 `apps/weapp/shots/dist/png/gallery__<组件名>.png`（整页）。不带参数时，页面之外另给组件陈列的目录页与每个组件各出一张。组件名是 `apps/weapp/src/components/` 下的目录名。见 [README](apps/weapp/README.md)“通用组件” |
 | `WEAPP_GALLERY=1 pnpm weapp:build` | 出带组件陈列分包（`sub/gallery`，开发用）的小程序包，看样时用；同样过体积门禁。不给这个变量时，生产的小程序包不带陈列分包（H5 截图构建与开发构建一律带） |
+| `pnpm --filter @liyoxi/admin dev`（看样：浏览器开 `http://localhost:5183/dev/showcase`） | 后台的开发服务器（端口 5183，带样例页与夹具，不用起 api）。陈列页（看样页）把构件、设计变量、状态取色、图标照规范的章节逐组摆出来；它的截图随 `pnpm admin:e2e` 出在 `apps/admin/dist/e2e-shots/showcase-*.png`。见 [README](apps/admin/README.md)“陈列页” |
+| `pnpm weapp:shots -- --sheet colors`（可给多次） | 只出小程序陈列里某张基础样张的图 `apps/weapp/shots/dist/png/gallery__sheet-<样张名>.png`（颜色、文字、间距圆角、状态取色表）。不带参数时每张各出一张。看样怎么看见 [看样清单](docs/plan/sample-review/W0-29.md) |
 
 本地连接参数：配置只经 `loadEnv`（`packages/services/src/kernel/env.ts`）读环境变量，会话与测试不建、不读 `.env`，在命令前或 shell 里给出。取值出处是 [local.yml](infra/compose/local.yml)，账号与口令是固定的开发值，只对本机这套容器有效；CI 的服务容器用同一组值。
 

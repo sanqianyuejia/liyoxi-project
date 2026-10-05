@@ -14,6 +14,7 @@ Taro 4.2.1（Vite 编译器）+ React 18 + NutUI React Taro。依据：[D7](../.
 | `pnpm weapp:shots` | 给已建的页各出一张截图到 `apps/weapp/shots/dist/png/`（宽 375）。只出一页：`pnpm weapp:shots -- --page pages/home/index`；本机没装 Playwright 自带的 Chromium 时前面加 `LYX_E2E_CHANNEL=chrome` |
 | `node apps/weapp/scripts/build-tabbar-icons.mjs` | 重新导出标签栏的 8 张图标（改图标或改颜色时才跑，产物入库） |
 | `pnpm weapp:shots -- --component Button` | 只出某个组件的预览图（整页），可给多次。不带参数时，页面之外另出组件陈列的目录页与每个组件各一张 `gallery__<组件名>.png` |
+| `pnpm weapp:shots -- --sheet colors` | 只出某张基础样张的图（整页），可给多次：`colors`、`typography`、`spacing`、`status-tone`。不带参数时每张样张各出一张 `gallery__sheet-<样张名>.png` |
 | `WEAPP_GALLERY=1 pnpm weapp:build` | 出带组件陈列分包的小程序包（看样用）。不给时生产包不带；H5 截图构建与 `dev` 一律带 |
 
 构建用的环境变量（都可不给）：
@@ -102,6 +103,8 @@ import { merchantStatusByEnum, StatusTag } from "@/components/StatusTag";
 ### 组件陈列
 
 `src/sub/gallery/` 是开发用的分包：目录页 `sub/gallery/index/index` 列出全部组件，预览页 `sub/gallery/preview/index?name=<组件名>` 看一个组件的各种状态。它不是业务页面，不在页面清单里。生产的小程序包缺省不带它；`WEAPP_GALLERY=1 pnpm weapp:build` 出带它的包，在开发者工具里用编译模式打开目录页。
+
+看样也用它（W0-29）：目录页照规范的章节先后分组，每组标着规范的节号与要对的要点，预览页顶上也有同样一段。除了组件，另有四张基础样张（颜色、文字、间距圆角与描边、状态取色表），预览页用 `?sheet=<样张名>` 打开，登记在 `src/gallery.ts` 的 `GALLERY_SHEETS`，内容在 `src/sub/gallery/sheets/`。分组的节号与要点在 `GALLERY_GROUP_SPEC`。业主怎么在开发者工具与真机上打开、逐项看什么，见[看样清单](../../docs/plan/sample-review/W0-29.md)。
 
 新加组件：建 `src/components/<组件名>/`（`index.tsx`、`index.scss`），在 `src/gallery.ts` 加一行，写 `src/sub/gallery/previews/<组件名>.tsx` 并登记进同目录的 `index.ts`。少了哪一样，`src/gallery.test.ts` 或类型检查会指出来。
 
