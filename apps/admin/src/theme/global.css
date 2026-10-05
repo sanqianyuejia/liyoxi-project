@@ -36,7 +36,8 @@ body {
  * 段落行高 1.6（规范 第 2.3 节）要落到真正的正文上。body 上已经是 1.6，但整个应用渲染在 antd 的 App 里面，
  * 它在 .ant-app 这一层按 antd 的缺省行高（1.5714）又设了一遍，页头副标题、详情卡说明、信息列表这些没有另写行高的正文
  * 继承到的是它，所以在这一层接回来。antd 另外几处自己又设了一遍缺省行高、里面放的是正文，同样接回来：弹窗的内容区、
- * 卡片的内容区、表格（单元格里的文字）、表单字段下方的错误提示与辅助说明（规范 第 13 节：12px 说明的行高取 1.6）。
+ * 卡片的内容区、表格（单元格里的文字）、表单（写在表单里、字段之外的说明）、表单字段下方的错误提示与辅助说明
+ *（规范 第 13 节：12px 说明的行高取 1.6）。
  * 抽屉的内容区挂在 body 下面，antd 没有另设行高，本来就继承 body 的 1.6。
  * 没有去改 antd 全局主题的行高：输入框、下拉这些控件的上下内边距是按它算的，改了各控件的高会差出零点几个像素。
  * 单行、定高的控件（按钮、输入框、下拉、表单标签、清单之外的复选框与单选框的文字、通知）仍是 antd 的行高，
@@ -47,6 +48,7 @@ body {
 :root .ant-modal .ant-modal-body,
 :root .ant-card .ant-card-body,
 :root .ant-table-wrapper .ant-table,
+:root .ant-form,
 :root .ant-form-item :is(.ant-form-item-explain, .ant-form-item-extra) {
   line-height: var(--lyx-line-height-body);
 }
