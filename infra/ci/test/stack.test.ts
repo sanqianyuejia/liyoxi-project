@@ -468,7 +468,7 @@ describe("整套环境的 Compose 与镜像定义", () => {
       }
       // Dockerfile 里从上下文拷的路径都在白名单之内
       const copied = [...read(file).matchAll(/^COPY (?!--from)(.+) \S+$/gm)].flatMap((match) =>
-        (match[1] ?? "").split(" "),
+        (match[1] ?? "").split(" ").filter((token) => !token.startsWith("--")),
       );
       expect(copied.length).toBeGreaterThan(0);
       for (const source of copied) {

@@ -52,7 +52,8 @@ RUN rm -f /etc/nginx/conf.d/default.conf
 COPY infra/docker/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY infra/docker/nginx/proxy.inc /etc/nginx/lyx/proxy.inc
 COPY infra/docker/nginx/templates/ /etc/nginx/lyx-templates/
-COPY infra/docker/nginx/40-lyx-render.sh /docker-entrypoint.d/40-lyx-render.sh
+# 入口脚本只执行带可执行位的：这里写死，不依赖检出时保没保住文件权限
+COPY --chmod=0755 infra/docker/nginx/40-lyx-render.sh /docker-entrypoint.d/40-lyx-render.sh
 # 静态产物：入口页与 /assets/ 都在镜像里。节点上滚动发布时 /assets/ 另由宿主机目录盖上（D7 第 7.4 节“静态资源”，W2-25）
 COPY --from=build /repo/apps/admin/dist/app/ /usr/share/nginx/admin/
 COPY --from=build /repo/apps/portal/dist/app/ /usr/share/nginx/portal/
