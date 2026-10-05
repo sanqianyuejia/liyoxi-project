@@ -5,12 +5,14 @@ import type { PrismaClient } from "@liyoxi/db";
 import { describe, expect, it } from "vitest";
 
 import { createTxRunner, isUuid } from "../../kernel/index.js";
+import { phoneBidx, SecurityError, usccBidx } from "../../security/index.js";
 import {
   createClock,
   createFactories,
   FACTORY_TABLES,
-  fakeSealer,
-  openFakeSealed,
+  openSealed,
+  TEST_KEYRING,
+  testSealer,
   useSeededDatabase,
   useTestDatabase,
 } from "../index.js";
@@ -93,15 +95,13 @@ describe("覆盖与敏感字段", () => {
   it("手机号给明文：工厂做成三件套加后四位；同一个号再插被唯一索引拒掉", TIMEOUT, async () => {
     const { make } = await setup();
     const user = await make.merchantUser({ phone: "+86 138 0013 5678" });
-    expect(openFakeSealed(user.phoneEnc ?? "")).toEqual({
-      column: "merchant_user.phone_enc",
-      plaintext: "13800135678",
-    });
+    // 缺省是 security 的真三件套加测试密钥环：真密文（v1:<kid>:…），按列解得回来；盲索引就是 security 按手机号查找用的那个
+    expect(user.phoneEnc).toMatch(/^v1:test:/);
+    expect(openSealed("merchant_user.phone_enc", user.phoneEnc ?? "")).toBe("13800135678");
+    expect(() => openSealed("staff.phone_enc", user.phoneEnc ?? "")).toThrow(SecurityError);
     expect(user.phoneBidx).toHaveLength(32);
     expect(
-      Buffer.from(user.phoneBidx ?? []).equals(
-        fakeSealer.phone("merchant_user.phone_enc", "13800135678").bidx,
-      ),
+      Buffer.from(user.phoneBidx ?? []).equals(phoneBidx(TEST_KEYRING, "+86 138 0013 5678")),
     ).toBe(true);
     expect([user.phoneMask, user.phoneLast4]).toEqual(["138****5678", "5678"]);
     await expect(make.merchantUser({ phone: "13800135678" })).rejects.toThrow(
@@ -119,15 +119,15 @@ describe("覆盖与敏感字段", () => {
       db: prisma,
       clock,
       seal: {
-        ...fakeSealer,
+        ...testSealer,
         phone(column, phone) {
           seen.push(column);
-          return { ...fakeSealer.phone(column, phone), enc: `v1:test:${phone}` };
+          return { ...testSealer.phone(column, phone), enc: `v1:injected:${phone}` };
         },
       },
     });
-    expect((await make.staff({ phone: "13900009999" })).phoneEnc).toBe("v1:test:13900009999");
-    expect((await make.merchantUser()).phoneEnc).toMatch(/^v1:test:139\d{8}$/);
+    expect((await make.staff({ phone: "13900009999" })).phoneEnc).toBe("v1:injected:13900009999");
+    expect((await make.merchantUser()).phoneEnc).toMatch(/^v1:injected:139\d{8}$/);
     expect(seen).toEqual(["staff.phone_enc", "merchant_user.phone_enc"]);
   });
 
@@ -137,13 +137,11 @@ describe("覆盖与敏感字段", () => {
     expect(entity.name).toMatch(/^测试主体/);
     expect(entity.entityType).toBe("enterprise");
     expect(entity.verifiedAt?.toISOString()).toBe(clock.now().toISOString());
-    expect(openFakeSealed(entity.usccEnc ?? "").plaintext).toMatch(/^91310000MA1K\d{6}$/);
-    expect(entity.usccBidx).toHaveLength(32);
+    const uscc = openSealed("entity.uscc_enc", entity.usccEnc ?? "");
+    expect(uscc).toMatch(/^91310000MA1K\d{6}$/);
+    expect(Buffer.from(entity.usccBidx ?? []).equals(usccBidx(TEST_KEYRING, uscc))).toBe(true);
     expect(entity.legalRepNameMask).toBe("王**");
-    expect(openFakeSealed(entity.legalRepNameEnc ?? "")).toEqual({
-      column: "entity.legal_rep_name_enc",
-      plaintext: "王小明",
-    });
+    expect(openSealed("entity.legal_rep_name_enc", entity.legalRepNameEnc ?? "")).toBe("王小明");
   });
 });
 

@@ -9,7 +9,7 @@
 // 只许在 packages/services/src/testing/ 下这样写；应用层的用例经 @liyoxi/services/testing 用，自己不写插库语句。
 // 加工厂：照同目录的文件再写一个，types.ts 的 TableFactories 与 FACTORY_TABLES 各加一行，用例清单会跟着要一条。
 import type { Clock } from "../../../kernel/index.js";
-import { fakeSealer } from "../seal.js";
+import { testSealer } from "../seal.js";
 import type { FactorySealer } from "../seal.js";
 
 import { billingFactories } from "./billing.js";
@@ -33,7 +33,7 @@ export interface FactoryDeps {
   readonly db: FactoryDb;
   /** 时间列取它的“现在”：传可拨时钟 createClock() */
   readonly clock: Clock;
-  /** 敏感字段三件套；缺省是测试专用的假三件套（../seal.ts） */
+  /** 敏感字段三件套；缺省是 security 的真实现加测试密钥环（../seal.ts 的 testSealer） */
   readonly seal?: FactorySealer;
 }
 
@@ -73,7 +73,7 @@ function scenarioFactories(db: FactoryDb, make: Factories, now: () => Date): Sce
 }
 
 export function createFactories(deps: FactoryDeps): Factories {
-  const ctx = createFactoryContext({ ...deps, seal: deps.seal ?? fakeSealer });
+  const ctx = createFactoryContext({ ...deps, seal: deps.seal ?? testSealer });
   // 工厂之间互相调（造上级行）：先给出空壳，再把各组填进去
   const make = {} as Factories;
   return Object.assign(
