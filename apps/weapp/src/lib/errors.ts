@@ -22,9 +22,11 @@ export const ERROR_REPORTS_PER_MINUTE = 10;
 const MINUTE_MS = 60_000;
 const MAX_TEXT = 2000;
 
-const PHONE = /(?<!\d)1[3-9]\d{9}(?!\d)/g;
+// 左边界不用后行断言：iOS 上小程序的逻辑层跑在系统的 JavaScriptCore 里，16.4 之前不认 (?<!…)，
+// 正则在模块顶层，一加载就抛 SyntaxError，app.js 起不来。改用前缀捕获组，替换时用 $1 放回。
+const PHONE = /(^|\D)1[3-9]\d{9}(?!\d)/g;
 /** 统一社会信用代码：18 位，字母不含 I、O、S、V、Z */
-const USCC = /(?<![0-9A-Z])[0-9A-HJ-NPQRTUWXY]{2}\d{6}[0-9A-HJ-NPQRTUWXY]{10}(?![0-9A-Z])/g;
+const USCC = /(^|[^0-9A-Z])[0-9A-HJ-NPQRTUWXY]{2}\d{6}[0-9A-HJ-NPQRTUWXY]{10}(?![0-9A-Z])/g;
 const SESSION_TOKEN = /lyxm_[A-Za-z0-9._-]+/g;
 const BEARER = /Bearer\s+[A-Za-z0-9._~+/=-]+/gi;
 
@@ -33,8 +35,8 @@ export function scrub(text: string): string {
   return text
     .replace(SESSION_TOKEN, "[token]")
     .replace(BEARER, "Bearer [token]")
-    .replace(USCC, "[uscc]")
-    .replace(PHONE, "[phone]")
+    .replace(USCC, "$1[uscc]")
+    .replace(PHONE, "$1[phone]")
     .slice(0, MAX_TEXT);
 }
 

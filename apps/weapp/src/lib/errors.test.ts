@@ -97,6 +97,11 @@ describe("信封与清洗", () => {
     );
     // 18 位纯数字与信用代码同形（身份证号也是这个样子）：宁可多打码
     expect(scrub("证件 110101199003074518")).toBe("证件 [uscc]");
+    // 左边界：串首、紧挨着的分隔符都认，前面那个字符原样留下；前面多一位数字或大写字母就不认
+    expect(scrub("13812345678,13912345678\n13712345678")).toBe("[phone],[phone]\n[phone]");
+    expect(scrub("91430100MA4L1ABC2X/91430100MA4L1ABC2X")).toBe("[uscc]/[uscc]");
+    expect(scrub("tel:13812345678 id=91430100MA4L1ABC2X")).toBe("tel:[phone] id=[uscc]");
+    expect(scrub("A91430100MA4L1ABC2X")).toBe("A91430100MA4L1ABC2X");
 
     const env = setup();
     env.reporter.capture("handler", new Error("联系 13912345678"), { page: "lyxm_secret.x" });
