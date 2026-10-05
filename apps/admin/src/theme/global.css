@@ -264,6 +264,16 @@ body {
   overflow-y: auto;
 }
 
+/*
+ * 滚的是整个内容区（规范 第 5.1 节），里面的区块一律按自己的内容高度排，不许被压缩：
+ * 弹性子项只要设了 overflow（比如带圆角的卡片用 overflow: hidden 裁角），最小高度就按 0 算，
+ * 会被压进可见高度、装不下的部分被裁掉，内容区自己反而没有可滚的余量。
+ * 确实要“占满剩余高度、自己内部滚”的区块，在自己的类上另写 flex 与 min-height。
+ */
+.lyx-shell__content > * {
+  flex-shrink: 0;
+}
+
 /* ---------- 页头 ---------- */
 
 .lyx-page-header {
@@ -437,8 +447,14 @@ body {
 
 /* ---------- 筛选表格页（规范 第 5.2 节） ---------- */
 
+/*
+ * 表格卡按内容高度排，行多了由内容区滚动，页签、筛选条、表格、分页条一起滚（规范 第 5.1、5.2 节）。
+ * overflow: hidden 只为裁出圆角；flex: none 不能省：页面可能包在 display: contents 的容器里，
+ * 外壳那条“直接子项不压缩”够不着它，少了这一行后面的行与分页条会被裁掉、滚不到。
+ */
 .lyx-table-card {
   display: flex;
+  flex: none;
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
