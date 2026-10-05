@@ -8,6 +8,7 @@
 //      重试是把用例函数体整个再跑一遍：函数体里不得有事务外的副作用（发请求、改内存里的共享状态、入队）。
 //   3. 提交前探一句 SELECT 1：数据库错误被接住又没回滚到保存点时，PostgreSQL 会把 COMMIT 悄悄当成 ROLLBACK，
 //      Prisma 照样报成功。探这一句让它在这里报错，不让用例以为写进去了。
+//   4. 事务内不调外部服务：run 用 AsyncLocalStorage 标记“在事务中”，Provider 的入口调 assertNotInTransaction。
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import type { PrismaClient } from "@liyoxi/db";
@@ -71,6 +72,21 @@ export function txState(tx: Tx): TxState {
 
 /** 当前这段异步调用链是不是在事务里 */
 export const isInTransaction = (): boolean => scope.getStore()?.open === true;
+
+/**
+ * 外呼断言：Provider 的入口调它（接线在 W0-19、W0-20）。在事务里即违规。
+ * @param what 要调的是什么，如 "wechatPay.createOrder"，写进报错
+ */
+export function assertNotInTransaction(what: string): void {
+  const state = scope.getStore();
+  if (!state?.open) return;
+  state.violate(
+    new KernelViolation(
+      "external_call_in_transaction",
+      `事务内不调外部服务：${what}。必须同步的外部调用写成“先调外部、再开事务”（01 第 5 节调用规则 3）`,
+    ),
+  );
+}
 
 /** PostgreSQL 的 SQLSTATE。Prisma 7 加 pg 适配器：原生 SQL 与模型查询的数据库错误都把它放在这个位置 */
 export function sqlStateOf(error: unknown): string | undefined {

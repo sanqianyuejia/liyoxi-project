@@ -13,6 +13,7 @@ export type { AppEnv, Env, EnvGroup, EnvIssue, EnvSource, LogLevel } from "./env
 export { AppError, isAppError } from "./errors.js";
 export type { AppErrorOptions, ErrorSymbol } from "./errors.js";
 export {
+  assertNotInTransaction,
   createTxRunner,
   isInTransaction,
   KernelViolation,
