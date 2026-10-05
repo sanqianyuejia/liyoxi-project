@@ -52,3 +52,7 @@ export type {
 
 // W0-07b 服务装配：六类注册接口、端口、收集与装配
 export * from "./assembly/index.js";
+
+// W0-17 五个端口：告警、不变量上报、埋点直记、通知场景解析、提醒查询；kernel 的登记（声明这五个端口）
+export * from "./ports/index.js";
+export { registration } from "./register.js";

@@ -65,6 +65,12 @@ export interface TimerHandlerRegistration extends EnvScoped {
   readonly kind: string;
   /** 与定时器行的状态更新同事务 */
   readonly handle: (tx: Tx, timer: FiredTimer) => Promise<TimerOutcome>;
+  /** 关键类：晚了也必须做，Redis 不可用时在进程内执行，失败不进终态。要与契约的登记一致；不写即否（W0-17） */
+  readonly critical?: boolean;
+  /** 跳过后可复活：同键 arm 遇到 skipped 行时置回 scheduled（01 分组 第 2.5 节；V1.0 只有 order.start）（W0-17） */
+  readonly rearmAfterSkip?: boolean;
+  /** 触发时已晚于到期时间这么多分钟就跳过、不补做；不写即不限（D3 第 21.2 节）（W0-17） */
+  readonly maxLateMinutes?: number;
 }
 
 // ---------- ③ 周期任务 ----------
@@ -74,11 +80,44 @@ export interface RecurringRunContext {
   readonly scheduledFor: Date;
 }
 
+/**
+ * 周期任务的节奏（W0-17），都按 Asia/Shanghai。at 写 "HH:mm"。
+ * minutes：每 N 分钟，对齐到固定栅格 floor(epoch ÷ 间隔) × 间隔；hour：每小时的第 minute 分（不写即整点）；
+ * day：每日；week：每周几（1 = 周一 … 7 = 周日）；month：每月几日（1–28）。
+ */
+export type RecurringSchedule =
+  | { readonly every: "minutes"; readonly minutes: number }
+  | { readonly every: "hour"; readonly minute?: number }
+  | { readonly every: "day"; readonly at: string }
+  | { readonly every: "week"; readonly weekday: number; readonly at: string }
+  | { readonly every: "month"; readonly day: number; readonly at: string };
+
+/** tx：在一个事务里做完；job：认领后在事务外执行、按租期续租（x01 第 4.2 节；D7 第 7.6 节） */
+export const RECURRING_MODES = ["tx", "job"] as const;
+export type RecurringMode = (typeof RECURRING_MODES)[number];
+/** 周期任务漏跑告警的级别 */
+export const MISS_SEVERITIES = ["P1", "P2", "P3"] as const;
+export type MissSeverity = (typeof MISS_SEVERITIES)[number];
+
 export interface RecurringJobRegistration extends EnvScoped {
   /** timer.kind（无主体）。与定时器处理器共用一个名字空间，不能同名 */
   readonly kind: string;
   /** 返回的摘要写进定时器行的 result；没有摘要就不返回 */
   readonly run: (ctx: RecurringRunContext) => Promise<Readonly<Record<string, unknown>> | void>;
+  /** 节奏。类型上可选（只增字段），timers 在装配后要求每个周期任务都写（W0-17） */
+  readonly schedule?: RecurringSchedule;
+  /** 不写即 tx（W0-17） */
+  readonly mode?: RecurringMode;
+  /** job 模式的租期，秒（W0-17） */
+  readonly leaseSec?: number;
+  /** job 模式至多执行几次，超过即 failed（W0-17） */
+  readonly maxAttempts?: number;
+  /** 完成期限：计划时刻之后多少分钟内应变为 fired；漏跑告警用（W0-17） */
+  readonly deadlineMin?: number;
+  /** 漏跑级别；不写即不告警（如只在预发的任务）（W0-17） */
+  readonly missSeverity?: MissSeverity;
+  /** 补登记时把“最近一个已到的计划时刻”那一格也补上，只补这一格；不写即否（D7 第 7.6 节）（W0-17） */
+  readonly catchUp?: boolean;
 }
 
 // ---------- ④ 端口 ----------
