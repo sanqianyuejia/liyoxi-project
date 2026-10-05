@@ -9,7 +9,9 @@ import type { Harness } from "./support/harness.js";
 // 由补登记循环建行，到点由扫描循环认领、队列的处理器执行，摘要写进定时器行。
 // 库是带种子的：不变量在上面跑出来 0 违规。别的用例的实例缺省不带这三个任务（support/instance.ts）。
 
-const OPS_JOBS = ["invariant.full", "invariant.quick", "ops.retention"] as const;
+const OPS_JOBS: readonly string[] = ["invariant.full", "invariant.quick", "ops.retention"];
+/** 只看本包的三个：ops 以后还会登记别的周期任务（证书检查、备份） */
+const isOpsJob = (job: { kind: string }): boolean => OPS_JOBS.includes(job.kind);
 const db = useSeededDatabase("worker");
 const redis = useTestRedis();
 let h: Harness;
@@ -36,7 +38,7 @@ describe("ops 的三个周期任务经任务进程跑", () => {
     "登记表里有它们（节奏、模式、完成期限、漏跑级别照 x01 第 4.2 节与 D7 第 7.6 节）；别的用例的实例里没有",
     async () => {
       const worker = await h.instance({ realRecurring: true });
-      expect(recurringTable(worker.services).filter((job) => job.module === "ops")).toEqual([
+      expect(recurringTable(worker.services).filter(isOpsJob)).toEqual([
         {
           kind: "invariant.full",
           module: "ops",
@@ -66,7 +68,7 @@ describe("ops 的三个周期任务经任务进程跑", () => {
         },
       ]);
       const plain = await h.instance();
-      expect(recurringTable(plain.services).filter((job) => job.module === "ops")).toEqual([]);
+      expect(recurringTable(plain.services).filter(isOpsJob)).toEqual([]);
     },
     SLOW,
   );

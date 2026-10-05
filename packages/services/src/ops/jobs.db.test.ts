@@ -102,7 +102,7 @@ describe("周期任务的处理器", () => {
       unbind = bindOps({ db: prisma, tx, clock, assembly: withCleanup });
       await expect(runScheduledRetention({ scheduledFor })).rejects.toThrow(/tx 模式/);
       const result = await tx.run((handle) => runScheduledRetention({ scheduledFor, tx: handle }));
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         daily: false,
         rows: { "kernel.idempotency_record": 0, "lyxtest.nothing": 3 },
         failed: {},

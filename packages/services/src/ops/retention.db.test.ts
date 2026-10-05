@@ -61,20 +61,21 @@ describe("真实装配登记的清理项", () => {
       await insertIdempotency("expired-2", -24);
       await insertIdempotency("live", 1);
 
+      // 只点名这两项：别的模块以后还会登记清理项
       const midday = await round(bj("2026-01-05T10:00"));
-      expect(midday).toEqual({
-        daily: false,
-        rows: { "kernel.idempotency_record": 2 },
-        failed: {},
-      });
+      expect(midday.daily).toBe(false);
+      expect(midday.rows).toMatchObject({ "kernel.idempotency_record": 2 });
+      expect(Object.keys(midday.rows)).not.toContain("timers.recurring_fired");
+      expect(midday.failed).toEqual({});
       expect(await idempotencyKeys()).toEqual(["live"]);
 
       const midnight = await round(bj("2026-01-06T00:00"));
-      expect(midnight).toEqual({
-        daily: true,
-        rows: { "kernel.idempotency_record": 0, "timers.recurring_fired": 0 },
-        failed: {},
+      expect(midnight.daily).toBe(true);
+      expect(midnight.rows).toMatchObject({
+        "kernel.idempotency_record": 0,
+        "timers.recurring_fired": 0,
       });
+      expect(midnight.failed).toEqual({});
       expect(await idempotencyKeys()).toEqual(["live"]);
       expect(raised).toEqual([]);
     },
