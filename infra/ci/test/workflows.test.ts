@@ -350,6 +350,11 @@ describe("ci.yml", () => {
   // 及其用例与反例也读它：用到它的任务各建一份
   const MIGRATE = 'psql -X -w -d postgres -c "CREATE DATABASE lyx_migrate_check" && pnpm db:deploy';
   const MINIO_UP = "docker compose -f infra/compose/local.yml up -d --wait minio";
+  // 已挂载清单由 apps/api 的探活用例写出，待落地数读它：先删旧的，跑完看文件在不在
+  const EXPORT_MOUNTED =
+    "rm -f apps/api/dist/mounted-operations.json && pnpm exec vitest run apps/api/test/probes.test.ts && test -s apps/api/dist/mounted-operations.json";
+  // 测试隔离的每一片：各自生成客户端、建迁移库、起 MinIO
+  const ISOLATION_SETUP = [INSTALL, DB_GENERATE, MIGRATE, MINIO_UP];
   const STEPS: Record<string, string[]> = {
     // 静态检查，不连库
     verify: [
@@ -405,11 +410,14 @@ describe("ci.yml", () => {
       "pnpm enums:check",
       MINIO_UP,
       "pnpm exec vitest run packages/services/src/providers/storage/minio.test.ts",
-      "pnpm test --project '!infra'",
+      // infra 以外的全部测试项目分成三片，这里是第一片；另两片在 test-2、test-3
+      "pnpm test --project '!infra' --shard=1/3",
       // W0-10：api-check、约束名核对读上面建的迁移库；待落地数只减不增要排在“测试”之后（已挂载处理器的清单由
       // apps/api 的测试装配导出）；计划 第 8.2 节的表（它的下一步上传两份清单，没有 run）
       "node infra/ci/api-check.mjs",
       "node infra/ci/natural-constraints.mjs",
+      // 分片之后写清单的那份用例不一定在本任务这一片里：单独跑它一遍，清单没写出来这一步就红
+      EXPORT_MOUNTED,
       "node infra/ci/landed.mjs --check --report --out packages/contract/dist/pending-routes.md",
       "node infra/ci/plan-routes.mjs --check --summary packages/contract/dist/route-milestones.md",
       // W0-23：只构建任务进程这一个包（“构建”在 web，产物过不来），下面两步跑它的产物
@@ -418,16 +426,17 @@ describe("ci.yml", () => {
       "node apps/worker/dist/index.js --check",
       "pnpm redis:compat --jobs 500 --idle-minutes 0.05",
     ],
+    // “测试”的第二、三片：各自生成客户端、建迁移库、起 MinIO
+    "test-2": [INSTALL, DB_GENERATE, MIGRATE, MINIO_UP, "pnpm test --project '!infra' --shard=2/3"],
+    "test-3": [INSTALL, DB_GENERATE, MIGRATE, MINIO_UP, "pnpm test --project '!infra' --shard=3/3"],
     // infra 项目的用例：连库的几份自己建临时库，不用生成的客户端；W0-10 约束名核对的用例只读迁移库，所以先建一份
     "test-infra": [INSTALL, MIGRATE, "pnpm test --project infra"],
-    // W0-05b：两个会话同时跑连库的测试项目（挂了 globalSetup 的），核对库名与 Redis 前缀没有交集
-    "test-isolation": [
-      INSTALL,
-      DB_GENERATE,
-      MIGRATE,
-      MINIO_UP,
-      "pnpm test:isolation --scope connected",
-    ],
+    // W0-05b：两个会话同时跑连库的测试项目（挂了 globalSetup 的），核对库名与 Redis 前缀没有交集。
+    // 全量分成四片，一个任务跑一片（每片里照旧是两个会话），合起来是原来的那一遍
+    "test-isolation": [...ISOLATION_SETUP, "pnpm test:isolation --scope connected --shard 1/4"],
+    "test-isolation-2": [...ISOLATION_SETUP, "pnpm test:isolation --scope connected --shard 2/4"],
+    "test-isolation-3": [...ISOLATION_SETUP, "pnpm test:isolation --scope connected --shard 3/4"],
+    "test-isolation-4": [...ISOLATION_SETUP, "pnpm test:isolation --scope connected --shard 4/4"],
     // 构建；W0-28：后台与下载页的单测、构建、页面清单；后台冒烟按受影响范围跑（它后面上传截图的一步没有 run）
     web: [
       INSTALL,
@@ -474,19 +483,100 @@ describe("ci.yml", () => {
     expect(commandsOf(id)).toEqual(STEPS[id]);
   });
 
-  it("根上的 pnpm test 拆在两个任务里跑：infra 项目与 infra 以外的全部项目，合起来是全量", () => {
-    const runs = Object.keys(STEPS).flatMap((id) =>
+  /** 全部任务里以 prefix 开头的命令，连同它在哪个任务里 */
+  const commandsStarting = (prefix: string) =>
+    Object.keys(STEPS).flatMap((id) =>
       commandsOf(id)
-        .filter((command) => /^pnpm test(?: |$)/.test(command))
-        .map((command) => [id, command]),
+        .filter((command) => command === prefix || command.startsWith(`${prefix} `))
+        .map((command): [string, string] => [id, command]),
     );
+  /**
+   * 一组分片命令互补：除了片号逐字相同（都匹配 pattern，它的两个捕获组是片号与分母），分母都等于片数，
+   * 片号恰好是 1 到片数各一次，一个任务只跑一片。加一片时各处的分母要一起改，漏改一处、片号重了或缺了，这里就红
+   */
+  function expectComplementary(runs: [string, string][], pattern: RegExp) {
+    const shards = runs.map(([, command]) => pattern.exec(command));
+    expect(shards.every((match) => match !== null)).toBe(true);
+    expect(shards.length).toBeGreaterThan(1);
+    expect(shards.map((match) => Number(match?.[2]))).toEqual(shards.map(() => shards.length));
+    expect(shards.map((match) => Number(match?.[1])).sort((a, b) => a - b)).toEqual(
+      shards.map((_, index) => index + 1),
+    );
+    expect(new Set(runs.map(([id]) => id)).size).toBe(runs.length);
+  }
+
+  it("根上的 pnpm test 拆在几个任务里跑：infra 项目一份，infra 以外的全部项目分成互补的几片，合起来是全量", () => {
+    const runs = commandsStarting("pnpm test");
     expect(runs).toEqual([
-      ["test", "pnpm test --project '!infra'"],
+      ["test", "pnpm test --project '!infra' --shard=1/3"],
+      ["test-2", "pnpm test --project '!infra' --shard=2/3"],
+      ["test-3", "pnpm test --project '!infra' --shard=3/3"],
       ["test-infra", "pnpm test --project infra"],
     ]);
-    // infra 确实是根测试配置里的一个项目：改了名，上面两条命令就不再是“一半对一半”
+    // 互补不靠上面那张写死的表：infra 以外的那几条按片号、分母核对
+    expectComplementary(
+      runs.filter(([id]) => id !== "test-infra"),
+      /^pnpm test --project '!infra' --shard=(\d+)\/(\d+)$/,
+    );
+    // infra 确实是根测试配置里的一个项目：改了名，上面的命令就不再是“一份对其余”
     expect(read("infra/vitest.config.ts")).toMatch(/^ {4}name: "infra",$/m);
     expect(read("vitest.config.ts")).toMatch(/^ {4}projects: \[.*"infra".*\],$/m);
+  });
+
+  it("测试隔离的全量拆在几个任务里跑：范围照旧是全部连库的测试项目，分成互补的几片，合起来是原来的那一遍", () => {
+    const runs = commandsStarting("pnpm test:isolation");
+    expect(runs).toEqual([
+      ["test-isolation", "pnpm test:isolation --scope connected --shard 1/4"],
+      ["test-isolation-2", "pnpm test:isolation --scope connected --shard 2/4"],
+      ["test-isolation-3", "pnpm test:isolation --scope connected --shard 3/4"],
+      ["test-isolation-4", "pnpm test:isolation --scope connected --shard 4/4"],
+    ]);
+    // 每一条都带 --scope connected（范围没有变小），只有片号不同
+    expectComplementary(runs, /^pnpm test:isolation --scope connected --shard (\d+)\/(\d+)$/);
+    // 分片是脚本原样传给 Vitest 的 --shard；各片互不重叠、合起来是不分片的那一遍，由脚本自己的用例实跑名单核对
+    const script = read("packages/services/src/testing/isolation.mjs");
+    expect(read("package.json")).toContain(
+      '"test:isolation": "node packages/services/src/testing/isolation.mjs"',
+    );
+    expect(script).toMatch(/vitestArgs\.push\(`--shard=\$\{index\}\/\$\{count\}`\)/);
+    expect(read("packages/services/src/testing/isolation.test.ts")).toContain(
+      "各片互不重叠，合起来就是不分片的那一遍",
+    );
+  });
+
+  it("各片各用各的库：跑一片的任务都先生成客户端、建迁移库、起 MinIO 再跑；必过的步骤不带条件", () => {
+    const shardJobs = [...commandsStarting("pnpm test"), ...commandsStarting("pnpm test:isolation")]
+      .filter(([, command]) => command.includes("--shard"))
+      .map(([id]) => id);
+    expect(shardJobs).toHaveLength(7);
+    for (const id of shardJobs) {
+      const commands = commandsOf(id);
+      const at = commands.findIndex((command) => command.includes("--shard"));
+      for (const before of [DB_GENERATE, MIGRATE, MINIO_UP]) {
+        expect(commands.slice(0, at), `${id}：${before}`).toContain(before);
+      }
+    }
+    // 带条件的步骤只在 web（冒烟、截图按受影响范围跑）；上传产物的几步写的是 always()，不是“可以不跑”
+    const conditional = (id: string) =>
+      `${jobBody(ci, id)}\n`
+        .split(/^ {6}- name: /m)
+        .slice(1)
+        .filter((text) => /^ {8}if: (?!always\(\)$)/m.test(text))
+        .map((text) => text.slice(0, text.indexOf("\n")));
+    for (const id of Object.keys(STEPS).filter((job) => job !== "web")) {
+      expect(conditional(id), id).toEqual([]);
+    }
+  });
+
+  it("待落地数排在导出已挂载清单之后：清单不靠“那份用例恰好在这一片里”", () => {
+    const commands = commandsOf("test");
+    const exported = commands.indexOf(EXPORT_MOUNTED);
+    const landed = commands.findIndex((command) => command.startsWith("node infra/ci/landed.mjs "));
+    expect(exported).toBeGreaterThan(0);
+    expect(landed).toBe(exported + 1);
+    // 写清单的确实是那份用例；待落地数读的确实是那个文件
+    expect(read("apps/api/test/probes.test.ts")).toContain("mounted-operations.json");
+    expect(read("infra/ci/landed.mjs")).toContain("apps/api/dist/mounted-operations.json");
   });
 
   it("状态文件核对的步骤名跟着含义走：不再叫“状态汇总无差异”", () => {
@@ -608,8 +698,17 @@ describe("本地 Compose 与 CI 的服务容器", () => {
   it("要连库的任务都挂了 PostgreSQL；跑连 Redis 的用例的任务另挂 Redis", () => {
     const servicesOf = (id: string) =>
       [...jobBody(ci, id).matchAll(/^ {6}([\w-]+):\n {8}image: /gm)].map((match) => match[1]);
-    expect(servicesOf("test")).toEqual(["postgres", "redis"]);
-    expect(servicesOf("test-isolation")).toEqual(["postgres", "redis"]);
+    for (const id of ["test", "test-2", "test-3"]) {
+      expect(servicesOf(id), id).toEqual(["postgres", "redis"]);
+    }
+    for (const id of [
+      "test-isolation",
+      "test-isolation-2",
+      "test-isolation-3",
+      "test-isolation-4",
+    ]) {
+      expect(servicesOf(id), id).toEqual(["postgres", "redis"]);
+    }
     expect(servicesOf("test-infra")).toEqual(["postgres"]);
     expect(servicesOf("gates")).toEqual(["postgres"]);
   });

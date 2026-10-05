@@ -118,14 +118,17 @@ clock.set(new Date("2026-03-01T00:00:00+08:00")); // 直接拨到某个时刻，
 | `pnpm test` | 全量测试。`packages/db`、`packages/services` 两个项目挂了 globalSetup：只跑其中不连库的用例，也要本地的 PostgreSQL 在运行并给出 `DATABASE_URL`；连 Redis 的用例另要 `REDIS_URL`（取值见 `CLAUDE.md` 第 9 节） |
 | `pnpm test --maxWorkers=4` | 指定并行数。参数直接跟在后面，**不要写 `--`**：`pnpm test -- --maxWorkers=4` 里 `--` 之后的参数会被 Vitest 忽略（2026-10-05 实测，pnpm 10.34.5、Vitest 4.1.11） |
 | `pnpm test:isolation` | 两个会话同时跑全量测试，都要绿，且两边用的库名与 Redis 前缀没有交集。本地出验收证据用它 |
-| `pnpm test:isolation --scope connected` | 同上，但只跑连 PostgreSQL、Redis 的测试项目。CI 的 `verify` 里的那一步是这一条 |
+| `pnpm test:isolation --scope connected` | 同上，但只跑连 PostgreSQL、Redis 的测试项目 |
+| `pnpm test:isolation --scope connected --shard 2/4` | 同上，只跑其中的第 2 片（共 4 片）。CI 把上一条分成四个任务（`test-isolation` 与 `test-isolation-2` 至 `-4`）各跑一片，合起来就是上一条 |
 | `pnpm test:db:prune` | 清理测试库，见第 2 节 |
 
 ### `pnpm test:isolation` 的参数
 
 ```sh
 pnpm test:isolation                      # 两个会话各跑一遍全量测试
-pnpm test:isolation --scope connected    # 只跑连库的测试项目（CI 用）
+pnpm test:isolation --scope connected    # 只跑连库的测试项目
+pnpm test:isolation --scope connected --shard 2/4   # 只跑其中的第 2 片（CI 分四个任务各跑一片）
+pnpm test:isolation --scope connected --list        # 不跑，列出范围里的用例文件；带 --shard 时列这一片的
 pnpm test:isolation --workers 4          # 每个会话 4 个 worker，不按核数定
 pnpm test:isolation --keep               # 通过了也留着日志与用量记录
 pnpm test:isolation --dry-run            # 只打印要跑什么，不跑
@@ -137,6 +140,7 @@ pnpm test:isolation --dry-run            # 只打印要跑什么，不跑
 - `--scope connected` 跑哪些项目：挂了 globalSetup 的项目都算，问的是 Vitest 解析出来的配置，不在脚本里列名字。现在是 `packages/db`、`packages/services`。隔离出问题只可能出在连库、连 Redis 的用例上，纯计算的用例跑两遍证明不了什么。
 - CI 为什么只跑 connected：给时长预算留余量（开发计划 第 5.5 节，PR 必过检查合计 ≤15 分钟），不是全量放不进。两个会话各跑一遍全量，等于把全量测试再跑两份，以后不管加的是什么用例，这一步都跟着多付两份；只跑连库的项目，多付的只有连库的那部分。执行机上量到的两组数（执行机 2 核，两个会话各 1 个 worker；预算 900 秒）：只跑连库的项目（现在的做法；运行 37289835462，提交 `e3d1f8d`）这一步 113 秒，`verify` 8 分 42 秒，必过检查合计 534 秒；全量（实验 PR #36，已关闭；运行 37293784179）这一步 304 秒，`verify` 11 分 40 秒，必过检查合计约 11 分 51 秒。本 PR 第一次运行（37281679968）是两个会话各开 4 个 worker 跑全量，那一步 305 秒后失败，红在用例超时上，不在预算上。这一处与任务书验收第 2、10 条的字面（CI 里跑全量）有出入：业主 2026-10-05 定了用现在的做法，记在 `docs/plan/status/W0-05b.md` 偏差 12。`infra` 里两份连库的用例（`db-catalog-diff`、`db-verify-managed`）不在 connected 里：它们不走本支架，库名带进程号，自己建、自己删；不带 `--scope` 的全量里有它们（另见第 9 节）。
 - connected 这一步的开销跟着连库的用例涨：服务包的连库用例多起来之后，它也会接近“测试”一步的时长。到时候的办法是计划 第 5.5 节写的那两个：按受影响的包跑，或挪到“合并后”一栏。
+- `--shard <i>/<n>`：两个会话各跑范围里的第 i 片。分法是 Vitest 的（原样传给它的 `--shard`：用例文件的路径取哈希、排序后按个数等分），n 片互不重叠、合起来就是不分片的那一遍。全量（connected）在 2 核的执行机上超过了 10 分钟，CI 把它分成四片并行，范围没有变。核对照旧，只有两项按片认：“4 个 worker 同时在场”的记录只要求分到 `parallel.test.ts` 的那一片有，Redis 前缀只要求分到 `redis-isolation.test.ts` 的那一片有（别的片有前缀就照样核对交集）；每一片都要有库。这一片里有哪些文件是问 Vitest 得来的（用它配置里的分片器），跑完再对一遍：两个会话实际跑的文件数都等于这个数。挪动、改名这两个文件时，把 `isolation.mjs` 开头的两个常量一起改。
 - 日志与用量记录放在系统临时目录：通过即删；没过的留着，位置打印在输出里。
 
 ## 7. 给一个新的包挂上
