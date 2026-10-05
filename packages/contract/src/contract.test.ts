@@ -122,7 +122,7 @@ describe("验收 2：通用错误码与登记表对账", () => {
 
   it("带 details 的码：纯常量一侧与 Zod 一侧的符号、类型一致", () => {
     const flagged = COMMON_ERROR_SYMBOLS.filter((symbol) => COMMON_ERRORS[symbol].hasDetails);
-    expect(flagged.sort()).toEqual(["CONSENT_REQUIRED", "REMINDED_TODAY"]);
+    expect(flagged.sort()).toEqual(["CONSENT_REQUIRED", "REMINDED_TODAY", "VERSION_CONFLICT"]);
     expect(Object.keys(COMMON_ERROR_DETAILS).sort()).toEqual(flagged);
     type Inferred = {
       [K in keyof typeof COMMON_ERROR_DETAILS]: z.infer<(typeof COMMON_ERROR_DETAILS)[K]>;
@@ -134,6 +134,13 @@ describe("验收 2：通用错误码与登记表对账", () => {
         nextAvailableDate: "2026-10-05",
       }).success,
     ).toBe(true);
+    // 约定 C52：details 带库里的最新版本，键是请求里的版本字段名（例外的列用各自的字段名）
+    for (const details of [{ lockVersion: 3 }, { draftLockVersion: 0 }]) {
+      expect(COMMON_ERROR_DETAILS.VERSION_CONFLICT.parse(details)).toEqual(details);
+    }
+    for (const bad of [{ lockVersion: "3" }, { lockVersion: -1 }, { lockVersion: 1.5 }]) {
+      expect(COMMON_ERROR_DETAILS.VERSION_CONFLICT.safeParse(bad).success).toBe(false);
+    }
     const consent = { pendingConsents: [{ agreementKey: "user", name: "《用户协议》" }] };
     expect(COMMON_ERROR_DETAILS.CONSENT_REQUIRED.parse(consent)).toEqual(consent);
   });

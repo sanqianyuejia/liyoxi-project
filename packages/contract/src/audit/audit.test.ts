@@ -17,6 +17,7 @@ import {
   isAuditTargetType,
   unknownAuditTargetTypes,
 } from "../index.js";
+import { STATE_MACHINE_NAMES } from "../registry/machines.js";
 
 // 审计域登记值的自测（W0-14）：与 03 分组文档 第 3.3 节对账；写法；纯常量不带 Zod。
 // 对象类型是不是库里真有的表，由 services 的 audit 用例连真库核对。
@@ -68,6 +69,12 @@ describe("对象类型", () => {
     );
     expect(named.length).toBeGreaterThan(20);
     expect(named.filter((name) => !isAuditTargetType(name))).toEqual([]);
+  });
+
+  // KF-1：flow.transition 没收到审计内容时按状态机登记的默认描述补一条 activity，对象类型写状态机的表名；
+  // 表名不在登记里，audit.record 会拒绝，迁移整个回滚
+  it("25 张状态机表都是登记了的对象类型", () => {
+    expect(STATE_MACHINE_NAMES.filter((machine) => !isAuditTargetType(machine))).toEqual([]);
   });
 
   it("对照表名单：库里没有的对象类型被列出来", () => {

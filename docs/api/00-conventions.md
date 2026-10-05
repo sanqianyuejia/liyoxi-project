@@ -336,7 +336,7 @@ A44 补登的词（同样是“同一语义只用一个词”）：
 
 取舍：① d7 把 `PERMISSION_DENIED` 与 `ROLE_FORBIDDEN` 都记为 40301（`d7-platform.md:269`），一个是后台权限点、一个是商家能力点，本文拆成两个数值。② `SESSION_REVOKED` 按 d4 作废（`d4-identity.md:2340`），以 `SESSION_INVALID` 代替。③ 状态冲突统一用 `STATE_NOT_ALLOWED`；d3 的 `INVALID_TRANSITION`（`d3-flow.md:3168`）并入它；带额外信息的领域码（`APPROVAL_NOT_PENDING`、`OPEN_ORDER_EXISTS` 等）可以保留。④ d3 写的“死锁重试仍失败返回请重试而不是 500”（`d3-flow.md:3178`）即 `BUSY`。⑤ `REMINDED_TODAY` 在数据模型 13 分组、草案与 a06 初稿里是 429（a06 定义为 46201），与“429 只给限流”冲突；A76 改为通用码 409 / 40920，a05、a06、a07 只引用，a06 的 46201 释放。
 
-**两个通用码的 `details`**（A131；同一个码的 `details` 类型唯一，C22）：
+**两个通用码的 `details`**（A131；同一个码的 `details` 类型唯一，C22；另有 `VERSION_CONFLICT`，`details` 是 `{ <请求里的版本字段名>: 库里的最新值 }`，通常即 `{ lockVersion }`，见 C52）：
 
 | 符号 | `details` | 说明 |
 | --- | --- | --- |

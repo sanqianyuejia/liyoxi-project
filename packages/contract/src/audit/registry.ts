@@ -50,6 +50,7 @@ export type AuditCategory = (typeof AUDIT_CATEGORIES)[number];
  * 对象类型（audit_log.target_type）：取最终表名。对象的标识是 uuid 时写 target_id，否则写 target_key
  * （staff_role 的角色键、dict_type 的类型键、feature_flag 的开关键、参数键，以及复合主键的表）。
  * 进程启动时对照库里的表名单校验（unknownAuditTargetTypes；接线在 W0-22、W0-23）。
+ * 25 张状态机表都在里面：flow.transition 补活动流的那一行，对象类型就是状态机的表名（契约自测核对）。
  */
 export const AUDIT_TARGET_TYPES = [
   // 03 分组
@@ -92,6 +93,11 @@ export const AUDIT_TARGET_TYPES = [
   "invoice_request",
   "invoice_doc",
   "finance_config_revision",
+  // 09 分组的四张状态机表：迁移时由 flow 补活动流的那一行，对象就是它们（KF-1 补）
+  "drama_order",
+  "cancel_request",
+  "ad",
+  "order_item",
   // 10 分组各表，含 sample（样片访问）
   "delivery_ticket",
   "delivery_ticket_stage",
@@ -116,6 +122,9 @@ export const AUDIT_TARGET_TYPES = [
   "patrol_batch",
   "patrol_task",
   "takedown_task",
+  // 12、13 分组的两张状态机表（KF-1 补，缘由同 09 分组）
+  "service_ticket",
+  "license_letter",
   // 14 分组
   "dict_item",
   "site_config_revision",
