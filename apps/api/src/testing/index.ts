@@ -180,7 +180,8 @@ export function fakeAuth(
         createIdentityContext({
           ...identity,
           requestId: c.get("requestId"),
-          ip: c.get("clientIp"),
+          // 用例自己给了 ip 就用它的
+          ip: identity.ip ?? c.get("clientIp"),
         }),
       );
       if (options.sessionId !== undefined) c.set("sessionId", options.sessionId);
