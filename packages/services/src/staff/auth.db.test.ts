@@ -598,6 +598,11 @@ describe("登录两步与分桶锁定（验收 4、7）", { timeout: SLOW }, () 
     );
     expect(whileLocked).toEqual(normal);
     expect(whileLocked).toEqual(AUTH_FAILED);
+    const lastFail = await prisma.authEvent.findFirstOrThrow({
+      where: { subjectId: who.id, event: "login_fail" },
+      orderBy: { seq: "desc" },
+    });
+    expect(lastFail.detail).toMatchObject({ bucket: "untrusted", reason: "bucket_locked" });
     expect(await staffRow(who.id)).toMatchObject({ failUntrusted: 5 });
     expect((await eventsOf(prisma, who.id)).filter((event) => event === "locked")).toHaveLength(1);
     // 别人的、伪造的设备 Cookie 不算可信设备
