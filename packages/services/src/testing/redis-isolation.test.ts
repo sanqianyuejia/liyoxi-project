@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { connect, createServer } from "node:net";
 import type { AddressInfo, Socket } from "node:net";
 
@@ -5,6 +6,7 @@ import { resolveTestSession, resolveTestWorker } from "@liyoxi/db/testing";
 import { Redis } from "ioredis";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
+import { runNestedVitest } from "./__fixtures__/nested.js";
 import { createRedisOutage } from "./fault/index.js";
 import {
   assertTestRedisPrefix,
@@ -118,6 +120,31 @@ describe("Redis 按键前缀隔离", () => {
       await handle.dispose();
     }
   });
+});
+
+describe("useTestRedis 的收尾", () => {
+  it(
+    "嵌套跑一轮：支架之后登记的 afterAll 失败，收尾照样执行，键没有留下",
+    { timeout: 120_000 },
+    async () => {
+      // 嵌套的一轮另用一个会话标识（由本会话、本 worker 算出来），它的前缀撞不上外层任何一个 worker 的
+      const nested = `n${createHash("sha256").update(`${session}:${worker}`).digest("hex").slice(0, 11)}`;
+      const prefix = testRedisPrefix({ session: nested, worker: "1" });
+      try {
+        const result = runNestedVitest("redis-after-all", {
+          session: nested,
+          env: { LYX_TEST_FIXTURE_PREFIX: prefix },
+        });
+        expect(result.status, result.output).toBe(1);
+        expect(result.output).toContain("夹具：afterAll 就是要失败");
+        // 夹具里那条用例过了：键确实写进了这个前缀
+        expect(result.output).toMatch(/Tests\s+1 passed \(1\)/);
+        expect(await direct.keys(`${prefix}*`)).toEqual([]);
+      } finally {
+        await flushTestRedis(direct, prefix);
+      }
+    },
+  );
 });
 
 /**

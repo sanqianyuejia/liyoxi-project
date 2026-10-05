@@ -17,7 +17,7 @@ import {
 } from "@liyoxi/db/testing";
 import { Redis } from "ioredis";
 import type { RedisOptions } from "ioredis";
-import { afterAll } from "vitest";
+import { aroundAll } from "vitest";
 
 /** 测试键的总前缀 */
 export const TEST_REDIS_PREFIX = "lyx:test:";
@@ -187,13 +187,26 @@ export class TestRedisHandle implements TestRedis {
   }
 }
 
+/** 收尾钩子的时限：断开每条连接最多等 10 秒，再加清空 */
+const DISPOSE_TIMEOUT_MS = 60_000;
+
 /**
- * 给当前测试文件本 worker 的 Redis 前缀。在文件顶层（或 describe 里）调用：它登记一个 afterAll 来清空并断开。
+ * 给当前测试文件本 worker 的 Redis 前缀。在文件顶层（或 describe 里）调用：它登记一个 aroundAll，
+ * 把这一组用例连同它的 beforeAll、afterAll 整个包在里面，跑完之后断开并清空。
+ * 不用 afterAll 收尾：别的 afterAll 先抛了错，排在后面的就不执行了，键会留在共享的 Redis 上
+ *（测试库的收尾是同一个办法，见 @liyoxi/db/testing 的 useTestDatabase）。
  * 本包的 vitest.config.ts 要挂测试支架的 globalSetup，只连 Redis、不连库的包也一样（没挂即抛错）。
  */
 export function useTestRedis(): TestRedis {
   assertTestScaffoldAttached();
   const handle = new TestRedisHandle(testRedisPrefix());
-  afterAll(() => handle.dispose(), 60_000);
+  // 回调只写一个参数：Vitest 会解析回调的参数表
+  aroundAll(async (runSuite) => {
+    try {
+      await runSuite();
+    } finally {
+      await handle.dispose();
+    }
+  }, DISPOSE_TIMEOUT_MS);
   return handle;
 }
