@@ -13,6 +13,10 @@
       "types": "./src/errors/index.ts",
       "default": "./src/errors/index.ts"
     },
+    "./enums": {
+      "types": "./src/enums/index.ts",
+      "default": "./src/enums/index.ts"
+    },
     "./types/merchant": {
       "types": "./generated/merchant.d.ts"
     },
