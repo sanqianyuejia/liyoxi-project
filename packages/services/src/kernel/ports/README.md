@@ -9,6 +9,7 @@ kernel 定义接口与空实现，上层在自己的 `register.ts` 里登记实�
 | `track.record(tx \| null, { name, props, eventId?, subject? })` | `trackOf(assembly)` | analytics（M7） | 只记调试日志 |
 | 通知场景解析 `ctx.read.*`，按函数名登记 | `notifyReadOf(assembly).read(tx, 名字, …参数)` | 拥有数据的各域 | 返回 `null` |
 | 提醒查询，按规则键 `R1`–`R7` 登记 `{ targets, revalidate? }` | `remindersOf(assembly)` | 各域 | `targets` 返回空列表 |
+| 商家读侧的事实，按来源模块登记（`profile`、`billing`、`order`、`publish`、`ad`、`support`、`notify`、`asset`；W1-03） | `merchantFactsOf(assembly).read(tx, 查询)` | 拥有数据的各域，用 `implementMerchantFacts(键, 实现)` | 那个键取默认值：计数 0，其余 `null` |
 
 ```ts
 // 实现方（上层模块的 register.ts）

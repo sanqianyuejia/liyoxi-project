@@ -120,3 +120,6 @@ export {
   SYSTEM_DICT_ITEMS,
 } from "./seed-data.js";
 export type { ChecklistTemplateSeed, DictItemSeed, DictTypeSeed } from "./seed-data.js";
+// W1-03：规则变更公告的最小实现（只有“建”；撤回与读取随 G2-B）
+export { createNotices } from "./notices.js";
+export type { AnnouncedNotice, NoticeAnnouncement, Notices, NoticesDeps } from "./notices.js";

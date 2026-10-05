@@ -19,3 +19,27 @@ export type {
 } from "./reminders.js";
 export { noopTrack, trackOf, trackPort } from "./track.js";
 export type { Track, TrackEvent } from "./track.js";
+// W1-03：商家读侧的事实端口（按来源模块分键；没人登记的键取默认值）
+export {
+  defaultMerchantFacts,
+  implementMerchantFacts,
+  MERCHANT_FACT_SOURCES,
+  merchantFactsOf,
+  merchantFactsPort,
+} from "./merchant-facts.js";
+export type {
+  AdStoreFacts,
+  AssetStoreFacts,
+  BillingSubscriptionFacts,
+  BillingWalletFacts,
+  FactDictRef,
+  MerchantFacts,
+  MerchantFactSource,
+  MerchantFactsProvider,
+  MerchantFactsQuery,
+  MerchantFactsReader,
+  OrderStoreFacts,
+  ProfileStoreFacts,
+  PublishStoreFacts,
+  SupportStoreFacts,
+} from "./merchant-facts.js";
