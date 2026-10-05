@@ -1,0 +1,16 @@
+<!doctype html>
+<!-- H5 入口页：只给截图命令用（pnpm weapp:shots），不发布。 -->
+<html>
+  <head>
+    <meta content="text/html; charset=utf-8" http-equiv="Content-Type" />
+    <meta content="width=device-width,initial-scale=1,user-scalable=no" name="viewport" />
+    <meta name="format-detection" content="telephone=no,address=no" />
+    <title>狸有戏</title>
+    <!-- 下面这一行要原样留在同一行：Taro 按整行替换成入口脚本，折行了就认不出，页面是空的 -->
+    <!-- prettier-ignore -->
+    <script><%= htmlWebpackPlugin.options.script %></script>
+  </head>
+  <body>
+    <div id="app"></div>
+  </body>
+</html>

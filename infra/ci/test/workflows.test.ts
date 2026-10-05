@@ -391,6 +391,12 @@ describe("ci.yml", () => {
       "pnpm gates:selftest",
       // 状态文件核对：只查状态文件合不合规；状态汇总不入库，不再与入库的文件比对
       "node infra/ci/status-summary.mjs --check",
+      // W0-27a：小程序的单测、体积门禁；截图按受影响范围跑（它后面上传截图的一步没有 run）
+      "pnpm --filter @liyoxi/weapp test",
+      "node infra/ci/check-mp-size.mjs apps/weapp/dist",
+      'node apps/weapp/scripts/shots-affected.mjs --base "$BASE"',
+      "pnpm --filter @liyoxi/weapp exec playwright install --with-deps chromium",
+      "pnpm weapp:shots",
     ]);
     // 步骤名跟着含义走：不再叫“状态汇总无差异”
     expect(jobBody(ci, "verify")).toMatch(

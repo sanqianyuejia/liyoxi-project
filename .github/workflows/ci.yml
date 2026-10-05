@@ -226,6 +226,37 @@ jobs:
       # 只核对各包的状态文件合不合规（取值、字段、依赖指向）。状态汇总不入库，这里不生成也不比对
       - name: 状态文件核对
         run: node infra/ci/status-summary.mjs --check
+      # W0-27a：小程序。根上的 pnpm test 不含三个前端：请求层与四个端上封装的用例在这里跑（Node 环境，不起小程序运行时）
+      - name: 小程序单测
+        run: pnpm --filter @liyoxi/weapp test
+      # 前面“构建”一步已经出过小程序的包（apps/weapp 的 build 脚本末尾也过这道门禁，超限构建就失败）。
+      # 这里对着同一份产物再量一遍、把各包体积打印出来：主包 >1,500KB 或任一分包 >800KB 即失败
+      - name: 小程序体积门禁
+        run: node infra/ci/check-mp-size.mjs apps/weapp/dist
+      # 小程序截图按受影响范围跑：PR 改到小程序或页面上看得见的设计变量才跑，推到 main 一律跑。
+      # 范围写在 apps/weapp/scripts/shots-affected.mjs 开头；结论在这一步的输出里
+      - name: 小程序截图要不要跑
+        id: weapp-shots
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
+        run: node apps/weapp/scripts/shots-affected.mjs --base "$BASE"
+      - name: 装小程序截图用的浏览器
+        if: steps.weapp-shots.outputs.run == 'true'
+        run: pnpm --filter @liyoxi/weapp exec playwright install --with-deps chromium
+      # 先出一份 Taro 的 H5 构建，再用 Chromium 按 375 宽给已建的页各截一张。H5 是近似，不是小程序的渲染层：
+      # 与真机的差异写在 apps/weapp/scripts/shots.mjs 开头
+      - name: 小程序截图
+        if: steps.weapp-shots.outputs.run == 'true'
+        run: pnpm weapp:shots
+      # 页面包的 PR 以这份产物为页面证据；业主合并前在运行页面的 Artifacts 里下载来看
+      - name: 上传小程序截图
+        if: always() && steps.weapp-shots.outputs.run == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: weapp-shots
+          path: apps/weapp/shots/dist/png/
+          if-no-files-found: error
+          retention-days: 30
 
   gate-classify:
     name: gate-classify
