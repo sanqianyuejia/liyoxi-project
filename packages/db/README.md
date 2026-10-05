@@ -78,7 +78,7 @@ pnpm --filter @liyoxi/db migration:build --check   # 重拼的结果应与入库
 - 这条核对在 `pnpm test` 里（`src/migration.test.ts`）。迁移一旦在任何库上跑过就不能再改：Prisma 按文件的校验值认迁移。
 - 拼接时出现四类语句而脚本里没有登记理由，脚本报错，不让它漏标。
 - 迁移执行时按当天的日期建埋点事件表的分区（兜底、当月、未来 3 个月），分区子表的名字随月份变。
-- 首版迁移不建角色、不写授权：那是第二个迁移（第 9 节）。之后的结构变更走新的迁移文件，一个结构变更包一个 PR；草稿怎么出、哪些要人工删改补，见第 9 节末尾指的 ADR。
+- 首版迁移不建角色、不写授权：那是第二个迁移（第 9 节）。之后的结构变更走新的迁移文件，一个结构变更包一个 PR；草稿怎么出、哪些要人工删改补，见第 9 节末尾指的 ADR-045。
 
 ## 5. 客户端工厂
 
@@ -215,4 +215,4 @@ PGPASSWORD=lyx-local-dev psql -X -h localhost -p 5442 -U liyoxi -d postgres -c "
 - 以应用角色的身份连库（排查权限问题时用；要管理账号）：连接串后面加 `?options=-c%20role%3Dlyx_app`，等同于连上之后 `SET ROLE lyx_app`。
 - 测试支架给用例的连接缺省就是这样切到 `lyx_app` 的（`useTestDatabase`、`connectTestDatabase`、`testDatabaseUrl`；缺省值在 `src/testing/database.ts` 的 `TEST_DEFAULT_ROLE`）：连库的用例看到的权限与 api、worker 一样，漏授权、或写了应用角色做不了的事，用例当场报 `42501`。要属主身份（建探针表、读 `_prisma_migrations`、看别的会话的状态、验触发器那一道）就写 `role: null`，不切角色，用 `DATABASE_URL` 的账号；支架自己建库、删库、建模板库、跑迁移一直用那个账号。用法见 [测试支架的说明](../services/src/testing/README.md) 第 2 节。
 - 权限测试插夹具行时靠 `session_replication_role = replica` 绕开外键，要超级用户；在不是超级用户的托管库上跑不了，那里用 `pnpm db:verify-grants`：它逐表核对的是同一份期望，只是不以应用角色的身份实际去改、去删。
-- Prisma 遇到手写的约束、索引、触发器、分区会怎样，之后出下一版迁移的固定做法，建分区的函数由谁执行：见 [ADR（待分配编号）](../../docs/adr/draft-W0-06a-迁移草稿由migrate-diff从库到schema出-手写对象与授权人工补.md)。
+- Prisma 遇到手写的约束、索引、触发器、分区会怎样，之后出下一版迁移的固定做法，建分区的函数由谁执行：见 [ADR-045](../../docs/adr/0045-迁移草稿由migrate-diff从库到schema出-手写对象与授权人工补-漂移靠结构快照把关.md)。
