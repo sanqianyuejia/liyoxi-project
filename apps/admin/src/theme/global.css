@@ -978,6 +978,14 @@ a.lyx-link--danger:hover {
 
 /* ---------- 弹窗与右上角通知（规范 第 5.3 节“弹窗”“关闭按钮”“轻提示”；主题变量管不到的几处） ---------- */
 
+/*
+ * 弹窗两个方向居中（规范 第 5.3 节）由 ConfigProvider 的 modal.centered 给（theme/antd.ts 的 adminComponentConfig）。
+ * 内容比窗口还高时由遮罩那一层滚动，规范没写这种情况：上下各留 24，弹窗不贴着窗口的边（状态文件偏差 16）。
+ */
+.ant-modal-centered .ant-modal {
+  margin-block: var(--lyx-space-24);
+}
+
 /* 弹窗内边距 24 */
 .ant-modal .ant-modal-container {
   padding: var(--lyx-space-24);

@@ -6,7 +6,7 @@ import zhCN from "antd/locale/zh_CN";
 import { useEffect } from "react";
 
 import type { AppRouter } from "../router";
-import { adminTheme } from "../theme/antd";
+import { adminComponentConfig, adminTheme } from "../theme/antd";
 
 import { setNotifier } from "./feedback";
 import type { AppServices } from "./services";
@@ -23,13 +23,8 @@ function FeedbackBridge() {
 
 export function App({ services, router }: { services: AppServices; router: AppRouter }) {
   return (
-    // 表单不显示必填星号，选填项在标签后写“（选填）”（规范 第 5.3 节）；两个字的按钮不自动加空格（原型是“驳回”不是“驳 回”）
-    <ConfigProvider
-      theme={adminTheme}
-      locale={zhCN}
-      form={{ requiredMark: false }}
-      button={{ autoInsertSpace: false }}
-    >
+    // 主题之外的组件级配置（表单不显示必填星号、弹窗居中、抽屉的缺省宽度等）在 theme/antd.ts 的 adminComponentConfig 里
+    <ConfigProvider theme={adminTheme} locale={zhCN} {...adminComponentConfig}>
       {/* 通知在右上角，距顶 68（规范 第 5.4 节） */}
       <AntApp notification={{ placement: "topRight", top: 68 }}>
         <FeedbackBridge />

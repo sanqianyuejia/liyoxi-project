@@ -3,7 +3,7 @@
 // 主题管不到的地方（二级菜单的高度与缩进、关闭按钮、页签计数徽标等）在 global.css 里用样式覆盖。
 import { antdTheme } from "@liyoxi/shared/design/antd-theme";
 import { adminTokens, sharedTokens } from "@liyoxi/shared/design/tokens";
-import type { ThemeConfig } from "antd";
+import type { ConfigProviderProps, ThemeConfig } from "antd";
 
 const px = (value: string): number => Number.parseFloat(value);
 
@@ -195,6 +195,26 @@ export const adminTheme: ThemeConfig = {
     },
   },
 };
+
+/**
+ * ConfigProvider 上主题之外的组件级配置：主题变量管不到、又要全局一致的几样。应用外层（app/App.tsx）整个展开用。
+ *   form     不显示必填星号，选填项在标签后写“（选填）”（规范 第 5.3 节）；提交时有错，页面滚到第一个出错的字段（规范 第 8 节）
+ *   button   两个字的按钮不自动加空格（原型是“驳回”不是“驳 回”）
+ *   modal    弹窗两个方向都居中（规范 第 5.3 节“弹窗｜居中”）；antd 的缺省是离顶 100
+ *   drawer   左右方向的抽屉缺省宽 480（规范 第 5.3 节“抽屉”）；antd 的缺省 378 写死在组件里，没有主题变量。
+ *            页面自己给了 size 的不动
+ */
+export const adminComponentConfig = {
+  form: { requiredMark: false, scrollToFirstError: true },
+  button: { autoInsertSpace: false },
+  modal: { centered: true },
+  drawer: {
+    styles: ({ props }) =>
+      props.size === undefined && props.placement !== "top" && props.placement !== "bottom"
+        ? { wrapper: { width: size.drawer } }
+        : {},
+  },
+} satisfies Pick<ConfigProviderProps, "form" | "button" | "modal" | "drawer">;
 
 /** 局部主题：核对清单里的复选框用绿色（规范 第 5.4 节） */
 export const checkListTheme: ThemeConfig = {
