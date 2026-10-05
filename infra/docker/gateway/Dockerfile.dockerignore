@@ -1,0 +1,22 @@
+# gateway 镜像的构建上下文（W1-22）。白名单：先全部排除，再放行构建用得到的路径。
+# 文件名是 <Dockerfile 的名字>.dockerignore：上下文是仓库根、Dockerfile 在子目录时，Docker 认的是这一份。
+# 上下文里没有 .git、docs/、任何 node_modules 与 dist、任何 .env；新加的目录不放行就进不来。
+*
+
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!.npmrc
+!apps/admin
+!apps/portal
+!packages/config
+!packages/contract
+!packages/shared
+!infra/docker/nginx
+
+# 放行的目录里仍然不要的
+**/node_modules
+**/dist
+**/coverage
+**/.env*
+**/*.tsbuildinfo
