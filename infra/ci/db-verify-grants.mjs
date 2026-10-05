@@ -121,8 +121,9 @@ select json_build_object(
     union all
     ${aclOf("'database'", "d.datname::text", "d.datdba", "coalesce(d.datacl, acldefault('d', d.datdba))", "pg_database d")}
      where d.datname = current_database()) e),
-  'defaults', (select count(*) from pg_default_acl d, aclexplode(d.defaclacl) x
-                where x.grantee = '${READONLY}'::regrole and x.privilege_type = 'SELECT'))`;
+  'defaults', (select coalesce(json_agg(e), '[]') from (
+    ${aclOf("d.defaclobjtype", "coalesce(d.defaclnamespace::regnamespace::text, '')", "d.defaclrole", "d.defaclacl", "pg_default_acl d")}
+     where d.defaclobjtype in ('r', 'S')) e))`;
 
 const problems = [];
 const note = (line) => console.log(`- ${line}`);
@@ -315,11 +316,22 @@ const seqReadable = check(
   "lyx_readonly 的权限不是恰好 SELECT 的序列",
   sequences.filter((name) => held("sequence", name, READONLY) !== "SELECT"),
 );
-if (catalog.defaults < 2)
+// 缺省授权（以后新建的表与序列自动带上的）：只该有给 lyx_readonly 的 SELECT，表（r）与序列（S）各一条
+const defaults = catalog.defaults.filter((entry) => !entry.owned);
+const isReadonlySelect = (entry) => entry.grantee === READONLY && entry.privilege === "SELECT";
+const kept = defaults.filter(isReadonlySelect);
+const defaultsOk = ["r", "S"].every((type) => kept.some((entry) => entry.kind === type));
+if (!defaultsOk)
   problems.push("没有给 lyx_readonly 的缺省授权（表与序列各一条）：以后新建的分区它读不到");
-if (readable && seqReadable && catalog.defaults >= 2)
+const noExtraDefaults = check(
+  "期望之外的缺省授权（以后新建的表、序列会自动带上）",
+  defaults
+    .filter((entry) => !isReadonlySelect(entry) && [...ROLES, "PUBLIC"].includes(entry.grantee))
+    .map((entry) => `${entry.grantee} ${entry.privilege}`),
+);
+if (readable && seqReadable && defaultsOk && noExtraDefaults)
   note(
-    `lyx_readonly：${tables.length} 张表（含分区子表与 _prisma_migrations）、${sequences.length} 个序列都只读；缺省授权 ${catalog.defaults} 条`,
+    `lyx_readonly：${tables.length} 张表（含分区子表与 _prisma_migrations）、${sequences.length} 个序列都只读；缺省授权 ${kept.length} 条`,
   );
 
 // 转授权：属主以外谁也不该带（带了就能把权限再授给别人）
@@ -331,8 +343,10 @@ const noGrantOption = check(
     .filter((entry) => !entry.owned && entry.grantable)
     .map((entry) => label({ ...entry, privileges: [entry.privilege] })),
 );
-// 别的角色：受限的表上不该有查询以外的权限；其余的只列出来
-const restricted = Object.keys(want).filter((name) => want[name] !== FULL);
+// 别的角色：受限的表（连同分区子表与 _prisma_migrations）上不该有查询以外的权限；其余的只列出来
+const restricted = Object.keys(want)
+  .filter((name) => want[name] !== FULL)
+  .concat(others);
 const strangers = [...grants.values()].filter(
   ({ kind, grantee }) =>
     /table|column|sequence/.test(kind) && ![...ROLES, "PUBLIC"].includes(grantee),

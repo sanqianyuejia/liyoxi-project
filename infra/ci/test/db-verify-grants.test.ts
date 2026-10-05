@@ -324,6 +324,17 @@ describe("db-verify-grants.mjs", () => {
       "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO lyx_readonly",
       "没有给 lyx_readonly 的缺省授权",
     );
+    tampered(
+      "ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE SELECT ON SEQUENCES FROM lyx_readonly",
+      "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON SEQUENCES TO lyx_readonly",
+      "没有给 lyx_readonly 的缺省授权",
+    );
+    // 缺省授权多出一条：以后新建的表（每月的分区在内）会自动授给应用角色
+    tampered(
+      "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT INSERT ON TABLES TO lyx_app",
+      "ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE INSERT ON TABLES FROM lyx_app",
+      "期望之外的缺省授权（以后新建的表、序列会自动带上）：lyx_app INSERT",
+    );
     expect(verify(urlOf(DB)).status).toBe(0);
   });
 
@@ -369,6 +380,12 @@ describe("db-verify-grants.mjs", () => {
       "GRANT UPDATE (status) ON billing_order TO pg_monitor",
       "REVOKE UPDATE (status) ON billing_order FROM pg_monitor",
       "只增表或不给改、删的表上，别的角色有查询以外的权限：列 billing_order.status（pg_monitor UPDATE）",
+    );
+    // 分区子表也算受限的表：绕过父表直接删子表里的行
+    tampered(
+      "GRANT DELETE ON analytics_event_default TO pg_monitor",
+      "REVOKE DELETE ON analytics_event_default FROM pg_monitor",
+      "别的角色有查询以外的权限：表 analytics_event_default（pg_monitor DELETE）",
     );
     // 不算问题、只列出来请人过目的：别的角色在受限的表上只有查询，或在常规读写的表上有授权
     lib.sqlOrThrow(
