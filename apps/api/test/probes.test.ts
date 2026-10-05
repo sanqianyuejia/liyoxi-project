@@ -98,18 +98,19 @@ describe("探活", () => {
 
 describe("已挂载清单", () => {
   it(
-    "契约里只登记的 5 条都挂上了；清单里是落地的 3 条，写到 dist/mounted-operations.json",
+    "契约里只登记的 5 条都挂上了；清单里探活是落地的 3 条，写到 dist/mounted-operations.json",
     TIMEOUT,
     async () => {
       const { api, request } = await testApi.start();
       for (const entry of allRegistryOnly) {
         expect((await request(entry.path)).status, entry.path).not.toBe(404);
       }
-      expect(api.mountedOperations).toEqual([
-        "hooks.health.get",
-        "hooks.healthz.get",
-        "hooks.readyz.get",
-      ]);
+      // 探活落地的 3 条都在；其余是各域陆续挂上的业务路由（各域的接口层用例各管各的），清单已排序
+      expect(api.mountedOperations).toEqual(
+        expect.arrayContaining(["hooks.health.get", "hooks.healthz.get", "hooks.readyz.get"]),
+      );
+      expect(api.mountedOperations.filter((id) => id.startsWith("hooks."))).toHaveLength(3);
+      expect(api.mountedOperations).toEqual([...api.mountedOperations].sort());
       // “已落地”的判定（node infra/ci/landed.mjs）读这份文件：JSON 字符串数组，取生产的处理器清单
       const dist = fileURLToPath(new URL("../dist/", import.meta.url));
       mkdirSync(dist, { recursive: true });
