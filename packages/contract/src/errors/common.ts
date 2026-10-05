@@ -26,7 +26,7 @@ export const COMMON_ERRORS = {
   FEATURE_DISABLED: def(40306, 403, false, "该功能暂未开放"),
   IP_NOT_ALLOWED: def(40307, 403, false, "当前网络不在允许访问的范围内，请联系管理员"),
   NOT_FOUND: def(40401, 404, false, "内容不存在或已被移除"),
-  VERSION_CONFLICT: def(40901, 409, false, "内容已被他人修改，请刷新后重试"),
+  VERSION_CONFLICT: def(40901, 409, false, "内容已被他人修改，请刷新后重试", true),
   STATE_NOT_ALLOWED: def(40902, 409, false, "该事项已被处理，请刷新后查看"),
   IDEMPOTENCY_KEY_REUSED: def(40903, 409, false, "请求重复，请刷新页面后重新操作"),
   IDEMPOTENCY_IN_PROGRESS: def(40904, 409, true, "正在处理中，请稍候"),
@@ -54,10 +54,15 @@ export function isCommonErrorSymbol(value: unknown): value is CommonErrorSymbol 
 }
 
 /**
- * 带 details 的通用码及其类型（约定 C27 的第二张表）。Zod 结构在 common/error-details.ts，
+ * 带 details 的通用码及其类型（约定 C27 的第二张表，另有 C52 的 VERSION_CONFLICT）。Zod 结构在 common/error-details.ts，
  * 契约自测保证两边的符号与类型一致。
  */
 export interface CommonErrorDetails {
+  /**
+   * 库里的最新版本，键是请求里那个版本字段的名字（约定 C52）：通常是 { lockVersion }；
+   * 列名不是 lock_version 的几处例外，键随请求字段（draftLockVersion、baseRevNo 等）
+   */
+  VERSION_CONFLICT: Record<string, number>;
   /** PendingConsent 归 m01（约定 C87），随 m01 的第一个后端 PR 定义；这里只留占位 */
   CONSENT_REQUIRED: { pendingConsents: PendingConsentPlaceholder[] };
   /** nextAvailableDate 是下次可催办的日期，YYYY-MM-DD（约定 C35） */
