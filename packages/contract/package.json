@@ -38,7 +38,8 @@
     "generate": "tsx scripts/generate.ts",
     "check": "pnpm generate && git diff --exit-code -- generated",
     "registry:generate": "tsx scripts/registry-map.ts",
-    "registry:check": "tsx scripts/registry-check.ts"
+    "registry:check": "tsx scripts/registry-check.ts",
+    "enums:check": "tsx scripts/enums-check.ts"
   },
   "dependencies": {
     "@hono/zod-openapi": "1.6.3",

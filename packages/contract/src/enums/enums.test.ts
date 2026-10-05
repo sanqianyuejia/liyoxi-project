@@ -9,6 +9,8 @@ import { importsReachableFrom } from "../__fixtures__/import-scan.js";
 
 import {
   ACTOR_TYPE,
+  AUDIT_LOG_CLIENT,
+  BILLING_PARAM_KEY,
   CLIENT,
   ENUMS,
   ENUMS_BY_MODULE,
@@ -99,6 +101,21 @@ describe("操作人枚举与共用枚举（06 第 3.3 节；catalogue.json 的 e
     expect(MERCHANT_ROLE.values).toEqual(["owner", "clerk"]);
     // 信封上的三列都绑在这三个枚举上（x01 第 2.3 节）
     expect(enumByColumn("outbox_event.actor_role")).toBe(MERCHANT_ROLE);
+  });
+
+  it("审计日志的客户端来源比 client 多一个 cli（06 第 3.3 节）", () => {
+    expect(AUDIT_LOG_CLIENT.values).toEqual([...CLIENT.values, "cli"]);
+    expect(enumByColumn("audit_log.client")).toBe(AUDIT_LOG_CLIENT);
+  });
+
+  it("计费规则参数的 12 个键按枚举登记（任务书 第 11 节第 5 项）", () => {
+    expect(BILLING_PARAM_KEY.values).toHaveLength(12);
+    expect(enumByColumn("billing_param.key")).toBe(BILLING_PARAM_KEY);
+  });
+
+  it("多态类型列不在这里：库里只校验写法，已知取值在 ./registry（任务书 第 11 节第 6 项）", () => {
+    expect(enumByColumn("outbox_event.aggregate_type")).toBeUndefined();
+    expect(enumByColumn("timer.subject_type")).toBeUndefined();
   });
 
   it("shared.ts 的前 15 个与底稿登记的共用枚举一致：名字、取值、顺序", () => {
