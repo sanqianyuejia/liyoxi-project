@@ -268,6 +268,7 @@ describe("键名清单", () => {
       "REDIS_URL_FILE",
       "DATA_KEYS_FILE",
       "BIDX_KEYS_FILE",
+      "AUTH_KEYS_FILE",
     ]);
   });
 });
@@ -377,5 +378,70 @@ describe("字段加密与盲索引的密钥文件", () => {
     const example = readFileSync(new URL("../../../../.env.example", import.meta.url), "utf8");
     const lines = example.split("\n").filter((line) => /^(DATA|BIDX)_KEYS/.test(line));
     expect(lines).toEqual(["DATA_KEYS_FILE=<文件路径>", "BIDX_KEYS_FILE=<文件路径>"]);
+  });
+});
+
+// W1-01a：后台登录的三把密钥放一份文件，只认文件路径。密钥是现造的固定字节，不是任何环境在用的密钥
+describe("后台登录的密钥文件", () => {
+  const base = { APP_ENV: "local", DATABASE_URL, REDIS_URL };
+  const key = (fill: number) => Buffer.alloc(32, fill).toString("base64");
+  const authKeys = {
+    ticket: key(11),
+    device: key(12),
+    mfa: { current: "m1", keys: { m1: key(13) } },
+  };
+  const authFile = fileWith("auth-keys.json", JSON.stringify(authKeys));
+
+  it("文件合法：通过，内容原样给出；不配：Env 里没有这一项，也不要求与别的密钥成组", () => {
+    expect(loadEnv({ ...base, AUTH_KEYS_FILE: authFile }).AUTH_KEYS).toEqual(authKeys);
+    expect(loadEnv(base).AUTH_KEYS).toBeUndefined();
+  });
+
+  it.each(["local", "test", "prod"])("%s 下给明文变量 AUTH_KEYS 即失败", (appEnv) => {
+    const error = failure({
+      APP_ENV: appEnv,
+      DATABASE_URL_FILE: fileWith(`auth-${appEnv}-pg`, DATABASE_URL),
+      REDIS_URL_FILE: fileWith(`auth-${appEnv}-redis`, REDIS_URL),
+      AUTH_KEYS: JSON.stringify(authKeys),
+      AUTH_KEYS_FILE: authFile,
+    });
+    expect(error.issues).toEqual([
+      { key: "AUTH_KEYS", reason: "密钥只认 AUTH_KEYS_FILE（值是文件路径），任何环境都不接受明文" },
+    ]);
+  });
+
+  const SHORT = Buffer.alloc(31, 9).toString("base64");
+  const bad: Array<[string, string, string]> = [
+    ["不是 JSON", `{ ticket: ${SHORT}`, "文件内容不是合法的 JSON"],
+    [
+      "缺 device",
+      JSON.stringify({ ticket: key(11), mfa: authKeys.mfa }),
+      "文件内容要是 { ticket, device, mfa }",
+    ],
+    [
+      "ticket 只有 31 字节",
+      JSON.stringify({ ...authKeys, ticket: SHORT }),
+      "各是 base64 写的 32 字节",
+    ],
+    ["缺 mfa", JSON.stringify({ ticket: key(11), device: key(12) }), "mfa 一项不合格"],
+    [
+      "mfa 的 current 不在 keys 里",
+      JSON.stringify({ ...authKeys, mfa: { current: "m9", keys: authKeys.mfa.keys } }),
+      "current 指的 kid 不在 keys 里",
+    ],
+  ];
+
+  it.each(bad)("%s：失败，报错不带文件内容", (label, content, reason) => {
+    const error = failure({ ...base, AUTH_KEYS_FILE: fileWith(`bad-auth-${label}.json`, content) });
+    expect(keysOf(error)).toEqual(["AUTH_KEYS_FILE"]);
+    expect(error.issues[0]?.reason).toContain(reason);
+    for (const mark of [SHORT, key(11), key(13), temp]) expect(error.message).not.toContain(mark);
+  });
+
+  it(".env.example 里这一项只有占位路径", () => {
+    const example = readFileSync(new URL("../../../../.env.example", import.meta.url), "utf8");
+    expect(example.split("\n").filter((line) => line.startsWith("AUTH_KEYS"))).toEqual([
+      "AUTH_KEYS_FILE=<文件路径>",
+    ]);
   });
 });

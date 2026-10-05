@@ -9,6 +9,9 @@
 //   5. 字段加密与盲索引的两份密钥文件（W0-14；D4 第 9.2 节、附录 C；D7 第 7.5 节）任何环境都只认 *_FILE：
 //      给了明文变量 DATA_KEYS、BIDX_KEYS 即失败。两份成组；都不配时 Env 里没有这两项，要用密钥的进程
 //      靠启动自检拦（security 的 selfCheck）。这里只校验文件的形状，用途齐不齐、密钥重不重复由密钥环校验。
+//   6. 后台登录的三把密钥（W1-01a；D4 第 6.3、9.2 节）放一份文件 AUTH_KEYS_FILE：票据签名、设备 Cookie 签名、
+//      动态口令密钥的加密（MFA，带 kid 可轮换）。写法同规则 5：只认文件路径，给明文变量 AUTH_KEYS 即失败；
+//      不配时 Env 里没有这一项，要用它的进程靠启动自检拦（security 的 loadAuthKeys）。
 // 后续包加变量：在这里加键与校验，同 PR 改 .env.example（node infra/ci/check-env-example.mjs 核对键集合）。
 // 本文件不写相对导入：infra/ci/check-env-example.mjs 用 Node 自带的类型擦除直接加载它。
 
@@ -42,6 +45,7 @@ export const ENV_KEYS: readonly string[] = [
   "REDIS_URL_FILE",
   "DATA_KEYS_FILE",
   "BIDX_KEYS_FILE",
+  "AUTH_KEYS_FILE",
 ];
 
 /** 数据加密密钥文件的内容：current 是当前 kid，keys 是 kid → base64 写的 32 字节 */
@@ -51,6 +55,12 @@ export interface DataKeysConfig {
 }
 /** 盲索引密钥文件的内容：用途 → base64 写的 32 字节 */
 export type BidxKeysConfig = Readonly<Record<string, string>>;
+/** 后台登录密钥文件的内容：票据签名、设备 Cookie 签名各一把；mfa 的形状同数据密钥，可轮换 */
+export interface AuthKeysConfig {
+  readonly ticket: string;
+  readonly device: string;
+  readonly mfa: DataKeysConfig;
+}
 
 export interface Env {
   readonly APP_ENV: AppEnv;
@@ -61,6 +71,8 @@ export interface Env {
   readonly DATA_KEYS?: DataKeysConfig;
   /** 盲索引密钥；同上 */
   readonly BIDX_KEYS?: BidxKeysConfig;
+  /** 后台登录的三把密钥；没配 AUTH_KEYS_FILE 时没有这一项 */
+  readonly AUTH_KEYS?: AuthKeysConfig;
 }
 
 export type EnvSource = Readonly<Record<string, string | undefined>>;
@@ -202,10 +214,20 @@ function parseBidxKeys(json: unknown): BidxKeysConfig | string {
   return Object.fromEntries(entries) as Record<string, string>;
 }
 
-/** 按规则 5 取出一份密钥文件：只认 *_FILE；明文变量给了即报错 */
+/** 校验后台登录密钥文件的内容；不合格时返回原因（不带任何值） */
+function parseAuthKeys(json: unknown): AuthKeysConfig | string {
+  if (!isRecord(json) || !isKey32(json.ticket) || !isKey32(json.device)) {
+    return "文件内容要是 { ticket, device, mfa }：ticket、device 各是 base64 写的 32 字节";
+  }
+  const mfa = parseDataKeys(json.mfa);
+  if (typeof mfa === "string") return `mfa 一项不合格：${mfa}`;
+  return { ticket: json.ticket as string, device: json.device as string, mfa };
+}
+
+/** 按规则 5、6 取出一份密钥文件：只认 *_FILE；明文变量给了即报错 */
 function readKeyFile<T>(
   source: EnvSource,
-  key: "DATA_KEYS" | "BIDX_KEYS",
+  key: "DATA_KEYS" | "BIDX_KEYS" | "AUTH_KEYS",
   issues: EnvIssue[],
   parse: (json: unknown) => T | string,
 ): T | undefined {
@@ -280,6 +302,7 @@ export function loadEnv(
   });
   const dataKeys = readKeyFile(source, "DATA_KEYS", issues, parseDataKeys);
   const bidxKeys = readKeyFile(source, "BIDX_KEYS", issues, parseBidxKeys);
+  const authKeys = readKeyFile(source, "AUTH_KEYS", issues, parseAuthKeys);
   if (!parsed.success) {
     for (const issue of parsed.error.issues) {
       issues.push({ key: issue.path.join("."), reason: issue.message });
@@ -306,5 +329,6 @@ export function loadEnv(
     DATABASE_URL,
     REDIS_URL,
     ...(dataKeys && bidxKeys ? { DATA_KEYS: dataKeys, BIDX_KEYS: bidxKeys } : {}),
+    ...(authKeys ? { AUTH_KEYS: authKeys } : {}),
   });
 }
