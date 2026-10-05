@@ -2,7 +2,16 @@
   "extends": "../../packages/config/tsconfig/taro-react18.json",
   "compilerOptions": {
     "baseUrl": ".",
-    "paths": { "@/*": ["./src/*"] },
+    // 后四行把 React 的类型钉到本工程自己装的那一份（18）。NutUI 的类型写 import "react" 而自己不声明 @types/react，
+    // 不钉的话 tsc 会到 pnpm 的提升目录里去找，那里放的是 18 还是 19 不保证（后台装的是 19），类型检查时过时不过。
+    // 预设里有同样的四行，这里自己写了 paths 会把它整体顶掉，所以抄上（pnpm check:type-hoist 会拦）
+    "paths": {
+      "@/*": ["./src/*"],
+      "react": ["./node_modules/@types/react"],
+      "react/*": ["./node_modules/@types/react/*"],
+      "react-dom": ["./node_modules/@types/react-dom"],
+      "react-dom/*": ["./node_modules/@types/react-dom/*"]
+    },
     "types": ["@tarojs/taro", "node"]
   },
   "include": ["./src", "./types", "./config", "./vitest.config.ts"]
