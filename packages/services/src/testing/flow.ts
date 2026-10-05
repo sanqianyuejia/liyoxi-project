@@ -144,7 +144,12 @@ export function createSampleFlow(
   const assembly = assembleForTest({
     entry: "api",
     extra: [sampleFlowRegistration(options)],
-    ...(options.workMinutes === undefined ? {} : { withoutRealPorts: [workMinutesPort] }),
+    // 状态机的登记整个换成样例的：各域陆续登记自己的状态机（W1-03 起 tenant 的三张表），
+    // flow 的用例看的是样例守卫与“没有登记”时的行为，不随各域的登记变
+    withoutRealPorts: [
+      machinePort,
+      ...(options.workMinutes === undefined ? [] : [workMinutesPort]),
+    ],
   });
   const tx = createTxRunner({ prisma, appEnv: "test" });
   const clock = createClock();

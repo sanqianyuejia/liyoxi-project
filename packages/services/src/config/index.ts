@@ -122,3 +122,6 @@ export {
 export type { ChecklistTemplateSeed, DictItemSeed, DictTypeSeed } from "./seed-data.js";
 // W0-24：六条配置类不变量登记进不变量框架
 export { CONFIG_SQL_INVARIANTS, registration } from "./register.js";
+// W1-03：规则变更公告的最小实现（只有“建”；撤回与读取随 G2-B）
+export { createNotices } from "./notices.js";
+export type { AnnouncedNotice, NoticeAnnouncement, Notices, NoticesDeps } from "./notices.js";
