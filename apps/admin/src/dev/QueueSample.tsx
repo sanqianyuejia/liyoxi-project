@@ -1,5 +1,6 @@
 // 审核工作台骨架的样例页：页面只填页签、队列取数、队列项与详情怎么画、清单、动作。
 import type { ErrorBody } from "@liyoxi/contract/errors";
+import { statusToneByEnum } from "@liyoxi/shared/design/status-tone";
 import { appDateTimeFormat } from "@liyoxi/shared/format/datetime";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
@@ -20,12 +21,27 @@ import { rootRoute } from "../routes/__root";
 
 import { DEV_FIXTURE_MARK } from "./mark";
 import { SampleApiError, sampleClient, sampleQuery } from "./sample-api";
-import { SAMPLE_CHECKLIST, type SampleReview } from "./sample-data";
+import { SAMPLE_CHECKLIST, type SampleReviewItem } from "./sample-data";
 
 // 不直接 import 路由对象：路由文件反过来动态引入本页，直接引会成环
 const route = getRouteApi("/dev/queue");
 
-type Review = SampleReview & { result?: string };
+type Review = SampleReviewItem;
+
+/**
+ * 已处理的事项显示成什么：色调与叫法取状态字典（资质审核的 store.qualification_status），页面不自己判色调。
+ * 队列项的标签、详情卡右上角的状态、处理结果条三处用同一个结果。没处理过的返回 undefined。
+ */
+function settledOf(item: Review): { tone: "success" | "danger"; label: string } | undefined {
+  if (item.qualificationStatus === undefined) return undefined;
+  const entry = statusToneByEnum("store.qualification_status", item.qualificationStatus)?.admin;
+  if (!entry) return undefined;
+  return {
+    // 处理结果只有两种色调（规范 第 5.2 节“处理结果条”：通过为成功色调，驳回为错误色调）
+    tone: entry.tone === "danger" ? "danger" : "success",
+    label: item.handledBy ? `${entry.label}（${item.handledBy}）` : entry.label,
+  };
+}
 
 /** 冲突的两个码（别人先处理了）交给骨架去刷新队列并跳下一条，提示由请求层出；其余失败留在这一条 */
 function toResult(error: ErrorBody | undefined, done: QueueActionResult): QueueActionResult {
@@ -119,31 +135,38 @@ export function QueueSample() {
           });
         }}
         itemKey={(item) => item.id}
-        renderItem={(item) => ({
-          title: item.storeName,
-          line: `${item.category} · ${item.region}`,
-          meta: `${item.kind} · 提交于 ${appDateTimeFormat.dateTime(item.submittedAt)}`,
-          tag: item.result ? (
-            <StatusTag tone={item.result.startsWith("已驳回") ? "danger" : "success"}>
-              {item.result}
-            </StatusTag>
-          ) : (
-            <StatusTag tone="warning">{appDateTimeFormat.deadline(item.deadlineAt)} 截止</StatusTag>
-          ),
-        })}
-        detailHeader={(item) => ({
-          title: item.storeName,
-          description: `${item.entityName} · ${item.category} · ${item.region} · 联系人 ${item.contactMasked}`,
-          status: item.result ? (
-            <StatusTag size="large" tone="neutral">
-              {item.result}
-            </StatusTag>
-          ) : (
-            <StatusTag size="large" tone="warning">
-              待审核 · {appDateTimeFormat.deadline(item.deadlineAt)} 截止
-            </StatusTag>
-          ),
-        })}
+        renderItem={(item) => {
+          const settled = settledOf(item);
+          return {
+            title: item.storeName,
+            line: `${item.category} · ${item.region}`,
+            meta: `${item.kind} · 提交于 ${appDateTimeFormat.dateTime(item.submittedAt)}`,
+            tag: settled ? (
+              <StatusTag tone={settled.tone}>{settled.label}</StatusTag>
+            ) : (
+              // 截止时间不是状态，字典里没有它，直接给色调
+              <StatusTag tone="warning">
+                {appDateTimeFormat.deadline(item.deadlineAt)} 截止
+              </StatusTag>
+            ),
+          };
+        }}
+        detailHeader={(item) => {
+          const settled = settledOf(item);
+          return {
+            title: item.storeName,
+            description: `${item.entityName} · ${item.category} · ${item.region} · 联系人 ${item.contactMasked}`,
+            status: settled ? (
+              <StatusTag size="large" tone={settled.tone}>
+                {settled.label}
+              </StatusTag>
+            ) : (
+              <StatusTag size="large" tone="warning">
+                待审核 · {appDateTimeFormat.deadline(item.deadlineAt)} 截止
+              </StatusTag>
+            ),
+          };
+        }}
         detail={(item) => (
           <div>
             <h3 className="lyx-section-title">营业执照 · 识别结果</h3>
@@ -158,13 +181,13 @@ export function QueueSample() {
         )}
         checklist={tab === "pending" ? { items: SAMPLE_CHECKLIST } : undefined}
         readOnlyHint={canEdit ? undefined : "你的权限只能查看，不能审核"}
-        settled={(item) =>
-          item.result === undefined
-            ? undefined
-            : item.result.startsWith("已驳回")
-              ? { tone: "danger", message: "已驳回，商家补正后会重新进入审核队列" }
-              : { tone: "success", message: `审核${item.result}，已通知商家` }
-        }
+        settled={(item) => {
+          const settled = settledOf(item);
+          if (!settled) return undefined;
+          return settled.tone === "danger"
+            ? { tone: "danger", message: "已驳回，商家补正后会重新进入审核队列" }
+            : { tone: "success", message: `审核${settled.label}，已通知商家` };
+        }}
         actions={[
           {
             key: "reject",

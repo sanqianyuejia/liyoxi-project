@@ -398,6 +398,15 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     expect(await settledText.evaluate((element) => getComputedStyle(element).color)).toBe(
       await tokenColor(page, "--lyx-color-success"),
     );
+    // 已处理事项的状态标签取状态字典：队列项上与详情卡右上角是同一个色调（已通过为成功色调），不是一处绿一处灰
+    for (const tag of [
+      queue.locator('[aria-current="true"]').getByText("已通过", { exact: true }),
+      detail.getByText("已通过", { exact: true }),
+    ]) {
+      expect(await tag.evaluate((element) => getComputedStyle(element).color)).toBe(
+        await tokenColor(page, "--lyx-color-success"),
+      );
+    }
     await expect(detail.getByRole("button", { name: "审核通过" })).toHaveCount(0);
     await expect(detail.getByRole("button", { name: "驳回" })).toHaveCount(0);
     // 通知（规范 第 8 节）：成功的 4 秒后自己消失；失败的不自动消失，要手动关

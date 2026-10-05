@@ -6,7 +6,7 @@ import type { OpenapiQueryClient } from "openapi-react-query";
 
 import type { AppServices } from "../app/services";
 
-import type { SampleReview, SampleStore, SampleStoreDetail } from "./sample-data";
+import type { SampleReviewItem, SampleStore, SampleStoreDetail } from "./sample-data";
 
 type NoParams = { query?: never; header?: never; path?: never; cookie?: never };
 type Ok<T> = {
@@ -67,10 +67,7 @@ export interface SamplePaths {
       >;
     };
   "/admin/samples/reviews": { parameters: NoParams; post?: never } & Unused & {
-      get: Omit<
-        Get<ListQuery, never, { items: (SampleReview & { result?: string })[] }>,
-        "parameters"
-      > & {
+      get: Omit<Get<ListQuery, never, { items: SampleReviewItem[] }>, "parameters"> & {
         parameters: { query?: ListQuery; header?: never; path?: never; cookie?: never };
       };
     };

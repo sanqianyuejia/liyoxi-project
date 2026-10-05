@@ -90,6 +90,15 @@ export interface SampleReview {
   fields: { label: string; value: string; verdict: string; ok: boolean }[];
 }
 
+/**
+ * 队列接口返回的一条：待审核的没有处理结果；已处理的带资质状态（库里的取值，色调与叫法由状态字典给，
+ * 页面不自己判）与处理人（别人处理的才有）。
+ */
+export type SampleReviewItem = SampleReview & {
+  qualificationStatus?: Exclude<QualificationStatus, "pending">;
+  handledBy?: string;
+};
+
 export const SAMPLE_REVIEWS: readonly SampleReview[] = [
   [
     "rv-1",

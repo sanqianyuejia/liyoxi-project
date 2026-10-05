@@ -6,6 +6,7 @@ import {
   SAMPLE_REVIEWS,
   SAMPLE_STORES,
   type SampleReview,
+  type SampleReviewItem,
   type SampleStore,
   type SampleStoreDetail,
 } from "./sample-data";
@@ -90,7 +91,7 @@ export interface SampleBackend {
 export function createSampleBackend(): SampleBackend {
   const received: SampleRequest[] = [];
   const pending = new Map<string, SampleReview>(SAMPLE_REVIEWS.map((item) => [item.id, item]));
-  const done: (SampleReview & { result: string })[] = [];
+  const done: SampleReviewItem[] = [];
   const disabled = new Set<string>();
   const replays = new Map<string, SampleResponse>();
 
@@ -115,7 +116,7 @@ export function createSampleBackend(): SampleBackend {
       if (!item || id === "rv-3") {
         if (item) {
           pending.delete(id);
-          done.push({ ...item, result: "已通过（林晓）" });
+          done.push({ ...item, qualificationStatus: "verified", handledBy: "林晓" });
         }
         return error(409, 40902, "STATE_NOT_ALLOWED", "该事项已被林晓处理", requestId);
       }
@@ -123,7 +124,7 @@ export function createSampleBackend(): SampleBackend {
         return error(409, 40901, "VERSION_CONFLICT", "内容已被他人修改，请刷新后重试", requestId);
       }
       pending.delete(id);
-      done.push({ ...item, result: action === "approve" ? "已通过" : "已驳回" });
+      done.push({ ...item, qualificationStatus: action === "approve" ? "verified" : "rejected" });
       return ok({ id, result: action });
     }
     if (resource === "stores" && id && action === "disable") {
