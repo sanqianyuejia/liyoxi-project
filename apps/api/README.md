@@ -98,3 +98,25 @@ node apps/api/dist/server.js --port 3000 --trusted-proxy-hops 1 --trusted-proxy-
 - `fieldErrors` 的文案是 Zod 的原文（契约里没给中文文案的字段是英文）。
 - 限流的额度是代码里的初始值（`rate-limit-quotas.ts`），还没接成按环境可调的配置；手机号登录的“每 openid”一条、短信的号码限频、账号锁定不在中间件里，由各自的域按数据库计数。
 - 没有事件循环看门狗；排空时不等负载均衡摘节点，等待时长由发布编排定。
+
+## 7. 商家鉴权链（W1-04）
+
+第 3 节的表里 `auth`、`authz` 两行“没到”的现状，商家端这一组已经有了；另加一行声明：`x-auth: member` 要有 `membership`。五件都登记在 `ROUTE_MIDDLEWARES`，只给 `m` 组：
+
+| 槽位 | 文件 | 做什么 | 哪些路由不挂 |
+| --- | --- | --- | --- |
+| `versionGate` | `src/http/version-gate.ts` | `X-Client-Version` 低于开关 `client.min_version` 回 426 `CLIENT_OUTDATED`；没带或写法不对的按 `0.0.0` 算 | 契约 `VERSION_GATE_EXEMPT_OPERATIONS` 的 5 条 |
+| `auth` | `src/http/merchant-auth.ts` | `Authorization: Bearer <令牌>`，每请求点查会话。没带回 401 `AUTH_REQUIRED`，无效回 401 `SESSION_INVALID`；`optional` 路由上没带或无效都按匿名 | `public`、`signed` |
+| `membership` | `src/http/merchant-membership.ts` | `X-Store-Id` 现查成员关系：缺失或进不去回 403 `NOT_A_MEMBER`；店员调 `x-clerk-view: none` 的路由回 403 `ROLE_FORBIDDEN` | 不是 `member` 的 |
+| `consent` | `src/http/merchant-consent.ts` | 登录用户有未同意的现行用户级协议回 428 `CONSENT_REQUIRED`，`details.pendingConsents` 给出缺的协议。常态只比指纹，不查同意记录 | `public`、`signed`；契约 `CONSENT_WHITELIST_OPERATIONS` 的 9 条 |
+| `authz` | `src/http/merchant-membership.ts` | 按路由的 `x-capability` 查能力点矩阵：店员没有回 `ROLE_FORBIDDEN`，已停用门店的老板超出收尾范围回 `STORE_ARCHIVED` | 没声明能力点、或声明 `assert-in-handler` 的 |
+
+- 这几件都排在限流与幂等上下文之前：401、403、426、428 不落幂等行，“同意后用同一个键重放”沿用原来的键。
+- 处理器里取当前会话用 `merchantSessionOf(c)`；`member` 路由上 `c.var.identity` 带角色、主体与门店，`c.var.membership` 是成员关系（`storeMode` 为 `archived` 即收尾上下文）；要数据范围用 `@liyoxi/services` 的 `storeScopeOf(c.var.identity)`、`entityScopeOf(…)`。
+- 商家端各域的服务从 `merchantServicesOf(c.var.runtime)` 取（`src/merchant/services.ts`：`identity`、`tenant`、`docs`），一个运行时建一次。微信能力取运行时上的 `providers.wechat`，没有即两条登录回 503 `WECHAT_UNAVAILABLE`；密钥环在第一次登录时才从环境变量里的密钥文件造。
+- 手机号登录的“每 openid 5 次 / 小时”不在限流中间件里：用例在换出 openid 之后回调处理器，处理器调 `runtime.rateLimiter.hit`（`src/routes/sessions.ts`）。第 6 节末条“由各自的域按数据库计数”对这一条不再成立。
+- 用例里的登录态：`src/testing/merchant.ts` 的 `seedUserAgreements`（一个测试库一次）与 `signInAsMerchant(api)`，走真实的手机号登录（假微信在 `api.wechat`）。`fakeAuth` 仍可用：它顶替鉴权时，生产链里要真实会话的四件（版本门槛、成员关系、协议同意、能力点）一并拿掉，成员关系补一个空转的占位。
+
+```sh
+pnpm exec vitest run --project api apps/api/test/merchant-auth.test.ts
+```

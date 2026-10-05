@@ -560,7 +560,7 @@ describe("顺序：401、403、426、428 都在幂等行落库之前（验收 6�
       expect(merchantConsent(route(id), api.runtime), id).toBeNull();
     }
     expect(versionGate(route("m.me.get"), api.runtime)).not.toBeNull();
-    expect(merchantConsent(route("m.entity.create"), api.runtime)).not.toBeNull();
+    expect(merchantConsent(route("m.lyxtestGate.note.create"), api.runtime)).not.toBeNull();
     // 已挂载的路由按声明各有各的链
     const chain = (id: string) =>
       api.api.mounted.find((item) => item.operationId === id)?.middlewares;
