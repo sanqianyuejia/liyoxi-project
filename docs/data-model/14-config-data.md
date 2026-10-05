@@ -271,10 +271,8 @@ erDiagram
 | `ck_param_value_cancel_before_effective` | `cancelled_at` 为空，或早于 `effective_at` |
 | `ck_param_value_reason` | `reason` 不超过 100 个字 |
 | `uq_param_value_key_effective_at` | 部分唯一索引 `(key, effective_at DESC) WHERE cancelled_at IS NULL`：同一个键在同一生效时刻只有一行未撤销的值。取当前全部参数的查询 `SELECT DISTINCT ON (key) … WHERE effective_at <= :now AND cancelled_at IS NULL ORDER BY key, effective_at DESC`（d6:1574-1577）走它 |
-| `trg_param_value_write_once` | 触发器：只允许把 `cancelled_at` 从空写一次，其余列不可改，不可删（`lyx_write_once('cancelled_at')`） |
+| `trg_param_value_write_once` | 触发器：只允许把 `cancelled_at` 从空写一次，其余列不可改，不可删（`lyx_write_once('cancelled_at')`）。授权（在授权迁移里，不在本分组 SQL）：应用角色 `lyx_app` 对本表只有 `INSERT`、`SELECT`，另对 `cancelled_at` 一列授列级 `UPDATE`，供撤销时写入（W0-06a） |
 | `trg_param_value_no_truncate` | 触发器：禁止 TRUNCATE（`lyx_forbid_mutation`） |
-
-授权（在授权迁移里，不在本分组 SQL）：应用角色 `lyx_app` 对本表只有 `INSERT`、`SELECT`，另对 `cancelled_at` 一列授列级 `UPDATE`，供撤销时写入（W0-06a）。
 
 **生命周期**（没有状态列，由时间派生）
 

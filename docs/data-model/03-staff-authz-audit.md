@@ -465,10 +465,8 @@ Cookie 会话（`__Host-lyx_admin`），一次登录一行。空闲 60 分钟滑
 | `ck_assignment_history_client` | `client` 为空或为 `admin`（员工只在后台操作） |
 | `ck_assignment_history_contact` | `contact_due_at` 与 `sla_snapshot` 同有同无；有截止时间 ⇔ 门店交付经理变更的行；没有截止时间的行不能有“已联系”或“作废”；`contacted_at` 与 `contacted_by_staff_id` 同有同无；`contacted_at` 与 `contact_voided_at` 不同时非空 |
 | `ix_assignment_history_contact_pending` | 部分索引 `(to_staff_id, contact_due_at) WHERE contact_due_at IS NOT NULL AND contacted_at IS NULL AND contact_voided_at IS NULL`：新交付经理的“待联系商家”待办 |
-| `trg_assignment_history_guard` | 行级 `BEFORE UPDATE OR DELETE`，函数 `lyx_03_assignment_history_guard()`：不可删；只允许改 `contact_due_at`、`sla_snapshot`、`contacted_at`、`contacted_by_staff_id`、`contact_voided_at`、`updated_at`；`contacted_at` 或 `contact_voided_at` 一旦写入，联系相关的五列冻结；截止时间可以重算（日历修正），不能事后补上或抹掉 |
+| `trg_assignment_history_guard` | 行级 `BEFORE UPDATE OR DELETE`，函数 `lyx_03_assignment_history_guard()`：不可删；只允许改 `contact_due_at`、`sla_snapshot`、`contacted_at`、`contacted_by_staff_id`、`contact_voided_at`、`updated_at`；`contacted_at` 或 `contact_voided_at` 一旦写入，联系相关的五列冻结；截止时间可以重算（日历修正），不能事后补上或抹掉。授权（在授权迁移里，不在本分组 SQL）：应用角色 `lyx_app` 对本表只有 `INSERT`、`SELECT`，另对这里放行的六列授列级 `UPDATE`，不多给（W0-06a） |
 | `trg_assignment_history_no_truncate` | 语句级 `BEFORE TRUNCATE`，函数 `lyx_forbid_mutation()` |
-
-授权（在授权迁移里，不在本分组 SQL）：应用角色 `lyx_app` 对本表只有 `INSERT`、`SELECT`，另对触发器放行的六列（`contact_due_at`、`sla_snapshot`、`contacted_at`、`contacted_by_staff_id`、`contact_voided_at`、`updated_at`）授列级 `UPDATE`，不多给（W0-06a）。
 
 联系时限的超时提醒是 `timer` 里 `kind = 'sla.breach'`、`subject_type = 'assignment_history'` 的一行。标记“已联系”或写 `contact_voided_at` 时，同一事务取消它（d3:2974）。门店再次改派的事务按“先作废旧行并取消旧定时器、再写新行并登记新定时器”的顺序做；作废与改派都由 staff 模块的 `reassign` 完成，业务模块不直接写本表。
 
