@@ -43,6 +43,7 @@
 - 时长：`required` 的运行摘要与产物 `ci-duration.json` 列出各必过任务的耗时与合计。预算 15 分钟，超了只标出、不阻断（M0 退出时由 W0-30 核对）。
 - 设计地基（W0-26）在 `verify` 里加了三步：换名检查之后的“页面不写色值”（`pnpm lint:colors`）；测试之后的“设计生成物无差异”（`pnpm design:check`）与“上传设计预览页”。预览页是产物 `design-preview`（`packages/shared/dist/design-preview/`，不入库），目录里没有文件时上传那一步失败；业主合并前在运行页面的 Artifacts 里下载来看。
 - 首版迁移（W0-05）在 `verify` 里加了七步。“类型”之前一步：生成数据库客户端（`pnpm db:generate`；客户端不入库）。“依赖方向与五层”之后、“起 MinIO”之前六步：`prisma validate`；由底稿建参照库 `lyx_schema_check`（校验工具按自己的锁文件用 npm 装，带 `NPM_CONFIG_IGNORE_SCRIPTS` 不执行安装脚本，再跑 `check.py --keep`）；空库 `lyx_migrate_check` 上跑全部迁移；系统目录比对；再跑一遍迁移与比对；上传比对报告（产物 `db-catalog-diff`，比对没过时也传）。排在“测试”之前，是因为 `pnpm test` 里 `packages/db` 的用例要连迁移库。用法与口径见 [packages/db/README.md](../../packages/db/README.md) 第 6 节。
+- 每晚任务（`nightly.yml` 的 `node26`）跟着补了四步，都是新增的整步。“类型”之前一步：生成数据库客户端（`pnpm db:generate`）。“类型”与“测试”之间三步：起 PostgreSQL 与 Redis；把连接参数（`APP_ENV`、`DATABASE_URL`、`REDIS_URL`，取值与 `verify` 的相同）写进 `$GITHUB_ENV`，后面的“测试”读得到；空库 `lyx_migrate_check` 上跑全部迁移。它不挂服务容器：往已有的任务里加 `services`、`env` 算放松类改动（第 5 节），所以库用 compose 文件起，与 `verify` 的“起 MinIO”同一种写法，镜像、端口、账号取 `infra/compose/local.yml`。`verify` 里的 `prisma validate`、由底稿建参照库、系统目录比对它不跑：那是首版迁移的等价性证明，`pnpm test` 用不到参照库 `lyx_schema_check`。执行机上要有 Docker（带 compose）与 `psql`，与 `verify` 相同。往每晚任务加一步时，在 `test/workflows.test.ts`“nightly.yml”一组的命令清单里同一位置加一行（只增）。
 
 ## 3. 怎么加一步检查
 
