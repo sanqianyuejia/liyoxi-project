@@ -13,13 +13,13 @@ import { contractCopy } from "./api-registries-check-wrong-error-code.mjs";
 const CHECK_SCRIPT = "packages/contract/scripts/docs-check.ts";
 const DOC_DIR = "packages/contract/src/routes/a04-content";
 
-/** CI 的 verify 里以 command 开头的那一步实际跑的命令，拆成 [命令, ...参数]；找不到即抛错 */
+/** CI 里以 command 开头的那一步（不论在哪个任务）实际跑的命令，拆成 [命令, ...参数]；找不到即抛错 */
 export function ciCommand(ctx, command) {
   const escaped = command.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const step = readFileSync(join(ctx.repoRoot, ".github/workflows/ci.yml"), "utf8").match(
     new RegExp(`^ {6}- name: .+\\n {8}run: (${escaped}(?: .+)?)$`, "m"),
   );
-  if (!step) throw new Error(`ci.yml 的 verify 里找不到“run: ${command}”那一步`);
+  if (!step) throw new Error(`ci.yml 里找不到“run: ${command}”那一步`);
   return step[1].split(" ");
 }
 

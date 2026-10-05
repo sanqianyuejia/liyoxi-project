@@ -2,7 +2,7 @@
 // 由 tools/api-check 的两个生成脚本写；改了路线图却没有重新生成并提交登记文档，检查必须失败，并指出是哪一份。
 // 不动本仓库的文件：在仓库外建一个临时 git 仓库，拷进校验工具、它读的两个文档目录与包装脚本，把三份登记文档
 // 加进暂存区作基线；再把路线图第一条接口的摘要改掉，照 CI 里那一步跑副本里的包装脚本。
-// CI 的 verify 里没有了这一步、或包装脚本不再重新生成并比对登记文档时，这一例会红。
+// CI 里没有了这一步（它在 test 任务里）、或包装脚本不再重新生成并比对登记文档时，这一例会红。
 // 要 python3、psql、git 在 PATH 上；要本地那套 PostgreSQL 与 lyx_migrate_check（前一半的“表.列”要核对过才走到这里），
 // 并给出 DATABASE_URL 或 PG* 环境变量。只读库。
 import { cpSync, readFileSync, writeFileSync } from "node:fs";

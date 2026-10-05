@@ -2,7 +2,7 @@
 // 一条 natural 路由写的约束名在库里不存在（约束改了名或被删），核对必须失败，并指出是哪条路由的哪个名字。
 // 不动本仓库的文件，也不写库：拿提交的路由清单，把第一条 natural 路由的第一个约束名改掉，另存一份给脚本读；
 // 对的是跑过迁移的 lyx_migrate_check，只读。
-// CI 的 verify 里没有了这一步、或核对不再到库里找名字时，这一例会红。
+// CI 里没有了这一步（它在 test 任务里）、或核对不再到库里找名字时，这一例会红。
 // 要本地那套 PostgreSQL 在运行、lyx_migrate_check 已跑过迁移（packages/db/README.md 第 3 节），并给出
 // DATABASE_URL 或 PG* 环境变量。连不上时这一例会红，不会被悄悄跳过。
 import { readFileSync } from "node:fs";
