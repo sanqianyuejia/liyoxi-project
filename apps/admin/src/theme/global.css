@@ -598,6 +598,18 @@ optgroup {
 }
 
 /*
+ * 可排序表头里没点亮的排序箭头：antd 缺省是图标色再乘一个透明度，算出来的颜色不在色板里，也没有公开的主题变量。
+ * 取禁用色（观感几乎不变），悬停取表头的字色；点亮的那一个仍是主色（antd 给的）。规范没写排序箭头（状态文件偏差 16）。
+ */
+:root .lyx-table .ant-table-column-sorter {
+  color: var(--lyx-color-text-disabled);
+}
+
+:root .lyx-table .ant-table-thead th.ant-table-column-has-sorters:hover .ant-table-column-sorter {
+  color: var(--lyx-color-text-secondary);
+}
+
+/*
  * 行高两档：单行内容 44，双行内容 56。一行里有双行单元格（.lyx-cell-2）就取 56，页面不用另外声明。
  * 上下内边距 4：行里放高 32 的行内按钮时（32 + 4 × 2 + 分隔线 1 = 41）仍在 44 之内，不会把这一行撑高。
  */

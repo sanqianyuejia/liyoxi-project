@@ -16,6 +16,12 @@ const shadow = adminTokens.shadow;
 /** 全局字号 14，表格、输入框、下拉、描述列表下调到 13（规范 第 5.4 节）；面包屑是外壳自己写的，13px 在 global.css 里 */
 const BODY = px(fontSize.body);
 
+/**
+ * 禁用的输入类控件（输入框、数值输入、下拉、日期选择器）的描边：与禁用按钮的描边同一个取值（fill-disabled）。
+ * antd 缺省由底色算出一个冷灰（#D9D9D9 一类），不在色板里；规范没写禁用的输入框长什么样（状态文件偏差 16）
+ */
+const DISABLED_BORDER = color["fill-disabled"];
+
 /** 开关轨道高 20、滑块 16（规范 第 5.3 节；样式变量里只有轨道宽，高与滑块写在它的说明里）：轨道内边距 2，滑块 = 20 − 2 × 2 */
 const SWITCH_HEIGHT = 20;
 const SWITCH_PADDING = px(sharedTokens.space[2]);
@@ -102,6 +108,7 @@ export const adminTheme: ThemeConfig = {
     // 哪个包要用 antd 的这几个组件，走构件 PR 连同键盘聚焦一起整套补（global.css 开头）
     Input: {
       inputFontSize: BODY,
+      colorBorderDisabled: DISABLED_BORDER,
       paddingInline: px(sharedTokens.space[10]),
       hoverBorderColor: color.primary,
       activeBorderColor: color.primary,
@@ -109,6 +116,7 @@ export const adminTheme: ThemeConfig = {
     },
     InputNumber: {
       inputFontSize: BODY,
+      colorBorderDisabled: DISABLED_BORDER,
       paddingInline: px(sharedTokens.space[10]),
       hoverBorderColor: color.primary,
       activeBorderColor: color.primary,
@@ -117,6 +125,7 @@ export const adminTheme: ThemeConfig = {
     // 日期与日期范围选择器套输入框的规格（规范 第 12 节“日期筛选”：套用主题）
     DatePicker: {
       inputFontSize: BODY,
+      colorBorderDisabled: DISABLED_BORDER,
       paddingInline: px(sharedTokens.space[10]),
       hoverBorderColor: color.primary,
       activeBorderColor: color.primary,
@@ -128,6 +137,7 @@ export const adminTheme: ThemeConfig = {
       paddingSM: px(sharedTokens.space[10]) + px(sharedTokens["border-width"].default),
       fontSize: BODY,
       optionFontSize: BODY,
+      colorBorderDisabled: DISABLED_BORDER,
       hoverBorderColor: color.primary,
       activeBorderColor: color.primary,
       activeOutlineColor: color["primary-bg"],
