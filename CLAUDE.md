@@ -207,6 +207,7 @@
 | `pnpm --filter @liyoxi/db exec vitest run src/grants.test.ts` | 权限测试（也在 `pnpm test` 里）：自建自删一个库，跑两遍迁移，以应用角色、只读角色、属主三种身份逐张表去试。要 `DATABASE_URL` 的账号能建库、能切换角色。加表要同时改迁移里的授权与期望的授权 `packages/db/src/grants.expected.json`（核对脚本也读它），见 [README](packages/db/README.md) 第 9 节 |
 | `pnpm --filter @liyoxi/services exec vitest run src/kernel/` | 只跑 kernel（事务单元）的用例：开事务与嵌套、保存点、死锁与锁等待超时的并发测试、外呼断言、时钟、UUID v7 的性质测试、加锁顺序、操作人。连库的几份要本地的 PostgreSQL 与 `DATABASE_URL`。`tx.run`、`savepoint`、`lockRows` 怎么用，性质测试的轮次与种子怎么改，见 [README](packages/services/src/kernel/README.md) |
 | `pnpm --filter @liyoxi/services exec vitest run src/kernel/assembly/ src/assembly.test.ts` | 只跑服务装配的用例：两个样例模块在 api、worker 两个入口都能收集到，重名与缺实现启动失败，按环境过滤（`envs`），组合根的入口清单与模块目录对账。不连库。模块怎么登记、端口怎么用见 [README](packages/services/src/kernel/assembly/README.md) |
+| `pnpm --filter @liyoxi/services exec vitest run src/events/` | 只跑 events（出站事件）的用例：emit 的去重、同事务、信封与载荷校验，事件行只许写一次，按订阅者展开，展开双跑的并发测试，订阅者登记对照契约，`events.I8`，聚合类型自检。都连库，要本地的 PostgreSQL 与 `DATABASE_URL`。怎么发事件、订阅者怎么登记见 [README](packages/services/src/events/README.md) |
 
 本地连接参数：配置只经 `loadEnv`（`packages/services/src/kernel/env.ts`）读环境变量，会话与测试不建、不读 `.env`，在命令前或 shell 里给出。取值出处是 [local.yml](infra/compose/local.yml)，账号与口令是固定的开发值，只对本机这套容器有效；CI 的服务容器用同一组值。
 

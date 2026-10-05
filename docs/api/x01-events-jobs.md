@@ -128,7 +128,7 @@
 
 ### 2.5 订阅者登记
 
-订阅者名登记在 `packages/services/events/subscribers.ts`，写进 `outbox_delivery.subscriber`（`^[A-Za-z][A-Za-z0-9_.]{0,63}$`，01:240、265）；本文沿用 12 分组的 `support.onBizEvent` 写法：`<模块>.on<事实>`，执行动作型的用动词（`billing.applyPaymentFallback`）。后台“流程运维”的死信列表、重投接口（`admin.outboxDelivery.list`、`admin.outboxEvent.retry` 的 `subscriber`）取本表的名字。
+订阅者的名字、所属模块、关键类登记在 `packages/contract` 的订阅者登记（`@liyoxi/contract/registry`），处理器由各模块的 `register.ts` 登记（计划 第 5.1、9.3 节）；名字写进 `outbox_delivery.subscriber`（`^[A-Za-z][A-Za-z0-9_.]{0,63}$`，01:240、265）；本文沿用 12 分组的 `support.onBizEvent` 写法：`<模块>.on<事实>`，执行动作型的用动词（`billing.applyPaymentFallback`）。后台“流程运维”的死信列表、重投接口（`admin.outboxDelivery.list`、`admin.outboxEvent.retry` 的 `subscriber`）取本表的名字。
 
 | 订阅者（`outbox_delivery.subscriber`） | 模块 | 关键类 | 订阅的事件 | 做什么 | 补偿 |
 | --- | --- | --- | --- | --- | --- |

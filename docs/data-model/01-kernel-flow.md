@@ -237,7 +237,7 @@ erDiagram
 | 列 | 类型 | 空 | 默认 | 说明 | 出处 |
 | --- | --- | --- | --- | --- | --- |
 | `outbox_event_id` | uuid | 否 | — | 所属出站事件 | d3:2623；M33 |
-| `subscriber` | text | 否 | — | 订阅者注册名（代码登记，`packages/services/events/subscribers.ts`），如 `support.onBizEvent`。字母开头，只含字母、数字、下划线、点；不含冒号与连字符（会进任务 `jobId`） | d3:2542、2624、2675、2698 |
+| `subscriber` | text | 否 | — | 订阅者注册名（名字登记在 `packages/contract` 的订阅者登记，处理器由各模块的 `register.ts` 登记），如 `support.onBizEvent`。字母开头，只含字母、数字、下划线、点；不含冒号与连字符（会进任务 `jobId`） | d3:2542、2624、2675、2698 |
 | `status` | text | 否 | `pending` | `pending` 待派发、`leased` 已派发处理中、`done` 已消费、`retry` 失败待重试、`dead` 死信 | d3:2625 |
 | `attempts` | smallint | 否 | 0 | 处理失败次数（含处理器失联）；入队失败不计。达到 10 进入 `dead` | d3:2626、2690-2691 |
 | `dispatch_no` | integer | 否 | 0 | 派发序号。每次派发 + 1，是任务 `jobId`（`evt-{事件 id}-{订阅者}-{序号}`）的一段，也是消费时判断“是否已被新一次派发接管”的依据 | d3:2627、2664、2684；M34 |
