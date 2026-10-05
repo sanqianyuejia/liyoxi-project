@@ -4,6 +4,7 @@ import { readdirSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 import type { PrismaClient } from "../index.js";
+import { connectTestDatabase } from "./database.js";
 import { useTestDatabase } from "./worker.js";
 
 // 连库、连 Redis、起子进程的用例：实例忙的时候（别的会话同时在跑）会慢，时限放宽，不用缺省的 5 秒
@@ -47,10 +48,17 @@ describe("两个测试库互不影响", () => {
     const seen: Array<{ db: string; oid: number; tables: number }> = [];
     for (const db of [a, b]) {
       const prisma = await db.prisma();
-      const migrations = await prisma.$queryRaw<Array<{ name: string; done: boolean }>>`
-        select migration_name as name, finished_at is not null and rolled_back_at is null as done
-          from _prisma_migrations order by migration_name`;
-      expect(migrations).toEqual(MIGRATIONS.map((name) => ({ name, done: true })));
+      // 迁移记录表要属主来读（role: null 不切角色）：缺省的应用角色在 _prisma_migrations 上什么权限都没有
+      const owner = await connectTestDatabase(db.name, { role: null });
+      try {
+        const migrations = await owner.query<{ name: string; done: boolean }>(
+          `select migration_name as name, finished_at is not null and rolled_back_at is null as done
+             from _prisma_migrations order by migration_name`,
+        );
+        expect(migrations.rows).toEqual(MIGRATIONS.map((name) => ({ name, done: true })));
+      } finally {
+        await owner.end();
+      }
       const [info] = await prisma.$queryRaw<Array<{ db: string; oid: number; tables: number }>>`
         select current_database()::text as db,
                (select oid::int from pg_database where datname = current_database()) as oid,

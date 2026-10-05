@@ -109,7 +109,9 @@ async function buildTemplate(state: SessionState, session: string): Promise<void
   const template = state.template;
   await admin.query(`DROP DATABASE IF EXISTS "${template}" WITH (FORCE)`);
   await admin.query(`CREATE DATABASE "${template}"`);
-  await migrateDeploy(testDatabaseUrl(template));
+  // 跑迁移是管理动作：不切角色（role: null），用 DATABASE_URL 的账号，它成了表的属主。
+  // 应用角色建不了表；全新的实例上它这时也还不存在，要等授权迁移把它建出来
+  await migrateDeploy(testDatabaseUrl(template, { role: null }));
   await admin.query(`ALTER DATABASE "${template}" WITH ALLOW_CONNECTIONS false`);
   recordTestUsage("database", template);
 }

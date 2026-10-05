@@ -4,11 +4,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createPrismaClient } from "./index.js";
 import type { PrismaClient } from "./index.js";
-import { useTestDatabase } from "./testing/index.js";
+import { testDatabaseUrl, useTestDatabase } from "./testing/index.js";
 
 // 客户端工厂的用例（W0-05 任务书 第 7 节第 7 条）。连的是本 worker 自己的测试库：
 // 由 W0-05b 的支架从本会话的模板库拷出来（模板库在每轮测试开始时建好并跑完全部迁移），跑完即删。
 // 主机与账号取环境变量 DATABASE_URL（本地的写法见 CLAUDE.md 第 9 节）。连不上：整轮失败，不跳过。
+// 支架给的连接缺省切到应用角色 lyx_app（W0-06a）：下面除了读迁移记录表的那一条，都是以应用角色的身份跑的。
 
 const db = useTestDatabase("db");
 
@@ -42,17 +43,27 @@ describe("createPrismaClient", () => {
   });
 
   it("交互式事务里 $queryRaw 可用；测试库上每个迁移恰一行且已完成", async () => {
-    const rows = await prisma.$transaction(
-      (tx) =>
-        tx.$queryRaw<Array<{ name: string; done: boolean }>>`
+    // 迁移记录表要属主来读：缺省的连接是应用角色 lyx_app，它在 _prisma_migrations 上什么权限都没有。
+    // 这一条另起一个不切角色的客户端（role: null，用 DATABASE_URL 的账号）
+    const owner = createPrismaClient({
+      connectionString: testDatabaseUrl(db.name, { role: null }),
+      max: 1,
+    });
+    try {
+      const rows = await owner.$transaction(
+        (tx) =>
+          tx.$queryRaw<Array<{ name: string; done: boolean }>>`
           select migration_name as name, finished_at is not null and rolled_back_at is null as done
             from _prisma_migrations order by migration_name`,
-    );
-    // 任务书 第 7 节第 3 条：现在只有首版迁移一个目录，即“恰一行且已完成”；以后加了迁移，这里跟着目录走
-    const migrations = readdirSync(new URL("../prisma/migrations", import.meta.url), {
-      withFileTypes: true,
-    }).flatMap((entry) => (entry.isDirectory() ? [entry.name] : []));
-    expect(rows).toEqual(migrations.sort().map((name) => ({ name, done: true })));
+      );
+      // 任务书 第 7 节第 3 条：现在只有首版迁移一个目录，即“恰一行且已完成”；以后加了迁移，这里跟着目录走
+      const migrations = readdirSync(new URL("../prisma/migrations", import.meta.url), {
+        withFileTypes: true,
+      }).flatMap((entry) => (entry.isDirectory() ? [entry.name] : []));
+      expect(rows).toEqual(migrations.sort().map((name) => ({ name, done: true })));
+    } finally {
+      await owner.$disconnect();
+    }
   });
 
   it("三个会话超时下发到了连接上，事务内外都生效", async () => {

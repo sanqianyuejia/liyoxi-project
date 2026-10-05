@@ -10,7 +10,9 @@ import {
   listTestDatabases,
   resolveTestSession,
   resolveTestWorker,
+  TEST_DEFAULT_ROLE,
   testDatabaseName,
+  testDatabaseUrl,
 } from "./database.js";
 import { TestDatabaseHandle, useTestDatabase } from "./worker.js";
 
@@ -23,6 +25,11 @@ vi.setConfig({ testTimeout: 60_000, hookTimeout: 120_000 });
 const session = resolveTestSession();
 const exists = async (name: string) => (await listTestDatabases({ session })).includes(name);
 const own = useTestDatabase("db");
+/**
+ * 不切角色，用 DATABASE_URL 的账号（管理账号，表的属主）。下面建探针表、读探针表的几处要它：
+ * 缺省的应用角色 lyx_app 没有模式的 CREATE，属主另建的表它也读不到。
+ */
+const OWNER = { role: null } as const;
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -56,7 +63,7 @@ describe("useTestDatabase", () => {
       const left = (await listTestDatabases({ session })).filter((name) => name.includes("_hook"));
       expect(left).toEqual([kept]);
       // 留下的库里，失败之前写的数据还在
-      const client = await connectTestDatabase(kept);
+      const client = await connectTestDatabase(kept, OWNER);
       try {
         expect((await client.query("select outcome from lyx_hooks_probe")).rows).toEqual([
           { outcome: "fail" },
@@ -97,7 +104,7 @@ describe("useTestDatabase：钩子里失败也算失败", () => {
         // 留下的库里，失败之前写的数据还在
         const outcomes: string[] = [];
         for (const { name } of kept) {
-          const client = await connectTestDatabase(name);
+          const client = await connectTestDatabase(name, OWNER);
           try {
             const rows = (
               await client.query<{ outcome: string }>("select outcome from lyx_hooks_probe")
@@ -143,7 +150,7 @@ describe("TestDatabaseHandle", () => {
 
   it("有用例失败：库改名留下并打印库名；原名腾出来", { timeout: 120_000 }, async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const handle = new TestDatabaseHandle(testDatabaseName("db", { label: "bad" }));
+    const handle = new TestDatabaseHandle(testDatabaseName("db", { label: "bad" }), OWNER);
     const prisma = await handle.prisma();
     await prisma.$executeRawUnsafe("create table lyx_keep_probe as select 1 as n");
     const kept = await handle.dispose({ failed: true });
@@ -151,7 +158,7 @@ describe("TestDatabaseHandle", () => {
       expect(kept).toMatch(new RegExp(`^${handle.name}_k[a-z0-9]+$`));
       expect(warn).toHaveBeenCalledWith(expect.stringContaining(`测试库留着没删：${kept}`));
       expect(await exists(handle.name)).toBe(false);
-      const client = await connectTestDatabase(kept ?? "");
+      const client = await connectTestDatabase(kept ?? "", OWNER);
       try {
         expect((await client.query("select n from lyx_keep_probe")).rows).toEqual([{ n: 1 }]);
       } finally {
@@ -169,7 +176,7 @@ describe("TestDatabaseHandle", () => {
       const name = testDatabaseName("db", { label: "stale" });
       await dropTestDatabase(name);
       await createTestDatabase(name);
-      const before = await connectTestDatabase(name);
+      const before = await connectTestDatabase(name, OWNER);
       await before.query("create table lyx_stale_probe as select 1 as n");
       await before.end();
 
@@ -184,23 +191,108 @@ describe("TestDatabaseHandle", () => {
     },
   );
 
-  it("role 选项：连上之后切到指定的角色；缺省不切", { timeout: 120_000 }, async () => {
-    interface Who {
-      current: string;
-      session: string;
-    }
-    const who = "select current_user::text as current, session_user::text as session";
-    const [byDefault] = await (await own.prisma()).$queryRawUnsafe<Who[]>(who);
-    expect(byDefault?.current).toBe(byDefault?.session);
+  interface Who {
+    current: string;
+    session: string;
+  }
+  const who = "select current_user::text as current, session_user::text as session";
+  /** DATABASE_URL 的账号：登录用的总是它，切角色只换 current_user */
+  const login = decodeURIComponent(new URL(process.env.DATABASE_URL ?? "").username);
+  const roleOf = (url: string) => new URL(url).searchParams.get("options");
 
-    // pg_read_all_data 是 PostgreSQL 自带的只读角色：切过去之后能读、不能写。应用角色 lyx_app 由 W0-06a 建
+  // W0-05b 任务书 第 11 节第 8 项、W0-06a 任务书 第 11 节第 8 项：授权迁移合并后，测试连接缺省切到应用角色。
+  // 这一条把缺省钉住：谁把它改回“不切”，或改成别的角色，这里就红
+  it(
+    "缺省切到应用角色 lyx_app：只增表改不了、删不了（42501）；写 role: null 才是 DATABASE_URL 的账号",
+    { timeout: 120_000 },
+    async () => {
+      expect(TEST_DEFAULT_ROLE).toBe("lyx_app");
+      expect(login).not.toBe("lyx_app");
+      const asApp = [{ current: "lyx_app", session: login }];
+
+      // 三个入口的缺省都是它：Prisma 客户端、连接串、pg 连接
+      const prisma = await own.prisma();
+      expect(await prisma.$queryRawUnsafe<Who[]>(who)).toEqual(asApp);
+      expect(roleOf(await own.url())).toBe("-c role=lyx_app");
+      expect(roleOf(testDatabaseUrl(own.name))).toBe("-c role=lyx_app");
+      // 写 null 是不切：连接串里不带 role
+      expect(roleOf(testDatabaseUrl(own.name, OWNER))).toBeNull();
+
+      const app = await connectTestDatabase(own.name);
+      const owner = await connectTestDatabase(own.name, OWNER);
+      try {
+        expect((await app.query<Who>(who)).rows).toEqual(asApp);
+        // 应用角色在只增表上：插得进、读得到；改、删、清空在权限那一道就被拒（42501），轮不到触发器
+        await prisma.auditLog.create({
+          data: {
+            id: randomUUID(),
+            stream: "ops",
+            category: "测试支架",
+            action: "role.selftest",
+            summary: "缺省角色的用例写的一行",
+            actorType: "system",
+            actorName: "测试支架",
+            actorRole: "system",
+          },
+        });
+        expect((await app.query("select count(*)::int as n from audit_log")).rows).toEqual([
+          { n: 1 },
+        ]);
+        for (const sql of [
+          "update audit_log set summary = summary",
+          "delete from audit_log",
+          "truncate audit_log",
+        ]) {
+          await expect(app.query(sql), sql).rejects.toMatchObject({ code: "42501" });
+        }
+        // 建表也不行：应用角色没有模式的 CREATE
+        await expect(app.query("create table lyx_role_probe (n int)")).rejects.toMatchObject({
+          code: "42501",
+        });
+
+        // 显式要属主身份：current_user 就是登录的账号，表是它的
+        expect((await owner.query<Who>(who)).rows).toEqual([{ current: login, session: login }]);
+        expect(
+          (
+            await owner.query(
+              "select tableowner::text as owner from pg_tables where schemaname = 'public' and tablename = 'audit_log'",
+            )
+          ).rows,
+        ).toEqual([{ owner: login }]);
+        // 属主有权限，拦它的是触发器那一道（23001）
+        await expect(owner.query("update audit_log set summary = summary")).rejects.toMatchObject({
+          code: "23001",
+        });
+        expect((await owner.query("select count(*)::int as n from audit_log")).rows).toEqual([
+          { n: 1 },
+        ]);
+      } finally {
+        await app.end();
+        await owner.end();
+      }
+
+      // useTestDatabase、TestDatabaseHandle 的 role: null 同样不切
+      const handle = new TestDatabaseHandle(testDatabaseName("db", { label: "owner" }), OWNER);
+      try {
+        expect(await (await handle.prisma()).$queryRawUnsafe<Who[]>(who)).toEqual([
+          { current: login, session: login },
+        ]);
+        expect(roleOf(await handle.url())).toBeNull();
+      } finally {
+        await handle.dispose({ failed: false });
+      }
+    },
+  );
+
+  it("role 选项：连上之后切到指定的角色", { timeout: 120_000 }, async () => {
+    // pg_read_all_data 是 PostgreSQL 自带的只读角色：切过去之后能读、不能写
     const handle = new TestDatabaseHandle(testDatabaseName("db", { label: "role" }), {
       role: "pg_read_all_data",
     });
     try {
       const prisma = await handle.prisma();
       expect(await prisma.$queryRawUnsafe<Who[]>(who)).toEqual([
-        { current: "pg_read_all_data", session: byDefault?.session },
+        { current: "pg_read_all_data", session: login },
       ]);
       expect(await prisma.authEvent.count()).toBe(0);
       await expect(

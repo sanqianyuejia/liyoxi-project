@@ -9,6 +9,8 @@
 // 名字：lyx_test_<包>_<会话标识>_<worker 编号>[_<标签>]；模板库 lyx_test_tpl_<会话标识>。
 // 守卫只有一个函数 assertTestDatabaseName：四个入口都先过它，不符即抛错，一句 SQL 都不发、一条连接都不开。
 // 管理连接连的是维护库 postgres（建库、删库只能在别的库上执行），账号取环境变量 DATABASE_URL，不读 .env。
+// 角色：给用例的连接（连接串、pg 连接、Prisma 客户端）缺省切到应用角色 lyx_app（W0-06a），写 role: null 才不切；
+// 建库、删库、改名、建模板库与跑迁移这些管理动作不切，一直用 DATABASE_URL 的账号。
 //
 // 本文件只引 Node 内置模块与 pg，不写相对导入：prune.mjs 用 Node 自带的类型擦除直接加载它。
 
@@ -234,12 +236,21 @@ export async function renameTestDatabase(from: string, to: string): Promise<void
   });
 }
 
+/**
+ * 测试连接缺省切到的角色：应用角色 lyx_app（W0-05b 任务书 第 11 节第 8 项，W0-06a 的授权迁移合并时改的）。
+ * 它由授权迁移建，不可登录：连接仍用 DATABASE_URL 的账号登录，靠启动参数切过去。
+ */
+export const TEST_DEFAULT_ROLE = "lyx_app";
+
 export interface TestConnectionOptions {
   /**
-   * 连上之后切到哪个数据库角色（启动参数里带 role）。缺省不切，用 DATABASE_URL 的账号。
-   * W0-06a 的授权迁移合并后，缺省值改为应用角色 lyx_app（任务书 第 11 节第 8 项）。
+   * 连上之后切到哪个数据库角色（启动参数里带 role，等同于连上之后 SET ROLE；断了重连也还是它）。
+   * 缺省切到应用角色 lyx_app：用例看到的权限与 api、worker 的一样，只增表改不了、删不了。
+   * 写 null 是不切，用 DATABASE_URL 的账号（本地与 CI 是管理账号，也是表的属主）：
+   * 建表、读 _prisma_migrations、看别的会话的状态、验触发器那一道，这些应用角色做不了的事才用。
+   * DATABASE_URL 的账号要切得过去：是超级用户，或是那个角色的成员。
    */
-  role?: string;
+  role?: string | null;
 }
 
 /** 连接入口之一：给出某个测试库的连接串（主机、账号取 DATABASE_URL，库名换掉） */
@@ -247,9 +258,10 @@ export function testDatabaseUrl(name: string, options: TestConnectionOptions = {
   assertTestDatabaseName(name);
   const url = baseUrl();
   url.pathname = `/${name}`;
-  if (options.role !== undefined) {
-    if (!ROLE.test(options.role)) throw new Error("角色名只接受小写字母、数字、下划线");
-    url.searchParams.set("options", `-c role=${options.role}`);
+  const role = options.role === undefined ? TEST_DEFAULT_ROLE : options.role;
+  if (role !== null) {
+    if (!ROLE.test(role)) throw new Error("角色名只接受小写字母、数字、下划线");
+    url.searchParams.set("options", `-c role=${role}`);
   }
   return url.toString();
 }

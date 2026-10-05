@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 
 import { Redis } from "ioredis";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import {
   CallInterruptedError,
@@ -12,6 +12,7 @@ import {
   runUntilCrash,
 } from "./fault/index.js";
 import {
+  connectTestDatabase,
   createFakeProviders,
   disconnectTestRedis,
   useTestDatabase,
@@ -148,12 +149,17 @@ describe("进程中断", () => {
     async () => {
       const databaseUrl = await db.url();
       const prisma = await db.prisma();
+      // 看别的会话处在什么状态，要 DATABASE_URL 的账号（role: null 不切角色）：缺省的应用角色 lyx_app
+      // 在 pg_stat_activity 里只看得到别人的会话在哪个库，看不到状态。子进程与下面数行数的连接仍是应用角色
+      const monitor = await connectTestDatabase(db.name, { role: null });
+      onTestFinished(() => monitor.end());
       const openTransactions = async () => {
-        const rows = await prisma.$queryRaw<Array<{ n: number }>>`
-          select count(*)::int as n from pg_stat_activity
-           where datname = current_database() and pid <> pg_backend_pid()
-             and state = 'idle in transaction' and backend_xid is not null`;
-        return rows[0]?.n ?? -1;
+        const result = await monitor.query<{ n: number }>(
+          `select count(*)::int as n from pg_stat_activity
+            where datname = current_database() and pid <> pg_backend_pid()
+              and state = 'idle in transaction' and backend_xid is not null`,
+        );
+        return result.rows[0]?.n ?? -1;
       };
       expect(await prisma.authEvent.count()).toBe(0);
 
