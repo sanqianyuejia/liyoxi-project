@@ -21,3 +21,10 @@ export const M02_TENANT = defineRouteDoc("m02-tenant", [
   portalTickets,
   stores,
 ]);
+
+// 已带结构的路由与本文档的结构：api 的处理器与别的域从契约入口取（W1-03 起；各域补结构时在这里各加自己的资源文件）
+export * from "./entities.js";
+export * from "./error-details.js";
+export * from "./me.js";
+export * from "./stores.js";
+export * from "./tenant.schemas.js";

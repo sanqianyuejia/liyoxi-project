@@ -17,3 +17,10 @@ export const M01_ACCOUNT = defineRouteDoc("m01-account", [
   sessions,
   smsCodes,
 ]);
+
+// 已带结构的路由与本文档的结构：api 的处理器与别的域从契约入口取（W1-03 起；各域补结构时在这里各加自己的资源文件）
+export * from "./agreement-consents.js";
+export * from "./agreement-versions.js";
+export * from "./agreement.schemas.js";
+export * from "./agreements.js";
+export * from "./error-details.js";

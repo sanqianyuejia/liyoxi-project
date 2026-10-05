@@ -3,13 +3,256 @@
  * Do not make direct changes to the file.
  */
 
-export type paths = Record<string, never>;
+export interface paths {
+    "/api/v1/m/agreement-consents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 已签署协议：协议名、版本、生效日期、最近确认时间与场景、首次签署时间与场景、关联单据 */
+        get: operations["m.agreementConsent.list"];
+        put?: never;
+        /** 提交协议同意（登录后协议更新需要重新同意时）；交易类同意不走本接口 */
+        post: operations["m.agreementConsent.create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/m/agreement-consents/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 合同页“协议 · N”的计数；查询参数同列表（除分页） */
+        get: operations["m.agreementConsent.summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/m/agreement-versions/{agreementVersionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 某一协议版本的正文（展示版）与 PDF 文件地址 */
+        get: operations["m.agreementVersion.get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/m/agreements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 当前生效的协议版本清单（?agreementKey= 或 ?scene=）：标题、版本号、生效时间、版本 id；登录前可读 */
+        get: operations["m.agreement.list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/m/entities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 懒创建经营主体 + 首家门店 + 老板成员关系 + 计费账户；已是老板返回已有主体，已是别家店员返回 409 ALREADY_IN_ENTITY */
+        post: operations["m.entity.create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/m/me/current-store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 记住当前门店（写 entity_member.last_store_id，供下次启动恢复） */
+        put: operations["m.me.currentStore.replace"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/m/stores": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 我可见的门店：审核状态、完整度、提交与预计完成时间、上线中/交付中/素材/店员计数、待办数；主体额度（门店 n/N、成员名额 n/N，店员不含）；含已停用门店并标注 */
+        get: operations["m.store.list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+}
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AgreementConsentReceipt: {
+            consents: {
+                /** Format: uuid */
+                agreementConsentId: string;
+                agreementKey: string;
+                /** Format: uuid */
+                agreementVersionId: string;
+                consentNo: string;
+                /** Format: date-time */
+                consentedAt: string;
+            }[];
+            pendingConsents: components["schemas"]["PendingConsent"][];
+        };
+        AgreementConsentSummary: {
+            all: number;
+        };
+        AgreementCurrent: {
+            agreementKey: string;
+            /** @enum {string} */
+            consentMode: "checkbox" | "by_action" | "esign" | (string & {});
+            currentVersion: components["schemas"]["AgreementVersionBrief"] | null;
+            name: string;
+            scenes: ("login" | "reconsent" | "member_join" | "plan_purchase" | "topup" | "order_submit" | "ad_request" | (string & {}))[];
+            /** @enum {string} */
+            subjectKind: "user" | "entity" | "partner" | (string & {});
+            upcomingVersion: components["schemas"]["AgreementVersionBrief"] | null;
+        };
+        AgreementVersionBrief: {
+            /** Format: uuid */
+            agreementVersionId: string;
+            /** Format: date-time */
+            effectiveAt: string;
+            isReconsentRequired: boolean;
+            summary: string;
+            versionLabel: string;
+        };
+        AgreementVersionDetail: {
+            agreementKey: string;
+            /** Format: uuid */
+            agreementVersionId: string;
+            contentHtml: string | null;
+            contentSha256: string;
+            /** Format: date-time */
+            effectiveAt: string;
+            isReconsentRequired: boolean;
+            major: number;
+            minor: number;
+            name: string;
+            pdf: {
+                /** Format: date-time */
+                expiresAt: string;
+                url: string;
+            };
+            /** @enum {string} */
+            phase: "upcoming" | "current" | "superseded";
+            summary: string;
+            versionLabel: string;
+        };
+        ConsentInput: {
+            agreementKey: string;
+            /** Format: uuid */
+            agreementVersionId: string;
+        };
+        ConsentRecord: {
+            bizNo: string | null;
+            bizTitle: string | null;
+            bizType: ("billing_order" | "drama_order" | "ad" | (string & {})) | null;
+            consentNo: string;
+            /** Format: date-time */
+            consentedAt: string;
+            /** @enum {string} */
+            method: "checkbox" | "by_action" | "prior_consent" | (string & {});
+            /** @enum {string} */
+            scene: "login" | "reconsent" | "member_join" | "plan_purchase" | "topup" | "order_submit" | "ad_request" | (string & {});
+            versionLabel: string;
+        };
+        ConsentRecordForClerk: {
+            consentNo: string;
+            /** Format: date-time */
+            consentedAt: string;
+            /** @enum {string} */
+            method: "checkbox" | "by_action" | "prior_consent" | (string & {});
+            /** @enum {string} */
+            scene: "login" | "reconsent" | "member_join" | "plan_purchase" | "topup" | "order_submit" | "ad_request" | (string & {});
+            versionLabel: string;
+        };
+        DeviceInfo: {
+            model?: string;
+            sdkVersion?: string;
+            system?: string;
+            wechatVersion?: string;
+        };
         DictRef: {
             code: string;
             name: string;
+        };
+        EntityBrief: {
+            /** Format: uuid */
+            entityId: string;
+            name: string | null;
+            /** @enum {string} */
+            verificationStatus: "unsubmitted" | "pending" | "verified" | "rejected" | (string & {});
+        };
+        EntityQuotaCard: {
+            canAddStore: boolean;
+            /** Format: uuid */
+            entityId: string;
+            /** @enum {string} */
+            limitReason: "plan" | "inactive";
+            memberLimit: number | null;
+            name: string | null;
+            pendingInvitationCount: number;
+            seatsOver: number;
+            seatsUsed: number;
+            storeLimit: number;
+            storesOver: number;
+            storesUsed: number;
+            subscription: {
+                /** Format: date */
+                endDate: string;
+                isActive: boolean;
+                planName: string;
+            } | null;
+            /** @enum {string} */
+            verificationStatus: "unsubmitted" | "pending" | "verified" | "rejected" | (string & {});
         };
         ErrorBody: {
             code: number;
@@ -23,8 +266,113 @@ export interface components {
             requestId: string;
             retryable: boolean;
         };
+        MemberPreview: {
+            displayName: string | null;
+            /** @enum {string} */
+            role: "owner" | "clerk" | (string & {});
+        };
+        MembershipResult: {
+            abandonedEntityId: string | null;
+            /** Format: uuid */
+            entityId: string;
+            isNew: boolean;
+            /** Format: uuid */
+            memberId: string;
+            /** @enum {string} */
+            role: "owner" | "clerk" | (string & {});
+            /** Format: uuid */
+            storeId: string;
+        };
+        PendingConsent: {
+            agreementKey: string;
+            /** Format: uuid */
+            agreementVersionId: string;
+            /** Format: date-time */
+            effectiveAt: string;
+            name: string;
+            summary: string;
+            versionLabel: string;
+        };
         /** @description Sentry envelope 原文，≤200KB */
         SentryEnvelope: string;
+        SignedAgreementItem: {
+            agreementKey: string;
+            consentedVersion: {
+                /** Format: uuid */
+                agreementVersionId: string;
+                /** Format: date-time */
+                effectiveAt: string;
+                versionLabel: string;
+            };
+            currentVersionId: string | null;
+            firstConsent: components["schemas"]["ConsentRecord"];
+            isCurrentVersionConsented: boolean;
+            latestConsent: components["schemas"]["ConsentRecord"];
+            name: string;
+            /** @enum {string} */
+            subjectKind: "user" | "entity" | "partner" | (string & {});
+        };
+        SignedAgreementItemForClerk: {
+            agreementKey: string;
+            consentedVersion: {
+                /** Format: uuid */
+                agreementVersionId: string;
+                /** Format: date-time */
+                effectiveAt: string;
+                versionLabel: string;
+            };
+            currentVersionId: string | null;
+            firstConsent: components["schemas"]["ConsentRecordForClerk"];
+            isCurrentVersionConsented: boolean;
+            latestConsent: components["schemas"]["ConsentRecordForClerk"];
+            name: string;
+            /** @enum {string} */
+            subjectKind: "user" | "entity" | "partner" | (string & {});
+        };
+        StoreCard: {
+            actions: ("archive" | "delete" | "restore")[];
+            archiveReason: ("by_owner" | "draft_deleted" | "entity_closed" | "entity_abandoned" | (string & {})) | null;
+            archivedAt: string | null;
+            assetCount: number;
+            category: components["schemas"]["DictRef"] | null;
+            city: components["schemas"]["DictRef"] | null;
+            clerkCount: number;
+            completenessPct: number;
+            deliveringCount: number;
+            expectedDecisionAt: string | null;
+            isLastSelected: boolean;
+            isPrimary: boolean;
+            /** @enum {string} */
+            lifecycle: "active" | "archived" | (string & {});
+            liveCount: number;
+            memberPreview: components["schemas"]["MemberPreview"][];
+            name: string | null;
+            pendingInvitationCount: number;
+            /** @enum {string} */
+            qualificationStatus: "unsubmitted" | "pending" | "verified" | "rejected" | (string & {});
+            /** Format: uuid */
+            storeId: string;
+            submittedAt: string | null;
+            todoCount: number;
+            verifiedAt: string | null;
+        };
+        StoreCardForClerk: {
+            actions: ("archive" | "delete" | "restore")[];
+            assetCount: number;
+            category: components["schemas"]["DictRef"] | null;
+            city: components["schemas"]["DictRef"] | null;
+            clerkCount: number;
+            isLastSelected: boolean;
+            isPrimary: boolean;
+            /** @enum {string} */
+            lifecycle: "active" | "archived" | (string & {});
+            name: string | null;
+            /** @enum {string} */
+            qualificationStatus: "unsubmitted" | "pending" | "verified" | "rejected" | (string & {});
+            /** Format: uuid */
+            storeId: string;
+            todoCount: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -33,4 +381,460 @@ export interface components {
     pathItems: never;
 }
 export type $defs = Record<string, never>;
-export type operations = Record<string, never>;
+export interface operations {
+    "m.agreementConsent.list": {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+                subjectKind?: "user" | "entity";
+                agreementKey?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {number} */
+                        code: 0;
+                        data: {
+                            hasMore: boolean;
+                            items: components["schemas"]["SignedAgreementItem"][];
+                            nextCursor: string | null;
+                            /** @enum {string} */
+                            viewerRole: "owner";
+                        } | {
+                            hasMore: boolean;
+                            items: components["schemas"]["SignedAgreementItemForClerk"][];
+                            nextCursor: string | null;
+                            /** @enum {string} */
+                            viewerRole: "clerk";
+                        };
+                        /** @enum {string} */
+                        message: "ok";
+                    };
+                };
+            };
+            /** @description 入参不合约定，或业务规则拒绝了输入本身 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description 未登录或会话失效 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description 已登录但无权 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    "m.agreementConsent.create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    consents: components["schemas"]["ConsentInput"][];
+                    device?: components["schemas"]["DeviceInfo"];
+                };
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {number} */
+                        code: 0;
+                        data: components["schemas"]["AgreementConsentReceipt"];
+                        /** @enum {string} */
+                        message: "ok";
+                    };
+                };
+            };
+            /** @description 入参不合约定，或业务规则拒绝了输入本身 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description 未登录或会话失效 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description 状态不允许、版本冲突、唯一性冲突或幂等键冲突 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    "m.agreementConsent.summary": {
+        parameters: {
+            query?: {
+                subjectKind?: "user" | "entity";
+                agreementKey?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {number} */
+                        code: 0;
+                        data: components["schemas"]["AgreementConsentSummary"];
+                        /** @enum {string} */
+                        message: "ok";
+                    };
+                };
+            };
+            /** @description 入参不合约定，或业务规则拒绝了输入本身 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description 未登录或会话失效 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description 已登录但无权 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    "m.agreementVersion.get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agreementVersionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {number} */
+                        code: 0;
+                        data: components["schemas"]["AgreementVersionDetail"];
+                        /** @enum {string} */
+                        message: "ok";
+                    };
+                };
+            };
+            /** @description 入参不合约定，或业务规则拒绝了输入本身 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description 资源不存在，或不在当前门店、主体、数据范围内 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    "m.agreement.list": {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+                agreementKey?: string;
+                scene?: "login" | "reconsent" | "member_join" | "plan_purchase" | "topup" | "order_submit" | "ad_request";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {number} */
+                        code: 0;
+                        data: {
+                            hasMore: boolean;
+                            items: components["schemas"]["AgreementCurrent"][];
+                            nextCursor: string | null;
+                        };
+                        /** @enum {string} */
+                        message: "ok";
+                    };
+                };
+            };
+            /** @description 入参不合约定，或业务规则拒绝了输入本身 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    "m.entity.create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {number} */
+                        code: 0;
+                        data: components["schemas"]["MembershipResult"];
+                        /** @enum {string} */
+                        message: "ok";
+                    };
+                };
+            };
+            /** @description 入参不合约定，或业务规则拒绝了输入本身 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description 未登录或会话失效 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description 状态不允许、版本冲突、唯一性冲突或幂等键冲突 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    "m.me.currentStore.replace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    storeId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {number} */
+                        code: 0;
+                        data: {
+                            /** Format: uuid */
+                            storeId: string;
+                        };
+                        /** @enum {string} */
+                        message: "ok";
+                    };
+                };
+            };
+            /** @description 入参不合约定，或业务规则拒绝了输入本身 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description 未登录或会话失效 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description 已登录但无权 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description 资源不存在，或不在当前门店、主体、数据范围内 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    "m.store.list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {number} */
+                        code: 0;
+                        data: {
+                            entity: components["schemas"]["EntityQuotaCard"];
+                            items: components["schemas"]["StoreCard"][];
+                            /** @enum {string} */
+                            viewerRole: "owner";
+                        } | {
+                            entity: components["schemas"]["EntityBrief"];
+                            items: components["schemas"]["StoreCardForClerk"][];
+                            /** @enum {string} */
+                            viewerRole: "clerk";
+                        } | {
+                            entity: null;
+                            items: components["schemas"]["StoreCardForClerk"][];
+                            /** @enum {string} */
+                            viewerRole: "none";
+                        };
+                        /** @enum {string} */
+                        message: "ok";
+                    };
+                };
+            };
+            /** @description 未登录或会话失效 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+}

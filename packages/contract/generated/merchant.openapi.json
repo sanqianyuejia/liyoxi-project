@@ -2,6 +2,435 @@
   "components": {
     "parameters": {},
     "schemas": {
+      "AgreementConsentReceipt": {
+        "properties": {
+          "consents": {
+            "items": {
+              "properties": {
+                "agreementConsentId": {
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                  "type": "string"
+                },
+                "agreementKey": {
+                  "type": "string"
+                },
+                "agreementVersionId": {
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                  "type": "string"
+                },
+                "consentNo": {
+                  "pattern": "^\\d+$",
+                  "type": "string"
+                },
+                "consentedAt": {
+                  "format": "date-time",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "agreementConsentId",
+                "consentNo",
+                "agreementKey",
+                "agreementVersionId",
+                "consentedAt"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "pendingConsents": {
+            "items": {
+              "$ref": "#/components/schemas/PendingConsent"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "consents",
+          "pendingConsents"
+        ],
+        "type": "object"
+      },
+      "AgreementConsentSummary": {
+        "properties": {
+          "all": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "all"
+        ],
+        "type": "object"
+      },
+      "AgreementCurrent": {
+        "properties": {
+          "agreementKey": {
+            "type": "string"
+          },
+          "consentMode": {
+            "enum": [
+              "checkbox",
+              "by_action",
+              "esign"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          },
+          "currentVersion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgreementVersionBrief"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "scenes": {
+            "items": {
+              "enum": [
+                "login",
+                "reconsent",
+                "member_join",
+                "plan_purchase",
+                "topup",
+                "order_submit",
+                "ad_request"
+              ],
+              "type": "string",
+              "x-open-enum": true
+            },
+            "type": "array"
+          },
+          "subjectKind": {
+            "enum": [
+              "user",
+              "entity",
+              "partner"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          },
+          "upcomingVersion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgreementVersionBrief"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "agreementKey",
+          "name",
+          "subjectKind",
+          "consentMode",
+          "scenes",
+          "currentVersion",
+          "upcomingVersion"
+        ],
+        "type": "object"
+      },
+      "AgreementVersionBrief": {
+        "properties": {
+          "agreementVersionId": {
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "effectiveAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "isReconsentRequired": {
+            "type": "boolean"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "versionLabel": {
+            "pattern": "^v\\d+\\.\\d+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agreementVersionId",
+          "versionLabel",
+          "effectiveAt",
+          "summary",
+          "isReconsentRequired"
+        ],
+        "type": "object"
+      },
+      "AgreementVersionDetail": {
+        "properties": {
+          "agreementKey": {
+            "type": "string"
+          },
+          "agreementVersionId": {
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "contentHtml": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contentSha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "effectiveAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "isReconsentRequired": {
+            "type": "boolean"
+          },
+          "major": {
+            "type": "integer"
+          },
+          "minor": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "pdf": {
+            "properties": {
+              "expiresAt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "url",
+              "expiresAt"
+            ],
+            "type": "object"
+          },
+          "phase": {
+            "enum": [
+              "upcoming",
+              "current",
+              "superseded"
+            ],
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "versionLabel": {
+            "pattern": "^v\\d+\\.\\d+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agreementVersionId",
+          "agreementKey",
+          "name",
+          "versionLabel",
+          "major",
+          "minor",
+          "phase",
+          "effectiveAt",
+          "summary",
+          "isReconsentRequired",
+          "contentHtml",
+          "contentSha256",
+          "pdf"
+        ],
+        "type": "object"
+      },
+      "ConsentInput": {
+        "properties": {
+          "agreementKey": {
+            "maxLength": 24,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "agreementVersionId": {
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agreementKey",
+          "agreementVersionId"
+        ],
+        "type": "object"
+      },
+      "ConsentRecord": {
+        "properties": {
+          "bizNo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bizTitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bizType": {
+            "anyOf": [
+              {
+                "enum": [
+                  "billing_order",
+                  "drama_order",
+                  "ad"
+                ],
+                "type": "string",
+                "x-open-enum": true
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "consentNo": {
+            "pattern": "^\\d+$",
+            "type": "string"
+          },
+          "consentedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "method": {
+            "enum": [
+              "checkbox",
+              "by_action",
+              "prior_consent"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          },
+          "scene": {
+            "enum": [
+              "login",
+              "reconsent",
+              "member_join",
+              "plan_purchase",
+              "topup",
+              "order_submit",
+              "ad_request"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          },
+          "versionLabel": {
+            "pattern": "^v\\d+\\.\\d+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "consentNo",
+          "consentedAt",
+          "scene",
+          "method",
+          "versionLabel",
+          "bizType",
+          "bizNo",
+          "bizTitle"
+        ],
+        "type": "object"
+      },
+      "ConsentRecordForClerk": {
+        "additionalProperties": false,
+        "properties": {
+          "consentNo": {
+            "pattern": "^\\d+$",
+            "type": "string"
+          },
+          "consentedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "method": {
+            "enum": [
+              "checkbox",
+              "by_action",
+              "prior_consent"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          },
+          "scene": {
+            "enum": [
+              "login",
+              "reconsent",
+              "member_join",
+              "plan_purchase",
+              "topup",
+              "order_submit",
+              "ad_request"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          },
+          "versionLabel": {
+            "pattern": "^v\\d+\\.\\d+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "consentNo",
+          "consentedAt",
+          "scene",
+          "method",
+          "versionLabel"
+        ],
+        "type": "object"
+      },
+      "DeviceInfo": {
+        "properties": {
+          "model": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "sdkVersion": {
+            "maxLength": 32,
+            "type": "string"
+          },
+          "system": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "wechatVersion": {
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "DictRef": {
         "properties": {
           "code": {
@@ -14,6 +443,159 @@
         "required": [
           "code",
           "name"
+        ],
+        "type": "object"
+      },
+      "EntityBrief": {
+        "additionalProperties": false,
+        "properties": {
+          "entityId": {
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verificationStatus": {
+            "enum": [
+              "unsubmitted",
+              "pending",
+              "verified",
+              "rejected"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          }
+        },
+        "required": [
+          "entityId",
+          "name",
+          "verificationStatus"
+        ],
+        "type": "object"
+      },
+      "EntityQuotaCard": {
+        "properties": {
+          "canAddStore": {
+            "type": "boolean"
+          },
+          "entityId": {
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "limitReason": {
+            "enum": [
+              "plan",
+              "inactive"
+            ],
+            "type": "string"
+          },
+          "memberLimit": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pendingInvitationCount": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "seatsOver": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "seatsUsed": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "storeLimit": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "storesOver": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "storesUsed": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "subscription": {
+            "anyOf": [
+              {
+                "properties": {
+                  "endDate": {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  "isActive": {
+                    "type": "boolean"
+                  },
+                  "planName": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "planName",
+                  "endDate",
+                  "isActive"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verificationStatus": {
+            "enum": [
+              "unsubmitted",
+              "pending",
+              "verified",
+              "rejected"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          }
+        },
+        "required": [
+          "entityId",
+          "name",
+          "verificationStatus",
+          "subscription",
+          "storesUsed",
+          "storeLimit",
+          "seatsUsed",
+          "memberLimit",
+          "pendingInvitationCount",
+          "storesOver",
+          "seatsOver",
+          "limitReason",
+          "canAddStore"
         ],
         "type": "object"
       },
@@ -63,11 +645,571 @@
         ],
         "type": "object"
       },
+      "MemberPreview": {
+        "properties": {
+          "displayName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "role": {
+            "enum": [
+              "owner",
+              "clerk"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          }
+        },
+        "required": [
+          "displayName",
+          "role"
+        ],
+        "type": "object"
+      },
+      "MembershipResult": {
+        "properties": {
+          "abandonedEntityId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entityId": {
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "isNew": {
+            "type": "boolean"
+          },
+          "memberId": {
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "owner",
+              "clerk"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          },
+          "storeId": {
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entityId",
+          "memberId",
+          "role",
+          "storeId",
+          "isNew",
+          "abandonedEntityId"
+        ],
+        "type": "object"
+      },
+      "PendingConsent": {
+        "properties": {
+          "agreementKey": {
+            "type": "string"
+          },
+          "agreementVersionId": {
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "effectiveAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "versionLabel": {
+            "pattern": "^v\\d+\\.\\d+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agreementKey",
+          "agreementVersionId",
+          "name",
+          "versionLabel",
+          "effectiveAt",
+          "summary"
+        ],
+        "type": "object"
+      },
       "SentryEnvelope": {
         "description": "Sentry envelope 原文，≤200KB",
         "maxLength": 204800,
         "minLength": 1,
         "type": "string"
+      },
+      "SignedAgreementItem": {
+        "properties": {
+          "agreementKey": {
+            "type": "string"
+          },
+          "consentedVersion": {
+            "properties": {
+              "agreementVersionId": {
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                "type": "string"
+              },
+              "effectiveAt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "versionLabel": {
+                "pattern": "^v\\d+\\.\\d+$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "agreementVersionId",
+              "versionLabel",
+              "effectiveAt"
+            ],
+            "type": "object"
+          },
+          "currentVersionId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "firstConsent": {
+            "$ref": "#/components/schemas/ConsentRecord"
+          },
+          "isCurrentVersionConsented": {
+            "type": "boolean"
+          },
+          "latestConsent": {
+            "$ref": "#/components/schemas/ConsentRecord"
+          },
+          "name": {
+            "type": "string"
+          },
+          "subjectKind": {
+            "enum": [
+              "user",
+              "entity",
+              "partner"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          }
+        },
+        "required": [
+          "agreementKey",
+          "name",
+          "subjectKind",
+          "consentedVersion",
+          "currentVersionId",
+          "isCurrentVersionConsented",
+          "latestConsent",
+          "firstConsent"
+        ],
+        "type": "object"
+      },
+      "SignedAgreementItemForClerk": {
+        "properties": {
+          "agreementKey": {
+            "type": "string"
+          },
+          "consentedVersion": {
+            "properties": {
+              "agreementVersionId": {
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                "type": "string"
+              },
+              "effectiveAt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "versionLabel": {
+                "pattern": "^v\\d+\\.\\d+$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "agreementVersionId",
+              "versionLabel",
+              "effectiveAt"
+            ],
+            "type": "object"
+          },
+          "currentVersionId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "firstConsent": {
+            "$ref": "#/components/schemas/ConsentRecordForClerk"
+          },
+          "isCurrentVersionConsented": {
+            "type": "boolean"
+          },
+          "latestConsent": {
+            "$ref": "#/components/schemas/ConsentRecordForClerk"
+          },
+          "name": {
+            "type": "string"
+          },
+          "subjectKind": {
+            "enum": [
+              "user",
+              "entity",
+              "partner"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          }
+        },
+        "required": [
+          "agreementKey",
+          "name",
+          "subjectKind",
+          "consentedVersion",
+          "currentVersionId",
+          "isCurrentVersionConsented",
+          "latestConsent",
+          "firstConsent"
+        ],
+        "type": "object"
+      },
+      "StoreCard": {
+        "properties": {
+          "actions": {
+            "items": {
+              "enum": [
+                "archive",
+                "delete",
+                "restore"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "archiveReason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "by_owner",
+                  "draft_deleted",
+                  "entity_closed",
+                  "entity_abandoned"
+                ],
+                "type": "string",
+                "x-open-enum": true
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "archivedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "assetCount": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DictRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "city": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DictRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "clerkCount": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "completenessPct": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "deliveringCount": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expectedDecisionAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "isLastSelected": {
+            "type": "boolean"
+          },
+          "isPrimary": {
+            "type": "boolean"
+          },
+          "lifecycle": {
+            "enum": [
+              "active",
+              "archived"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          },
+          "liveCount": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "memberPreview": {
+            "items": {
+              "$ref": "#/components/schemas/MemberPreview"
+            },
+            "maxItems": 4,
+            "type": "array"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pendingInvitationCount": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "qualificationStatus": {
+            "enum": [
+              "unsubmitted",
+              "pending",
+              "verified",
+              "rejected"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          },
+          "storeId": {
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "submittedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "todoCount": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "verifiedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "storeId",
+          "name",
+          "isPrimary",
+          "lifecycle",
+          "isLastSelected",
+          "city",
+          "category",
+          "qualificationStatus",
+          "assetCount",
+          "clerkCount",
+          "todoCount",
+          "archiveReason",
+          "archivedAt",
+          "verifiedAt",
+          "submittedAt",
+          "expectedDecisionAt",
+          "completenessPct",
+          "liveCount",
+          "deliveringCount",
+          "pendingInvitationCount",
+          "memberPreview",
+          "actions"
+        ],
+        "type": "object"
+      },
+      "StoreCardForClerk": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "items": {
+              "enum": [
+                "archive",
+                "delete",
+                "restore"
+              ],
+              "type": "string"
+            },
+            "maxItems": 0,
+            "type": "array"
+          },
+          "assetCount": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DictRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "city": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DictRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "clerkCount": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "isLastSelected": {
+            "type": "boolean"
+          },
+          "isPrimary": {
+            "type": "boolean"
+          },
+          "lifecycle": {
+            "enum": [
+              "active",
+              "archived"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "qualificationStatus": {
+            "enum": [
+              "unsubmitted",
+              "pending",
+              "verified",
+              "rejected"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          },
+          "storeId": {
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "todoCount": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "storeId",
+          "name",
+          "isPrimary",
+          "lifecycle",
+          "isLastSelected",
+          "city",
+          "category",
+          "qualificationStatus",
+          "assetCount",
+          "clerkCount",
+          "todoCount",
+          "actions"
+        ],
+        "type": "object"
       }
     }
   },
@@ -76,6 +1218,931 @@
     "version": "1.0.0"
   },
   "openapi": "3.1.0",
-  "paths": {},
+  "paths": {
+    "/api/v1/m/agreement-consents": {
+      "get": {
+        "operationId": "m.agreementConsent.list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "subjectKind",
+            "required": false,
+            "schema": {
+              "enum": [
+                "user",
+                "entity"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "agreementKey",
+            "required": false,
+            "schema": {
+              "maxLength": 24,
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "oneOf": [
+                        {
+                          "properties": {
+                            "hasMore": {
+                              "type": "boolean"
+                            },
+                            "items": {
+                              "items": {
+                                "$ref": "#/components/schemas/SignedAgreementItem"
+                              },
+                              "type": "array"
+                            },
+                            "nextCursor": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "viewerRole": {
+                              "enum": [
+                                "owner"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "items",
+                            "nextCursor",
+                            "hasMore",
+                            "viewerRole"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "properties": {
+                            "hasMore": {
+                              "type": "boolean"
+                            },
+                            "items": {
+                              "items": {
+                                "$ref": "#/components/schemas/SignedAgreementItemForClerk"
+                              },
+                              "type": "array"
+                            },
+                            "nextCursor": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "viewerRole": {
+                              "enum": [
+                                "clerk"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "items",
+                            "nextCursor",
+                            "hasMore",
+                            "viewerRole"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          }
+        },
+        "summary": "已签署协议：协议名、版本、生效日期、最近确认时间与场景、首次签署时间与场景、关联单据",
+        "x-auth": "member",
+        "x-clerk-view": "trimmed",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "纯查询，GET 不写库（A18、A19）"
+      },
+      "post": {
+        "operationId": "m.agreementConsent.create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "consents": {
+                    "items": {
+                      "$ref": "#/components/schemas/ConsentInput"
+                    },
+                    "maxItems": 2,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "device": {
+                    "$ref": "#/components/schemas/DeviceInfo"
+                  }
+                },
+                "required": [
+                  "consents"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AgreementConsentReceipt"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          }
+        },
+        "summary": "提交协议同意（登录后协议更新需要重新同意时）；交易类同意不走本接口",
+        "x-auth": "user",
+        "x-clerk-view": "same",
+        "x-idempotent": "natural",
+        "x-idempotent-by": [
+          "uq_agreement_consent_no_biz"
+        ]
+      }
+    },
+    "/api/v1/m/agreement-consents/summary": {
+      "get": {
+        "operationId": "m.agreementConsent.summary",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "subjectKind",
+            "required": false,
+            "schema": {
+              "enum": [
+                "user",
+                "entity"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "agreementKey",
+            "required": false,
+            "schema": {
+              "maxLength": 24,
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AgreementConsentSummary"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          }
+        },
+        "summary": "合同页“协议 · N”的计数；查询参数同列表（除分页）",
+        "x-auth": "member",
+        "x-capability": "contract.read",
+        "x-clerk-view": "none",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "纯查询，GET 不写库（A18、A19）"
+      }
+    },
+    "/api/v1/m/agreement-versions/{agreementVersionId}": {
+      "get": {
+        "operationId": "m.agreementVersion.get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agreementVersionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AgreementVersionDetail"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "资源不存在，或不在当前门店、主体、数据范围内"
+          }
+        },
+        "summary": "某一协议版本的正文（展示版）与 PDF 文件地址",
+        "x-auth": "public",
+        "x-clerk-view": "same",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "纯查询，GET 不写库（A18、A19）"
+      }
+    },
+    "/api/v1/m/agreements": {
+      "get": {
+        "operationId": "m.agreement.list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "agreementKey",
+            "required": false,
+            "schema": {
+              "pattern": "^[a-z][a-z0-9_]*(?:,[a-z][a-z0-9_]*){0,6}$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scene",
+            "required": false,
+            "schema": {
+              "enum": [
+                "login",
+                "reconsent",
+                "member_join",
+                "plan_purchase",
+                "topup",
+                "order_submit",
+                "ad_request"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "properties": {
+                        "hasMore": {
+                          "type": "boolean"
+                        },
+                        "items": {
+                          "items": {
+                            "$ref": "#/components/schemas/AgreementCurrent"
+                          },
+                          "type": "array"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "items",
+                        "nextCursor",
+                        "hasMore"
+                      ],
+                      "type": "object"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          }
+        },
+        "summary": "当前生效的协议版本清单（?agreementKey= 或 ?scene=）：标题、版本号、生效时间、版本 id；登录前可读",
+        "x-auth": "public",
+        "x-clerk-view": "same",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "纯查询，GET 不写库（A18、A19）"
+      }
+    },
+    "/api/v1/m/entities": {
+      "post": {
+        "operationId": "m.entity.create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {},
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/MembershipResult"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          }
+        },
+        "summary": "懒创建经营主体 + 首家门店 + 老板成员关系 + 计费账户；已是老板返回已有主体，已是别家店员返回 409 ALREADY_IN_ENTITY",
+        "x-auth": "user",
+        "x-clerk-view": "same",
+        "x-idempotent": "required"
+      }
+    },
+    "/api/v1/m/me/current-store": {
+      "put": {
+        "operationId": "m.me.currentStore.replace",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "storeId": {
+                    "format": "uuid",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "storeId"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "properties": {
+                        "storeId": {
+                          "format": "uuid",
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "storeId"
+                      ],
+                      "type": "object"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "资源不存在，或不在当前门店、主体、数据范围内"
+          }
+        },
+        "summary": "记住当前门店（写 entity_member.last_store_id，供下次启动恢复）",
+        "x-auth": "member",
+        "x-capability": "me.*",
+        "x-clerk-view": "same",
+        "x-idempotent": "required"
+      }
+    },
+    "/api/v1/m/stores": {
+      "get": {
+        "operationId": "m.store.list",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "oneOf": [
+                        {
+                          "properties": {
+                            "entity": {
+                              "$ref": "#/components/schemas/EntityQuotaCard"
+                            },
+                            "items": {
+                              "items": {
+                                "$ref": "#/components/schemas/StoreCard"
+                              },
+                              "type": "array"
+                            },
+                            "viewerRole": {
+                              "enum": [
+                                "owner"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "viewerRole",
+                            "entity",
+                            "items"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "properties": {
+                            "entity": {
+                              "$ref": "#/components/schemas/EntityBrief"
+                            },
+                            "items": {
+                              "items": {
+                                "$ref": "#/components/schemas/StoreCardForClerk"
+                              },
+                              "type": "array"
+                            },
+                            "viewerRole": {
+                              "enum": [
+                                "clerk"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "viewerRole",
+                            "entity",
+                            "items"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "properties": {
+                            "entity": {
+                              "type": "null"
+                            },
+                            "items": {
+                              "items": {
+                                "$ref": "#/components/schemas/StoreCardForClerk"
+                              },
+                              "maxItems": 0,
+                              "type": "array"
+                            },
+                            "viewerRole": {
+                              "enum": [
+                                "none"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "viewerRole",
+                            "entity",
+                            "items"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          }
+        },
+        "summary": "我可见的门店：审核状态、完整度、提交与预计完成时间、上线中/交付中/素材/店员计数、待办数；主体额度（门店 n/N、成员名额 n/N，店员不含）；含已停用门店并标注",
+        "x-auth": "user",
+        "x-clerk-view": "trimmed",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "纯查询，GET 不写库（A18、A19）"
+      }
+    }
+  },
   "webhooks": {}
 }
