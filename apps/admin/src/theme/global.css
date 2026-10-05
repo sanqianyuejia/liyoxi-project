@@ -757,6 +757,7 @@ a.lyx-link--danger:hover {
 .lyx-state__title {
   font-size: var(--lyx-font-size-title-md);
   font-weight: var(--lyx-font-weight-semibold);
+  line-height: var(--lyx-line-height-title);
 }
 
 .lyx-state__desc {
@@ -779,6 +780,7 @@ a.lyx-link--danger:hover {
   font-family: var(--lyx-font-family-serif);
   font-size: var(--lyx-font-size-h1);
   font-weight: var(--lyx-font-weight-bold);
+  line-height: var(--lyx-line-height-title);
 }
 
 .lyx-full-notice__desc {
@@ -1015,6 +1017,7 @@ a.lyx-link--danger:hover {
   margin: 0 0 var(--lyx-space-10);
   font-size: var(--lyx-font-size-title-sm);
   font-weight: var(--lyx-font-weight-semibold);
+  line-height: var(--lyx-line-height-title);
 }
 
 /* 信息分组：两列网格，标签宽 64（长标签 84 或 110），13px，行距 8，列距 12 */
@@ -1047,11 +1050,13 @@ a.lyx-link--danger:hover {
 /*
  * 面板里的标题分两级（规范 第 2.3、13 节）：h2 是卡片这一级的标题（页签面板里的“基础信息”一类），15px；
  * h3 是卡片内的分区标题（工作台详情卡里的“核对清单”一类），14px。两级用同一个类，按标题的级别取字号。
+ * 行高同是标题的 1.3。
  */
 .lyx-section-title {
   margin: 0 0 var(--lyx-space-12);
   font-size: var(--lyx-font-size-title-md);
   font-weight: var(--lyx-font-weight-semibold);
+  line-height: var(--lyx-line-height-title);
 }
 
 h3.lyx-section-title {
@@ -1096,6 +1101,16 @@ h3.lyx-section-title {
 .ant-modal .ant-modal-container .ant-modal-header {
   padding-inline-end: calc(var(--lyx-size-control-sm) + var(--lyx-space-12));
   margin-bottom: var(--lyx-space-16);
+}
+
+/*
+ * 抽屉标题、antd 卡片标题的行高 1.3（规范 第 2.3 节“标题与双行单元格行高 1.3”；title-lg、title-md 两行）。
+ * 弹窗标题有主题变量（antd.ts 的 Modal.titleLineHeight）；抽屉标题用的是 antd 的大号行高（1.5）、卡片标题跟着卡片的缺省行高，
+ * 都没有单独的主题变量，在这里覆盖。前面加 :root 是为了不靠样式表的先后顺序压过 antd 自己的规则。
+ */
+:root .ant-drawer .ant-drawer-title,
+:root .ant-card .ant-card-head-title {
+  line-height: var(--lyx-line-height-title);
 }
 
 /*

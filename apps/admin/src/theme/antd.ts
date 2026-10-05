@@ -86,6 +86,8 @@ export const adminTheme: ThemeConfig = {
     },
     Modal: {
       titleFontSize: px(fontSize["title-lg"]),
+      // 标题行高 1.3（规范 第 2.3 节）；antd 缺省按标题字号算出 1.5。抽屉标题、卡片标题没有这个变量，在 global.css 里覆盖
+      titleLineHeight: adminTokens["line-height"].title,
       borderRadiusLG: px(radius.modal),
       boxShadow: shadow.modal,
       // 内边距 24、内部间距 16、关闭按钮 32 × 32 灰底：这几样没有公开的主题变量，在 global.css 里覆盖
