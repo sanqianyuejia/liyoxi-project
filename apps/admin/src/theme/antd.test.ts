@@ -13,8 +13,11 @@ describe("组件级配置（ConfigProvider）", () => {
     expect(adminComponentConfig.modal).toEqual({ centered: true });
   });
 
-  it("表单不显示必填星号；提交时有错滚到第一个出错的字段", () => {
-    expect(adminComponentConfig.form).toEqual({ requiredMark: false, scrollToFirstError: true });
+  it("表单不显示必填星号；提交时有错滚到第一个出错的字段，落在视口中间（标签与错误提示一起看得见）", () => {
+    expect(adminComponentConfig.form).toEqual({
+      requiredMark: false,
+      scrollToFirstError: { block: "center" },
+    });
   });
 
   it("两个字的按钮不自动加空格", () => {

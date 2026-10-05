@@ -204,14 +204,15 @@ export const adminTheme: ThemeConfig = {
 
 /**
  * ConfigProvider 上主题之外的组件级配置：主题变量管不到、又要全局一致的几样。应用外层（app/App.tsx）整个展开用。
- *   form     不显示必填星号，选填项在标签后写“（选填）”（规范 第 5.3 节）；提交时有错，页面滚到第一个出错的字段（规范 第 8 节）
+ *   form     不显示必填星号，选填项在标签后写“（选填）”（规范 第 5.3 节）；提交时有错，页面滚到第一个出错的字段（规范 第 8 节）：
+ *            字段不在视野里才滚，滚到视口中间，控件上面的标签与下面的错误提示一起看得见（antd 的缺省是贴着视口的边，标签在视口外）
  *   button   两个字的按钮不自动加空格（原型是“驳回”不是“驳 回”）
  *   modal    弹窗两个方向都居中（规范 第 5.3 节“弹窗｜居中”）；antd 的缺省是离顶 100
  *   drawer   左右方向的抽屉缺省宽 480（规范 第 5.3 节“抽屉”）；antd 的缺省 378 写死在组件里，没有主题变量。
  *            页面自己给了 size 的不动。关闭按钮照原型放在标题右侧（antd 的缺省在左侧）
  */
 export const adminComponentConfig = {
-  form: { requiredMark: false, scrollToFirstError: true },
+  form: { requiredMark: false, scrollToFirstError: { block: "center" } },
   button: { autoInsertSpace: false },
   modal: { centered: true },
   drawer: {
