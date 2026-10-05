@@ -138,6 +138,15 @@ jobs:
       # 契约自测要拿提交的生成物与现生成的逐字节比对，得赶在这一步把文件重新写出来之前跑
       - name: contract:check
         run: pnpm contract:check
+      # x01 名称登记（W0-09a）：先由登记数据重新生成归属表 docs/plan/x01-map.md 并 git diff --exit-code，再拿登记数据
+      # 与 x01 正文、working/frag 对账（名称集合、数量、归属里程碑、写法）。排在“测试”之后，理由同上一步：
+      # 契约自测要拿提交的归属表与现生成的逐字节比对，得赶在这一步把文件重新写出来之前跑
+      - name: 登记表对账
+        run: pnpm registry:check
+      # 枚举与库 CHECK 一致（W0-09a）：库里每条“列取值集合”形态的 CHECK ↔ 契约枚举，取值集合相等。只读，
+      # 读的是前面“空库跑全部迁移”一步建的 lyx_migrate_check；主机与账号取本任务的 DATABASE_URL
+      - name: 枚举与库 CHECK 一致
+        run: pnpm enums:check
       # 重新生成样式变量、后台主题、图标数据，与入库的生成物比对；顺带写出预览页（不入库），下一步上传
       - name: 设计生成物无差异
         run: pnpm design:check

@@ -112,6 +112,12 @@
       "kind": "generated",
       "check": "pnpm design:check",
       "note": "设计生成物：色值检查放行这个目录，只由 pnpm design:generate 写；与来源一致由 design:check 核对"
+    },
+    {
+      "pattern": "docs/plan/x01-map.md",
+      "except": ["docs/plan/x01-map.md"],
+      "kind": "append",
+      "note": "x01 条目归属表（生成物，只由 pnpm registry:generate 写）：算门禁路径、不逐行判；与登记数据一致由 pnpm registry:check 与契约自测核对。它是单个文件，generated 口径只认“目录/**”，用不了"
     }
   ]
 }
