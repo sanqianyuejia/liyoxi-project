@@ -52,6 +52,18 @@ body {
 }
 
 /*
+ * 表单控件里的数字同样等宽：浏览器给 input、textarea、button、select 的缺省字体简写会把这个属性重置成 normal，
+ * body 上的值继承不进去（搜索框、弹窗里输入的电话尾号、数值输入、按钮上的数字、日期浮层头部的年月），这里显式继承。
+ */
+input,
+textarea,
+button,
+select,
+optgroup {
+  font-variant-numeric: inherit;
+}
+
+/*
  * 被别处重置掉的地方在这里接回来：下拉的浮层（antd 把它的 font-variant 设回了初始值，“10 条、20 条、50 条”这类选项会对不齐）。
  * 前面加 :root 是为了不靠样式表的先后顺序压过 antd 自己的规则。.lyx-num 留着，个别地方要单独标数字时用。
  */
