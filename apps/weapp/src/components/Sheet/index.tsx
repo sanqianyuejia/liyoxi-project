@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import NutPopup from "@nutui/nutui-react-taro/dist/es/packages/popup";
-import { View } from "@tarojs/components";
+import { ScrollView, View } from "@tarojs/components";
 
 import { IconButton } from "@/components/IconButton";
 import { cx } from "@/lib/cx";
@@ -68,7 +68,12 @@ export function Sheet({
             onClick={onClose}
           />
         </View>
-        {children !== undefined ? <View className="lyx-sheet__body">{children}</View> : null}
+        {/* 正文用 scroll-view：NutUI 的弹层为了不让底下的页面跟着滚，拦了自己身上的滑动，普通容器在里面滚不动 */}
+        {children !== undefined ? (
+          <ScrollView scrollY enhanced showScrollbar={false} className="lyx-sheet__body">
+            {children}
+          </ScrollView>
+        ) : null}
         {footer !== undefined ? <View className="lyx-sheet__footer">{footer}</View> : null}
       </View>
     </NutPopup>

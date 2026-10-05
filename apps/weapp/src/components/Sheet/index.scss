@@ -57,11 +57,11 @@
   margin: -10px -11px -10px 0;
 }
 
+// 正文：内容不多时跟着内容高，放不下时被弹层的最高高度压住，在自己里面滚
 .lyx-sheet__body {
-  flex: 1;
+  flex: 0 1 auto;
+  width: auto;
   min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
 }
 
 .lyx-sheet__footer {

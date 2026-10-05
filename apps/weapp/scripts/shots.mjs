@@ -28,6 +28,8 @@ const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const h5Dir = path.join(appRoot, "shots/dist/h5");
 const outDir = path.join(appRoot, "shots/dist/png");
 const VIEWPORT = { width: 375, height: 812 };
+/** 同时开几个标签页截图 */
+const CONCURRENCY = 3;
 const TYPES = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -136,7 +138,7 @@ const context = await browser.newContext({
   timezoneId: "Asia/Shanghai",
 });
 const failed = [];
-for (const target of targets) {
+async function shoot(target) {
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -146,8 +148,8 @@ for (const target of targets) {
     await taroPage.waitFor({ state: "visible", timeout: 15_000 });
     if (errors.length > 0) throw new Error(`页面报错：${errors[0]}`);
     if (target.fullPage) {
-      // 等弹层这类进场动画走完
-      await page.waitForTimeout(500);
+      // 页面上开着弹层时，等它的进场动画走完
+      if ((await page.locator(".nut-overlay").count()) > 0) await page.waitForTimeout(500);
       // Taro 的 H5 页面在自己的容器里滚动，整页截图要先把视口撑到内容那么高
       const height = await taroPage.evaluate((node) => Math.ceil(node.scrollHeight));
       await page.setViewportSize({ width: VIEWPORT.width, height: Math.max(height, 200) });
@@ -160,6 +162,13 @@ for (const target of targets) {
   }
   await page.close();
 }
+// 一张图的时间大半花在等（等网络空闲、等动画），几页并着截；每页各用各的标签页，互不影响
+const queue = [...targets];
+await Promise.all(
+  Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
+    for (let target = queue.shift(); target; target = queue.shift()) await shoot(target);
+  }),
+);
 await browser.close();
 server.close();
 if (failed.length > 0) fail(`有页面没出图。\n  ${failed.join("\n  ")}`, 1);

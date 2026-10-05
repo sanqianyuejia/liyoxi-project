@@ -62,6 +62,7 @@ export function Button({
   className,
   onClick,
   openType,
+  formType,
   children,
   ...native
 }: ButtonProps) {
@@ -74,8 +75,9 @@ export function Button({
   return (
     <NutButton
       {...native}
-      // 不可用时不触发开放能力，也不显示按下态
+      // 不可用时不触发开放能力、不提交表单，也不显示按下态
       openType={inactive ? undefined : openType}
+      formType={inactive ? undefined : formType}
       hoverClass={inactive ? "none" : "lyx-button--pressed"}
       className={cx(
         "lyx-button",

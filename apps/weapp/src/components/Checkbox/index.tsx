@@ -38,7 +38,8 @@ export function Checkbox({
       )}
       hoverClass={disabled ? "none" : "lyx-checkbox--pressed"}
       ariaRole={shape === "round" ? "radio" : "checkbox"}
-      onClick={disabled ? undefined : () => onChange?.(!checked)}
+      // 单选框点已选中的那个不取消
+      onClick={disabled || (shape === "round" && checked) ? undefined : () => onChange?.(!checked)}
     >
       <View className="lyx-checkbox__box">{checked ? <Icon name="check" size={14} /> : null}</View>
       {children !== undefined ? <View className="lyx-checkbox__label">{children}</View> : null}
