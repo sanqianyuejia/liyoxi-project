@@ -201,6 +201,8 @@
 | `pnpm registry:generate` | 由契约的 x01 名称登记（`packages/contract/src/registry/`）重新生成条目归属表 `docs/plan/x01-map.md`。改了登记数据先跑它再提交；归属表不手改。用法见 [脚本](packages/contract/scripts/registry-map.ts) 开头的注释 |
 | `pnpm registry:check` | 登记表对账：重新生成归属表后 `git diff --exit-code`，再拿登记数据与 x01 正文、`docs/api/working/frag/x01-events-jobs.json` 对账（名称集合、数量、归属里程碑、名字的写法），一处不符即非 0 退出。不连库。口径见 [脚本](packages/contract/scripts/registry-check.ts) 开头的注释 |
 | `pnpm enums:check`（加 `-- --db <库名>` 换一个库） | 枚举与库 CHECK 一致：库里每条“列取值集合”形态的 CHECK 都有契约枚举（`packages/contract/src/enums/`）对应，取值集合相等；另核对名字写法的 CHECK 正则。只读；要 `DATABASE_URL`（或 `PG*`）与跑过迁移的 `lyx_migrate_check`（怎么建见 [README](packages/db/README.md) 第 3 节）。口径见 [脚本](packages/contract/scripts/enums-check.ts) 开头的注释 |
+| `pnpm db:verify-grants` | 角色与授权的核对：对 `DATABASE_URL` 指的、`lyx_` 开头、跑完全部迁移的库，核对两个角色、授权是否生效、分区表能否写入与查询；只读系统目录，不打印连接串。`pnpm db:verify-managed` 成功后会自动接着跑它（后置钩子 `postdb:verify-managed`）。见 [README](packages/db/README.md) 第 7、9 节 |
+| `pnpm --filter @liyoxi/db exec vitest run src/grants.test.ts` | 权限测试（也在 `pnpm test` 里）：自建自删一个库，跑两遍迁移，以应用角色、只读角色、属主三种身份逐张表去试。要 `DATABASE_URL` 的账号能建库、能切换角色。加表、加自增列要同时改迁移里的授权与这份用例里的清单，见 [README](packages/db/README.md) 第 9 节 |
 
 本地连接参数：配置只经 `loadEnv`（`packages/services/src/kernel/env.ts`）读环境变量，会话与测试不建、不读 `.env`，在命令前或 shell 里给出。取值出处是 [local.yml](infra/compose/local.yml)，账号与口令是固定的开发值，只对本机这套容器有效；CI 的服务容器用同一组值。
 

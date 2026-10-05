@@ -8,6 +8,7 @@
 | --- | --- |
 | `prisma/schema.prisma` | 由底稿迁入，模型一字未改；只改了文件头注释与 `generator` 的输出目录 |
 | `prisma/migrations/20261005000000_init/migration.sql` | 首版迁移：166 张表与 00–15 的手写约束。拼出来的，不手改（第 4 节） |
+| `prisma/migrations/20261005060000_grants/migration.sql` | 第二个迁移：角色与授权。手写的，不改结构（第 9 节） |
 | `prisma.config.ts` | Prisma 的配置。连接串只取环境变量 `DATABASE_URL`，不读 `.env`，没有默认值 |
 | `src/index.ts` | `createPrismaClient`：客户端的唯一构造入口（第 5 节） |
 | `scripts/build-init-migration.mjs` | 拼首版迁移的脚本，可重跑核对 |
@@ -24,6 +25,7 @@
 | `pnpm db:deploy` | `prisma migrate deploy`：对 `DATABASE_URL` 指的库跑全部待执行的迁移。可重复跑，没有待执行的迁移时什么都不做 | 是 |
 | `pnpm db:catalog-diff` | 系统目录比对（第 6 节） | 是 |
 | `pnpm db:verify-managed` | 托管库验证（第 7 节） | 是 |
+| `pnpm db:verify-grants` | 角色与授权的核对（第 7、9 节）。`pnpm db:verify-managed` 成功后会自动接着跑它 | 是 |
 
 本包自己的脚本：`pnpm --filter @liyoxi/db migration:build`（重拼首版迁移；加 `--check` 只核对、不写文件）、`pnpm --filter @liyoxi/db test`。
 
@@ -51,6 +53,7 @@ DATABASE_URL=postgresql://liyoxi:lyx-local-dev@localhost:5442/lyx_migrate_check 
   - 报“迁移库 lyx_migrate_check 连不上，或还没跑过迁移”：`pnpm infra:up`，再做上面最后两步。
   - 本包的用例连的是迁移库：主机与账号取 `DATABASE_URL`，库名换成 `lyx_migrate_check`，只读不写。
   - `infra/ci` 的用例与 `gates:selftest` 的反例自己建库（`lyx_test_infra_*`、`lyx_selftest_*`），用完删掉，不碰迁移库。
+  - 权限测试 `src/grants.test.ts` 自己建库（`lyx_test_db_grants_<进程号>`），跑两遍迁移，用完删掉，不碰迁移库。它要 `DATABASE_URL` 的账号能建库、能切换角色（本地与 CI 的管理账号都可以）。
 - 每个会话、每个测试进程一个库的测试支架由 W0-05b 交付；在那之前不要往迁移库里写数据。
 
 ## 4. 首版迁移是怎么来的
@@ -64,7 +67,7 @@ pnpm --filter @liyoxi/db migration:build --check   # 重拼的结果应与入库
 - 这条核对在 `pnpm test` 里（`src/migration.test.ts`）。迁移一旦在任何库上跑过就不能再改：Prisma 按文件的校验值认迁移。
 - 拼接时出现四类语句而脚本里没有登记理由，脚本报错，不让它漏标。
 - 迁移执行时按当天的日期建埋点事件表的分区（兜底、当月、未来 3 个月），分区子表的名字随月份变。
-- 迁移不建角色、不写授权（W0-06a）。之后的结构变更走新的迁移文件，一个结构变更包一个 PR。
+- 首版迁移不建角色、不写授权：那是第二个迁移（第 9 节）。之后的结构变更走新的迁移文件，一个结构变更包一个 PR；草稿怎么出、哪些要人工删改补，见第 9 节末尾指的 ADR。
 
 ## 5. 客户端工厂
 
@@ -120,6 +123,8 @@ pnpm db:catalog-diff
 - 报告：两个扩展（`btree_gist`、`pg_trgm`）在实例上可装、迁移跑通后已建出；迁移全部完成；数量两组口径。
 - 不打印连接串：输出里只有库名与服务器版本。迁移工具的输出只在失败时给出，并先抹掉主机、账号、口令。
 - 只动 `DATABASE_URL` 指的那一个库：库名不是 `lyx_` 开头、或库里已经有表，一律拒绝。
+- 上面几项通过之后，报告末尾接着出“角色与授权”一段（W0-06a）：两个角色在不在、是不是不可登录；`lyx_app` 在各表上的权限集合，16 张只增表与它们的例外列、`file_object` 不给删除；序列与清理函数；`lyx_readonly` 全库只读与缺省授权；往埋点事件表插一行、读回来、回滚（分区表可写可查，库里不留数据）；另报当前账号是不是超级用户、能不能建角色、是不是表的属主、能不能切换到 `lyx_app`。这一段只读系统目录，不切换角色。
+- “角色与授权”一段由另一个脚本 `infra/ci/db-verify-grants.mjs` 出：根脚本 `postdb:verify-managed` 是 pnpm 的后置钩子，`pnpm db:verify-managed` 成功后自动执行，前面不通过就不跑。对一个已经跑完迁移的 `lyx_` 开头的库单独核对：`DATABASE_URL=<那个库> pnpm db:verify-grants`。直接用 `node infra/ci/db-verify-managed.mjs` 跑不经过钩子，没有这一段。
 - 本地演练：
 
 ```sh
@@ -131,3 +136,32 @@ PGPASSWORD=lyx-local-dev psql -X -h localhost -p 5442 -U liyoxi -d postgres -c "
 ## 8. 生成的客户端为什么放在 `dist/generated/`
 
 任务书的默认是 `src/generated/`。实测 Prisma 生成的客户端自身有循环引用，放在 `src/` 下 `pnpm depcheck` 的“无循环依赖”一条会报 168 处；依赖方向检查只把 `dist/`、`coverage/` 当构建产物排除。放进 `dist/generated/` 后，lint、格式、依赖方向、git 的已有忽略范围都盖得住，不用新增任何忽略项（`docs/plan/status/W0-05.md` 偏差）。
+
+## 9. 角色与授权
+
+第二个迁移 `20261005060000_grants` 建两个角色并写授权（W0-06a）。只增表从此有两道：应用角色没有改、删的权限；触发器照旧拦（表的属主也改不了）。
+
+| 角色 | 谁用 | 权限 |
+| --- | --- | --- |
+| `lyx_app` | api 与 worker | 逐表授权，下表 |
+| `lyx_readonly` | 逻辑备份与排障 | 全部表与序列只读，含分区子表与 `_prisma_migrations`；跑迁移的账号以后建的表与序列自动带上 |
+| 跑迁移的账号 | 迁移（预发与生产是 `lyx_migrator`） | 表的属主。不由迁移创建 |
+
+| `lyx_app` 的权限 | 哪些表 |
+| --- | --- |
+| `SELECT, INSERT` | 16 张只增表：`outbox_event`、`status_transition`、`assignment_history`、`audit_log`、`auth_event`、`drama_copyright_revision`、`price_tier_revision`、`subscription_event`、`ledger_operation`、`point_ledger_entry`、`finance_config_revision`、`delivery_download_log`、`manual_reminder_log`、`agreement_consent`、`param_value`、`analytics_event`；另有 `service_ticket_entry` |
+| 列级 `UPDATE`（只增表上触发器放行“写一次”的列） | `outbox_event.published_at`；`assignment_history` 的 `contact_due_at`、`sla_snapshot`、`contacted_at`、`contacted_by_staff_id`、`contact_voided_at`、`updated_at`；`finance_config_revision.effective_at`；`delivery_download_log` 的 `client_ack`、`client_ack_at`；`param_value.cancelled_at` |
+| `SELECT, INSERT, UPDATE`（不给删除） | `file_object`；08 分组的 11 张（`billing_order`、`payment_txn`、`transfer_proof`、`refund_request`、`refund_txn`、`payment_exception`、`wx_bill_file`、`wx_bill_line`、`recon_day`、`invoice_request`、`invoice_doc`）；`service_ticket` |
+| `SELECT, INSERT, DELETE` | `service_ticket_ref` |
+| `SELECT, INSERT, UPDATE, DELETE` | 其余 135 张 |
+| 序列 `USAGE` | 14 个自增列背后的序列与 `audit_no_seq` |
+| 函数 `EXECUTE` | `lyx_03_purge_auth_event`（已收回所有人的执行权，只授给它） |
+| 没有任何权限 | 分区子表（经父表 `analytics_event` 读写）、`_prisma_migrations` |
+
+- 两个角色不可登录、不带口令，实例上已有同名角色就不再建。口令、登录账号、把账号加进角色，由环境初始化做，不进迁移。
+- `auth_event` 的删除没有触发器拦：清理函数要删 12 个月以前的行。拦应用的是权限，清理函数自己卡 12 个月的下限。
+- 核对办法：`pnpm --filter @liyoxi/db exec vitest run src/grants.test.ts`（也在 `pnpm test` 里）。它把 166 张表逐张的期望权限写在用例里，与迁移各写各的；库里多一张表而清单里没有，即失败。系统目录比对（第 6 节）不比授权。
+- 加表、加自增列、加以属主身份执行的函数时：在建它的那个迁移里补授权，并把它写进 `src/grants.test.ts` 的清单。`lyx_readonly` 不用写。
+- 以应用角色的身份连库（排查权限问题时用；要管理账号）：连接串后面加 `?options=-c%20role%3Dlyx_app`，等同于连上之后 `SET ROLE lyx_app`。
+- 权限测试插夹具行时靠 `session_replication_role = replica` 绕开外键，要超级用户；在不是超级用户的托管库上跑不了，那里用 `pnpm db:verify-grants`。
+- Prisma 遇到手写的约束、索引、触发器、分区会怎样，之后出下一版迁移的固定做法，建分区的函数由谁执行：见 [ADR（待分配编号）](../../docs/adr/draft-W0-06a-迁移草稿由migrate-diff从库到schema出-手写对象与授权人工补.md)。
