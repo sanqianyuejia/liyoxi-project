@@ -31,3 +31,15 @@ export { createSla } from "./sla/index.js";
 export type { Sla, SlaDeps } from "./sla/index.js";
 export { setPortLogger } from "./kernel/index.js";
 export type { PortLogger } from "./kernel/index.js";
+// W0-23 任务进程：环境与时钟、队列封装、租约、worker 的服务装配，以及队列任务带的两种引用
+export { bullPrefix, createQueueChannel, EnvError, loadEnv, systemClock } from "./kernel/index.js";
+export type { AppEnv, Clock, Env, LogLevel, QueueChannel, QueueConsumer } from "./kernel/index.js";
+export {
+  buildWorkerServices,
+  connectWorkerDatabase,
+  createWorkerLease,
+  LEASE_RENEW_MS,
+} from "./ops/index.js";
+export type { WorkerLease, WorkerServices, WorkerServicesOptions } from "./ops/index.js";
+export type { DeliveryRef } from "./events/index.js";
+export type { TimerRef } from "./timers/index.js";
