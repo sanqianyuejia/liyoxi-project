@@ -112,7 +112,7 @@ export interface Runtime {
 }
 
 /**
- * 建进程运行时。不连网也不等连接：数据库与 Redis 都是用到时才连，Redis 连不上不影响启动。
+ * 建进程运行时。不等连接：数据库用到时才连；Redis 当场在后台开始连，不等它连上，连不上不影响启动。
  * 会抛的两种：参数缺定义（ParamDefsError）、模块登记有重名或缺实现（AssemblyError）。
  */
 export function createRuntime(options: RuntimeOptions): Runtime {
