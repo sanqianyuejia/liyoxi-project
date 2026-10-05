@@ -4,7 +4,7 @@
 //   1. 全仓只有这里调 prisma.$transaction（lint 规则拦别处）。改库的服务函数第一个参数写 tx: Tx；
 //      Tx 带品牌，普通 Prisma 客户端传不进去；类型上去掉了 $transaction（Prisma 自带的嵌套事务不让用）。
 //      只有用例函数调 run；run 里再 run 即抛错。
-//   2. 死锁（40P01）、序列化失败（40001）、锁等待超时（55P03）各重试 TX_RETRIES 次，耗尽报 BUSY；
+//   2. 死锁（40P01）、序列化失败（40001）、锁等待超时（55P03）各重试 TX_RETRIES 次，耗尽报 BUSY（出在提交那一刻的也一样）；
 //      事务超时（Prisma P2028）不重试，报 BUSY；语句超时（57014）不重试，报 UPSTREAM_TIMEOUT。
 //      重试是把用例函数体整个再跑一遍：函数体里不得有事务外的副作用（发请求、改内存里的共享状态、入队）。
 //   3. 提交前探一句 SELECT 1：数据库错误被接住又没回滚到保存点时，PostgreSQL 会把 COMMIT 悄悄当成 ROLLBACK，
@@ -110,11 +110,36 @@ export function assertNotInTransaction(what: string): void {
   );
 }
 
-/** PostgreSQL 的 SQLSTATE。Prisma 7 加 pg 适配器：原生 SQL 与模型查询的数据库错误都把它放在这个位置 */
+/** 驱动适配器给的数据库错误原因：SQLSTATE 与数据库的原始报错 */
+export interface DbErrorCause {
+  readonly originalCode?: unknown;
+  readonly originalMessage?: unknown;
+}
+
+interface DriverAdapterErrorLike {
+  readonly name?: unknown;
+  readonly cause?: DbErrorCause;
+}
+
+/**
+ * 取数据库错误的原因。Prisma 7.9.1 加 pg 适配器，连真库查实有两种形状（用例 tx.commit.concurrency.test.ts 钉住）：
+ *   - 语句执行时出的错（原生 SQL 与模型查询）：Prisma 包成自己的错误，适配器的错误挂在 meta.driverAdapterError 上；
+ *   - 提交那一刻出的错（延迟约束、提交时才判出来的序列化失败与死锁）：COMMIT 由事务管理器直接发给适配器，没有人包，
+ *     $transaction 抛出来的就是适配器的 DriverAdapterError 本身（name 是 "DriverAdapterError"，没有 code、meta）。
+ * 第二种只认名字对得上的：别的错误碰巧有个带 originalCode 的 cause，不当成数据库错误。
+ */
+export function dbErrorCause(error: unknown): DbErrorCause | undefined {
+  if (typeof error !== "object" || error === null) return undefined;
+  const wrapped = (error as { meta?: { driverAdapterError?: DriverAdapterErrorLike } }).meta
+    ?.driverAdapterError;
+  if (wrapped?.cause) return wrapped.cause;
+  const bare = error as DriverAdapterErrorLike;
+  return bare.name === "DriverAdapterError" ? bare.cause : undefined;
+}
+
+/** PostgreSQL 的 SQLSTATE。语句执行时与提交时出的数据库错误都认得出，形状见 dbErrorCause */
 export function sqlStateOf(error: unknown): string | undefined {
-  const meta = (error as { meta?: { driverAdapterError?: { cause?: { originalCode?: unknown } } } })
-    ?.meta;
-  const code = meta?.driverAdapterError?.cause?.originalCode;
+  const code = dbErrorCause(error)?.originalCode;
   return typeof code === "string" ? code : undefined;
 }
 
