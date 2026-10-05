@@ -45,8 +45,9 @@ function flag<const K extends string, const X extends FlagExposedTo>(
 }
 
 /**
- * 14 个开关，键、值类型、默认值照 14 分组 第 2.7 节的播种表。
+ * 前 14 个开关，键、值类型、默认值照 14 分组 第 2.7 节的播种表。
  * 下发范围文档没有逐个给：D7 第 3.2 节列为前端要消费的记 client，其余记 server（任务书 W0-09a 第 11 节第 4 项）。
+ * 末尾两个是接口契约阶段定下、还没落到 14 分组播种表的（07 第 7 节“待回写清单”），值类型、下发范围、默认值照那张表。
  */
 export const FLAGS = [
   // 版本隐藏：V1.1 的功能在 V1.0 关闭。关着时服务端路由同样返回 FEATURE_DISABLED，不是只藏入口
@@ -84,6 +85,21 @@ export const FLAGS = [
     "0.0.0",
     "client",
     "低于它的客户端版本得到 CLIENT_OUTDATED，端上引导更新",
+  ),
+  // 07 第 7 节的待回写项（裁决 A103、A146；约定 C72）
+  flag(
+    "ops.maintenance_notice",
+    "json",
+    null,
+    "client",
+    "停机维护提示。默认 null：没有维护安排，端上不显示提示",
+  ),
+  flag(
+    "admin.wecom_web_login.enabled",
+    "bool",
+    false,
+    "client",
+    "关：后台登录页不出现企业微信网页登录，企业微信账号由员工手填绑定",
   ),
 ] as const;
 

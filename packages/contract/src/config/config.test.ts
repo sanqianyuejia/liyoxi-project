@@ -1,4 +1,5 @@
 // 开关登记与参数键清单的自测（任务书 W0-09a 第 7 节第 7、8 条）：与 14 分组 第 2.7、2.3 节的两张表对账。
+// W0-09b 补登了 07 第 7 节“待回写清单”里的 2 个开关键、7 个参数键：它们不在 14 分组的两张表里，按 07 的那张表对账。
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -48,22 +49,49 @@ const quoted = (cell: string) => [...cell.matchAll(/`([^`]+)`/g)].map((match) =>
 
 const configDoc = read("docs/data-model/14-config-data.md");
 
+/** 07 第 7 节“待回写清单”里某一类的行：登记项一栏反引号里的键，连同“默认值或说明”一栏 */
+const pendingRows = (category: string) =>
+  tableAfter(read("docs/07-api-contract.md"), "## 7. 待回写清单")
+    .filter((cells) => cells[0] === category)
+    .flatMap((cells) => quoted(cells[1]!).map((key) => ({ key, note: cells[2]! })));
+
 describe("开关登记（14 分组 第 2.7 节）", () => {
   const seeded = tableAfter(configDoc, "**播种的键与 V1.0 默认值**").flatMap((cells) =>
     quoted(cells[0]!).map((key) => ({ key, type: cells[1]!, fallback: cells[2]! })),
   );
 
-  it("14 个，键不重复，写法合 ck_feature_flag_key", () => {
+  /** 07 第 7 节待回写的开关 */
+  const pending = pendingRows("开关");
+
+  it("键不重复，写法合 ck_feature_flag_key；个数 = 播种表的加 07 第 7 节待回写的", () => {
     const keys = FLAGS.map((item) => item.key);
-    expect(keys).toHaveLength(14);
-    expect(new Set(keys).size).toBe(14);
+    expect(keys).toHaveLength(seeded.length + pending.length);
+    expect(new Set(keys).size).toBe(keys.length);
     expect(keys.filter((key) => !matchesFormat(FLAG_KEY_FORMAT, key))).toEqual([]);
     expect(matchesFormat(FLAG_KEY_FORMAT, `a.${"b".repeat(47)}`)).toBe(false);
   });
 
-  it("键的集合与播种表相同", () => {
+  it("键的集合 = 播种表的 14 个加 07 第 7 节待回写的 2 个", () => {
     expect(seeded).toHaveLength(14);
-    expect(FLAGS.map((item) => item.key).sort()).toEqual(seeded.map((row) => row.key).sort());
+    expect(pending.map((row) => row.key)).toEqual([
+      "ops.maintenance_notice",
+      "admin.wecom_web_login.enabled",
+    ]);
+    expect(FLAGS.map((item) => item.key).sort()).toEqual(
+      [...seeded, ...pending].map((row) => row.key).sort(),
+    );
+  });
+
+  it("07 第 7 节待回写的开关：值类型、下发范围、默认值照那张表", () => {
+    for (const row of pending) {
+      const registered = flagByKey(row.key)!;
+      // 说明一栏：“json，`exposed_to = client`，默认 null（…）”“bool，默认关，`exposed_to = client`（…）”
+      expect(row.note.startsWith(registered.valueType), row.key).toBe(true);
+      expect(quoted(row.note), row.key).toContain(`exposed_to = ${registered.exposedTo}`);
+      const fallback = /默认 ?(null|关|开)/.exec(row.note)?.[1];
+      expect(fallback, row.key).toBeDefined();
+      expect(registered.defaultValue, row.key).toBe(fallback === "null" ? null : fallback === "开");
+    }
   });
 
   it("值类型与 V1.0 默认值与播种表相同", () => {
@@ -134,6 +162,8 @@ describe("参数键清单（14 分组 第 2.3 节“参数键的归属”）", (
   const NOT_KEYS = new Set(["sod.refund.distinct_executor"]);
   /** 表里写成“`notify.window.start` / `end`”的另一半 */
   const EXPANDED = new Set(["notify.window.end"]);
+  /** 07 第 7 节待回写的参数：不在归属表里 */
+  const pending = pendingRows("参数").map((row) => row.key);
 
   it("键不重复，写法合 ck_param_value_key", () => {
     const keys = PARAM_KEYS.map((item) => item.key);
@@ -148,9 +178,26 @@ describe("参数键清单（14 分组 第 2.3 节“参数键的归属”）", (
     const inDoc = written.map((item) => item.key).filter((key) => !NOT_KEYS.has(key));
     expect(inDoc.length).toBeGreaterThan(80);
     expect(inDoc.filter((key) => !isParamKey(key))).toEqual([]);
-    const known = new Set([...inDoc, ...EXPANDED]);
+    const known = new Set([...inDoc, ...EXPANDED, ...pending]);
     expect(PARAM_KEYS.map((item) => item.key).filter((key) => !known.has(key))).toEqual([]);
     for (const key of [...NOT_KEYS]) expect(isParamKey(key), key).toBe(false);
+  });
+
+  it("07 第 7 节待回写的 7 个参数键都已登记，归属表里没有它们；分组照任务书 W0-09b 第 11 节第 12 项", () => {
+    expect(pending).toHaveLength(7);
+    expect(pending.filter((key) => !isParamKey(key))).toEqual([]);
+    const inDoc = new Set(written.map((item) => item.key));
+    expect(pending.filter((key) => inDoc.has(key))).toEqual([]);
+    const groupOf = new Map(PARAM_KEYS.map((item) => [item.key as string, item.group as string]));
+    expect(Object.fromEntries(pending.map((key) => [key, groupOf.get(key)]))).toEqual({
+      "ocr.daily_limit_per_store": "profile",
+      "upload.weapp_video_max_mb": "media",
+      "download.weapp_save_mode": "media",
+      "ad.duration_options": "ad",
+      "ad.revision_screenshot_max": "ad",
+      "catalog.search.industry_fallback": "content",
+      "notify.test_recipients": "notify",
+    });
   });
 
   it("带通配的键不猜：不登记它们名下的任何键", () => {

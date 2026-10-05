@@ -1,4 +1,4 @@
-// 参数键清单（14 分组 第 2.3 节“参数键的归属”表）：只登记键名与所属分组。
+// 参数键清单（14 分组 第 2.3 节“参数键的归属”表，加 07 第 7 节“待回写清单”里的参数）：只登记键名与所属分组。
 // 参数的类型、单位、范围、默认值不在这里：定义由 W0-18 按 14 分组 第 2.3 节交付（任务书 W0-09a 第 11 节第 3 项）；
 // 不变量 config.N17 核对库里 param_value.key 都是登记过的键。
 // 归属表里用“等”带过的键、带通配的键（payment.description_template.*、invoice.item_name.*）不猜、不登记，
@@ -14,7 +14,8 @@ export const PARAM_KEY_FORMAT = {
 } as const satisfies NameFormat;
 
 /**
- * 分组 → 键。分组名照归属表第一栏；第一栏并列写了几个名字的（如 payment / refund / invoice / recon），
+ * 分组 → 键。07 第 7 节补登的 7 个键，归属表里没有：键以已有分组名开头的归那一组，其余按用它的模块归
+ *（任务书 W0-09b 第 11 节第 12 项）。分组名照归属表第一栏；第一栏并列写了几个名字的（如 payment / refund / invoice / recon），
  * 按键的归属拆开：键以哪个名字开头就归哪个，对不上的按表里写的模块归（auth.* 归 identity，
  * invitation.* 归 tenant，admin.* 归 staff）。
  */
@@ -61,6 +62,8 @@ export const PARAM_KEYS_BY_GROUP = {
     "notify.sms.keepalive_days",
     "notify.wx.quota_cap",
     "notify.wx.field_fail_streak",
+    // 07 第 7 节的待回写项：后台“测试发送”的接收人；值里的 phone、wxOpenid 是敏感路径
+    "notify.test_recipients",
   ],
   general: [
     "package.link_ttl_days",
@@ -107,15 +110,28 @@ export const PARAM_KEYS_BY_GROUP = {
   ],
   staff: ["admin.password_max_age_days"],
   approval: ["approval.remind_workdays", "approval.escalate_workdays"],
-  content: ["content.permit.platform_check", "content.placement.open_slots"],
+  content: [
+    "content.permit.platform_check",
+    "content.placement.open_slots",
+    // 07 第 7 节的待回写项：搜索无结果时按行业兜底推荐
+    "catalog.search.industry_fallback",
+  ],
   media: [
     "files.purge.mode",
     "files.purge.max_objects",
     "files.purge.max_bytes",
     "files.retention.portrait_auth_adopted_years",
+    // 07 第 7 节的待回写项：小程序上传视频的大小上限；逐集保存的落盘方式
+    "upload.weapp_video_max_mb",
+    "download.weapp_save_mode",
   ],
   order: ["order.start_delay_minutes", "order.rejected_stale_days"],
-  ad: ["ad.returned_stale_days"],
+  ad: [
+    "ad.returned_stale_days",
+    // 07 第 7 节的待回写项：广告时长选项（秒）；每轮修改意见的截图上限
+    "ad.duration_options",
+    "ad.revision_screenshot_max",
+  ],
   delivery: ["qc.episode.four_eyes"],
   publish: [
     "launch.partial_goes_live",
@@ -124,6 +140,8 @@ export const PARAM_KEYS_BY_GROUP = {
     "takedown.check_mode",
   ],
   support: ["service.reopen_window_days"],
+  /** 07 第 7 节的待回写项：每门店每日证照识别次数上限。14 分组的归属表里没有这一组 */
+  profile: ["ocr.daily_limit_per_store"],
 } as const;
 
 /** 参数分组 */
