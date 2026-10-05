@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { fakeAuth, stubMiddleware, useTestApi } from "../src/testing/index.js";
 
-import { executions, SAMPLE_HANDLERS } from "./fixtures.js";
+import { executions, SAMPLE_HANDLERS, thingTouchHandler } from "./fixtures.js";
 
 const testApi = useTestApi();
 const TIMEOUT = { timeout: 60_000 };
@@ -12,7 +12,7 @@ const TIMEOUT = { timeout: 60_000 };
 const userId = uuidv7();
 const start = () =>
   testApi.start({
-    handlers: SAMPLE_HANDLERS,
+    handlers: [...SAMPLE_HANDLERS, thingTouchHandler],
     middlewares: [
       fakeAuth({ actor: { type: "merchant", id: userId, client: "weapp", role: "owner" } }),
       stubMiddleware("signature"),
@@ -125,6 +125,64 @@ describe("x-idempotent: required", () => {
     expect(logs.find((entry) => entry.evt === "http.error")).toMatchObject({
       err: { message: expect.stringContaining("m.lyxtestThing.forgetful") as unknown },
     });
+  });
+});
+
+describe("没有请求体的写接口", () => {
+  const touch = (thingId: string, key: string, init: { contentType?: string; body?: string }) => ({
+    path: `/api/v1/m/lyxtest-things/${thingId}/touch`,
+    init: {
+      method: "POST",
+      headers: {
+        "Idempotency-Key": key,
+        ...(init.contentType === undefined ? {} : { "Content-Type": init.contentType }),
+      },
+      ...(init.body === undefined ? {} : { body: init.body }),
+    },
+  });
+
+  it(
+    "带 Content-Type: application/json 而请求体为空：照常执行；与不带这个请求头的同键请求互为重放",
+    TIMEOUT,
+    async () => {
+      const { request } = await start();
+      const thingId = uuidv7();
+      const key = `touch:${uuidv7()}`;
+      const before = executions.touch;
+
+      // 小程序的 wx.request 缺省带这个请求头
+      const withHeader = touch(thingId, key, { contentType: "application/json" });
+      const first = await request(withHeader.path, withHeader.init);
+      expect(first.status).toBe(200);
+      expect(first.headers.get("Idempotent-Replayed")).toBeNull();
+
+      const bare = touch(thingId, key, {});
+      const replay = await request(bare.path, bare.init);
+      expect(replay.status).toBe(200);
+      expect(replay.headers.get("Idempotent-Replayed")).toBe("true");
+      expect(await replay.json()).toEqual(await first.json());
+
+      const blank = touch(thingId, key, { contentType: "application/json", body: "  \n" });
+      expect((await request(blank.path, blank.init)).headers.get("Idempotent-Replayed")).toBe(
+        "true",
+      );
+      expect(executions.touch).toBe(before + 1);
+    },
+  );
+
+  it("请求体不是合法的 JSON 仍是 400；带了内容的同键请求算另一个请求", TIMEOUT, async () => {
+    const { request } = await start();
+    const thingId = uuidv7();
+    const key = `touch:${uuidv7()}`;
+    const broken = touch(thingId, key, { contentType: "application/json", body: "{oops" });
+    const rejected = await request(broken.path, broken.init);
+    expect(rejected.status).toBe(400);
+    expect(await rejected.json()).toMatchObject({ error: "VALIDATION_FAILED" });
+
+    const empty = touch(thingId, key, { contentType: "application/json" });
+    expect((await request(empty.path, empty.init)).status).toBe(200);
+    const withBody = touch(thingId, key, { contentType: "application/json", body: '{"x":1}' });
+    expect((await request(withBody.path, withBody.init)).status).toBe(409);
   });
 });
 
