@@ -29,10 +29,23 @@ export type { KernelViolationKind, Tx, TxRunner, TxRunnerOptions, TxRunOptions }
 // W0-07 时钟与主键
 export { systemClock } from "./clock.js";
 export type { Clock } from "./clock.js";
-export { uuidv7 } from "./ids.js";
+export { isUuid, uuidv7 } from "./ids.js";
 
 // W0-07 加锁顺序：常量、锁序断言、加锁函数
 export { assertLockOrder, checkLockOrder, LOCK_ORDER } from "./lock-order.js";
 export type { LockTable } from "./lock-order.js";
 export { lockRows } from "./lock.js";
 export type { RowLockMode, RowLockTable } from "./lock.js";
+
+// W0-07 操作人与身份上下文
+export { actorColumns, actorKey, createActor, createIdentityContext } from "./actor.js";
+export type {
+  Actor,
+  ActorClient,
+  ActorInput,
+  IdentityContext,
+  IdentityContextInput,
+  MerchantActor,
+  StaffActor,
+  SystemActor,
+} from "./actor.js";
