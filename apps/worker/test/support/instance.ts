@@ -46,6 +46,8 @@ export interface InstanceOptions extends WorkerSampleOptions {
   /** 单调时钟与退出：用例换成自己的 */
   readonly monotonic?: () => number;
   readonly exit?: (code: number) => void;
+  /** 带上真实模块的周期任务（W0-24 的不变量与清理）；缺省不带 */
+  readonly realRecurring?: boolean;
 }
 
 export function createInstance(options: InstanceOptions) {
@@ -57,6 +59,8 @@ export function createInstance(options: InstanceOptions) {
     entry: "worker",
     appEnv: options.appEnv,
     extra: [sample.registration, ports.registration],
+    // 真实模块的周期任务（不变量、清理）缺省不带：这里的用例只跑样例的；要带的写 realRecurring: true
+    omitReal: options.realRecurring === true ? [] : ["recurringJobs"],
   });
   const clock = options.clock ?? createClock();
   const database = connectWorkerDatabase(options.databaseUrl);

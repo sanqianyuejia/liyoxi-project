@@ -21,3 +21,15 @@ export type {
   OkDegraded,
   UpDown,
 } from "./health.js";
+// W0-24：不变量校验的运行与落库、违规上报端口的实现、清理的执行，三个周期任务登记在 register.ts
+export { bindOps, boundOps } from "./binding.js";
+export type { OpsBinding, SqlRunner } from "./binding.js";
+export * from "./invariants/index.js";
+export {
+  isFirstRoundOfDay,
+  RETENTION_LIMIT,
+  RETENTION_MAX_BATCHES,
+  runRetention,
+} from "./retention.js";
+export type { RetentionDeps, RetentionInput, RetentionResult } from "./retention.js";
+export { registration } from "./register.js";

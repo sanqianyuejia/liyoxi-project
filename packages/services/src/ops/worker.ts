@@ -31,6 +31,7 @@ import type {
   TimerRef,
   Timers,
 } from "../timers/index.js";
+import { bindOps } from "./binding.js";
 
 /** worker 主池（D7 第 8.3 节）：10 条连接，语句 30 秒、等锁 3 秒、事务内空闲 60 秒 */
 export function connectWorkerDatabase(connectionString: string): {
@@ -94,6 +95,8 @@ export function buildWorkerServices(options: WorkerServicesOptions): WorkerServi
   const events = createEvents({ assembly, clock, tx, testEvents: options.testEvents });
   const timers = createTimers({ assembly, catalog: options.timerCatalog });
   const alerts = alertsOf(assembly);
+  // ops 的周期任务与违规上报端口要连接、时钟与装配结果（W0-24）
+  bindOps({ db: prisma, tx, clock, assembly });
   const delivery = { tx, subscribers: events.subscribers, channel, alerts };
   const timing = { tx, assembly, registry: timers.registry, clock, alerts, channel };
   return {

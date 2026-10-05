@@ -26,7 +26,7 @@ import type {
 } from "./kernel/index.js";
 import { createLogger } from "./logger.js";
 import type { Logger } from "./logger.js";
-import { createHealth } from "./ops/index.js";
+import { bindOps, createHealth } from "./ops/index.js";
 import type { Health } from "./ops/index.js";
 
 /** 一个连接池的参数：连接数上限与三个会话超时（毫秒） */
@@ -160,6 +160,8 @@ export function createRuntime(options: RuntimeOptions): Runtime {
     ...(options.healthCacheMs === undefined ? {} : { cacheMs: options.healthCacheMs }),
   });
   const assembly = assembleServices({ entry, appEnv: env.APP_ENV });
+  // 违规上报端口（invariants.report）的实现在 ops，要连接、时钟与装配结果（W0-24）
+  const unbindOps = bindOps({ db: prisma, tx, clock, assembly });
 
   const startupChecks: StartupCheck[] = [
     {
@@ -188,6 +190,7 @@ export function createRuntime(options: RuntimeOptions): Runtime {
     report,
     startupChecks,
     async close() {
+      unbindOps();
       redis.disconnect();
       await prisma.$disconnect();
     },

@@ -8,3 +8,5 @@ export { AUDIT_JSON_MAX_BYTES, AUDIT_JSON_MAX_DEPTH, AUDIT_TEXT_LIMITS } from ".
 export { sensitiveRule } from "./sensitive.js";
 export { AUDIT_INVARIANTS, auditI2, auditI3, findUnknownAuditTargetTypes } from "./invariants.js";
 export type { AuditInvariantCheck, AuditReader, AuditViolation } from "./invariants.js";
+// W0-24：两条每日校验登记进不变量框架
+export { registration } from "./register.js";

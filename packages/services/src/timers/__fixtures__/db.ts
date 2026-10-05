@@ -20,7 +20,13 @@ export const ROOMY = { timeoutMs: 60_000, maxWaitMs: 60_000 } as const;
 
 /** 带样例登记的 timers：真实模块之外追加 lyxtest 的两个处理器、四个周期任务 */
 export function sampleTimers(appEnv: "test" | "stg" | "prod" = "test"): Timers {
-  const assembly = assembleForTest({ entry: "worker", appEnv, extra: [sampleTimerRegistration] });
+  // 真实模块的周期任务（不变量、清理）不带：这里的用例按样例的四个周期任务数行数
+  const assembly = assembleForTest({
+    entry: "worker",
+    appEnv,
+    extra: [sampleTimerRegistration],
+    omitReal: ["recurringJobs"],
+  });
   return createTimers({ assembly, catalog: SAMPLE_TIMER_CATALOG });
 }
 

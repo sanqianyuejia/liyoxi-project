@@ -123,3 +123,5 @@ export {
   SYSTEM_DICT_ITEMS,
 } from "./seed-data.js";
 export type { ChecklistTemplateSeed, DictItemSeed, DictTypeSeed } from "./seed-data.js";
+// W0-24：六条配置类不变量登记进不变量框架
+export { CONFIG_SQL_INVARIANTS, registration } from "./register.js";

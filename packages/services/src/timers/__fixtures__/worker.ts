@@ -49,6 +49,8 @@ export function workerTimers(options: WorkerSampleOptions & { extra?: ModuleRegi
   const assembly = assembleForTest({
     entry: "worker",
     extra: [...(options.extra ?? [workers.registration]), ports.registration],
+    // 真实模块的周期任务（不变量、清理）不带：这里的用例只跑样例的
+    omitReal: ["recurringJobs"],
   });
   const timers = createTimers({ assembly, catalog: SAMPLE_TIMER_CATALOG });
   const clock = createClock();
