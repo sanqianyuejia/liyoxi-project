@@ -9,7 +9,7 @@
 // 不改 PIPELINE_ORDER，不在别处 app.use()。按组不同的（鉴权：商家、后台、下载页各一条链）各登记一行，写上 groups；
 // 同一个槽位同一组只能登记一件，重了即启动失败。要加新的一种中间件：先在 PIPELINE_ORDER 里给它排位（改本文件的这一处）。
 //
-// 全局的三件（请求编号 → 访问日志 → 客户端 IP → Host 判断）在 app.ts，排在本表之前；
+// 全局的四件（请求编号 → 访问日志 → 客户端 IP → Host 判断）在 app.ts，排在本表之前；
 // 入参校验由 app.openapi() 排在本表之后、处理器之前。
 import type { RouteGroup } from "@liyoxi/contract";
 

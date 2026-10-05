@@ -216,6 +216,7 @@
 | `pnpm --filter @liyoxi/services exec vitest run src/kernel/assembly/ src/assembly.test.ts` | 只跑服务装配的用例：两个样例模块在 api、worker 两个入口都能收集到，重名与缺实现启动失败，按环境过滤（`envs`），组合根的入口清单与模块目录对账。用例不碰库，命令照样要带 `DATABASE_URL`（services 的全局准备要它）。模块怎么登记、端口怎么用见 [README](packages/services/src/kernel/assembly/README.md) |
 | `pnpm --filter @liyoxi/api build` | api 的构建：出 `apps/api/dist/server.js` 与 `check-env.js`（`@liyoxi/*` 内联，第三方包运行时解析），构建完核对产物引到的第三方包都已在 `apps/api/package.json` 里声明。起它：`node apps/api/dist/server.js --port 3000`（要连接参数）。见 [README](apps/api/README.md) 第 5 节 |
 | `pnpm exec vitest run --project api` | 只跑 `apps/api` 的用例（也在 `pnpm test` 里）：接口层、幂等、声明即挂载、探活、构建产物起得来；顺带写出已挂载清单 `apps/api/dist/mounted-operations.json`（`node infra/ci/landed.mjs` 读它）。要连接参数。接口测试支架的用法见 [README](apps/api/README.md) 第 2 节与 `apps/api/src/testing/index.ts` 开头的注释 |
+| `pnpm exec vitest run --project api test/rate-limit.test.ts test/pipeline.test.ts` | 只跑限流与装配顺序的用例：超限 429 带 `Retry-After`、停掉 Redis 后降级（用故障注入的转发口，不动共享的 Redis）、路由级中间件的先后只在 `apps/api/src/routing/pipeline.ts` 一处定义。要连接参数（含 `REDIS_URL`）。加一件中间件、加档位与调额度的做法见 [README](apps/api/README.md) 第 3.1、3.2 节 |
 
 本地连接参数：配置只经 `loadEnv`（`packages/services/src/kernel/env.ts`）读环境变量，会话与测试不建、不读 `.env`，在命令前或 shell 里给出。取值出处是 [local.yml](infra/compose/local.yml)，账号与口令是固定的开发值，只对本机这套容器有效；CI 的服务容器用同一组值。
 
