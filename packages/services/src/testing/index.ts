@@ -35,3 +35,5 @@ import type {} from "./global-setup.js";
 
 // W0-25：测试数据支撑——工厂、带种子的干净库、表快照比较器、假 Provider 支架。用法见 ./data/README.md
 export * from "./data/index.js";
+// W1-01a：后台登录的支架——假密钥、测试库上的凭据用例、接口测试的登录态 signInAsStaff
+export * from "./staff.js";
