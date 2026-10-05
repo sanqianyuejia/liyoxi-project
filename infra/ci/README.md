@@ -26,6 +26,8 @@
 | `pages/generate.mjs`、`pages/sources/` | 页面清单：由后台菜单登记表与下载页页面清单生成 `docs/plan/pages.md`。一个端一个数据源文件，自动收集；小程序的由 W0-27a 往 `sources/` 里加 | `node infra/ci/pages/generate.mjs`；CI 用 `--check` 核对无差异 |
 | `apps/admin/scripts/check-build.mjs`（不在本目录） | 后台与下载页的构建产物检查：文件名带内容哈希、写入了构建号、是生产构建、不含夹具的标记 | 两个应用各自的 `build` 脚本，即 `pnpm admin:build`、`pnpm portal:build`；CI |
 | `apps/admin/scripts/e2e-affected.mjs`（不在本目录） | 后台冒烟的受影响范围判断：PR 改到后台或它依赖的部分才跑，推到 main 一律跑 | CI 的“后台冒烟要不要跑”一步 |
+| `check-mp-size.mjs` | 小程序体积门禁（W0-27a）：主包 ≤1,500KB、各分包 ≤800KB；分包取产物里 `app.json` 的声明，主包是总量减各分包；打印各包体积 | `pnpm weapp:build` 的最后一步；CI 的“小程序体积门禁”一步 |
+| `apps/weapp/scripts/shots-affected.mjs`（不在本目录） | 小程序截图的受影响范围判断：PR 改到小程序或页面上看得见的设计变量才跑，推到 main 一律跑。截图是页面证据，不是门禁 | CI 的“小程序截图要不要跑”一步 |
 
 工作流在 `.github/workflows/`：`ci.yml`（每个 PR 与推到 main）、`nightly.yml`（每晚，Node 26，失败只告警）。
 

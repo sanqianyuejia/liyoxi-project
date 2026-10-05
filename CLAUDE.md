@@ -206,6 +206,10 @@
 | `pnpm db:verify-grants`（加 `--database <库名>` 核对名字不以 `lyx_` 开头的库） | 角色与授权的核对：对 `DATABASE_URL` 指的、`lyx_` 开头、跑完全部迁移的库，核对两个角色、授权是否生效、分区表能否写入与查询；逐表与期望比，只读系统目录，不打印连接串。`pnpm db:verify-managed` 成功后会自动接着跑它（后置钩子 `postdb:verify-managed`，要经 pnpm 跑才有）。见 [README](packages/db/README.md) 第 7、9 节 |
 | `pnpm --filter @liyoxi/db exec vitest run src/grants.test.ts` | 权限测试（也在 `pnpm test` 里）：自建自删一个库，跑两遍迁移，以应用角色、只读角色、属主三种身份逐张表去试。要 `DATABASE_URL` 的账号能建库、能切换角色。加表要同时改迁移里的授权与期望的授权 `packages/db/src/grants.expected.json`（核对脚本也读它），见 [README](packages/db/README.md) 第 9 节 |
 | `pnpm api-registries:check` | 接口侧注册表对账：契约里的领域错误码、权限点、能力点、后台模块键、资源登记、通知场景、订阅点位、埋点事件，以及 07 第 7 节补登的参数键与开关键，与登记文档（`docs/api/registry-errors.md`、`registry-permissions.md`）、`docs/api/working/` 的底稿及各依据文档逐字段对账，一处不符即非 0 退出。只读文件，不连库。对谁比、不比什么，见 [脚本](packages/contract/scripts/api-registries-check.ts) 开头的注释 |
+| `pnpm weapp:build` | 出小程序包 `apps/weapp/dist/`，由模板生成 `project.config.json`（不入库），再过体积门禁；超限即失败。AppID、接口基址等经环境变量给，都有缺省，不读 `.env`。见 [README](apps/weapp/README.md) |
+| `node infra/ci/check-mp-size.mjs apps/weapp/dist` | 小程序体积门禁：主包 ≤1,500KB、各分包 ≤800KB，打印各包体积。口径见 [脚本](infra/ci/check-mp-size.mjs) 开头的注释 |
+| `pnpm --filter @liyoxi/weapp test` | 小程序的用例：请求层、四个端上封装、页面清单，在 Node 里跑。根上的 `pnpm test` 不含它。只跑一个文件时后面加路径，如 `src/lib/request.test.ts` |
+| `pnpm weapp:shots`（只出一页加 `-- --page pages/home/index`） | 小程序页面截图：出一份 H5 构建，用 Chromium 按 375 宽给已建的页各截一张，产物在 `apps/weapp/shots/dist/png/`。本机没装 Playwright 自带的浏览器时前面加 `LYX_E2E_CHANNEL=chrome`。H5 是近似，与真机的差异见 [README](apps/weapp/README.md) 末节 |
 
 本地连接参数：配置只经 `loadEnv`（`packages/services/src/kernel/env.ts`）读环境变量，会话与测试不建、不读 `.env`，在命令前或 shell 里给出。取值出处是 [local.yml](infra/compose/local.yml)，账号与口令是固定的开发值，只对本机这套容器有效；CI 的服务容器用同一组值。
 

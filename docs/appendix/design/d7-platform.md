@@ -627,9 +627,9 @@ request(path, { method, data, auth = true, idempotencyKey?, timeout? }):
                不带幂等键的写请求不重试，直接报“网络异常”
   5. 读回包：先看 body.error（符号名），没有 body 再看 HTTP 状态（双通道）
      成功（code == 0）        → 返回 data
-     AUTH_REQUIRED            → await recoverOnce('refresh', doRefresh)；成功则带原 X-Request-Id 与幂等键重放一次；
-                                 失败且“本次确实带了令牌” → 清会话、reLaunch 登录页
-     SESSION_REVOKED          → 清会话、reLaunch 登录页
+     AUTH_REQUIRED            → await recoverOnce('login', silentLogin)（wx.login 加 POST /m/sessions，没有刷新令牌，约定 C3）；成功则带原 X-Request-Id 与幂等键重放一次；
+                                 失败且“本次确实带了令牌” → 清会话、reLaunch 登录页；返回 needPhone → 回登录页
+     SESSION_INVALID          → 同 AUTH_REQUIRED（约定 C27；原稿的 SESSION_REVOKED 已作废）
      NOT_A_MEMBER             → await recoverOnce('me', reloadMe)；当前门店失效则回到门店选择并提示
      CONSENT_REQUIRED（428）  → await recoverOnce('consent', askConsentAndSubmit)；同意 → 重放；拒绝 → 抛 ApiError
      CLIENT_OUTDATED          → recoverOnce('outdated', showUpdatePrompt)（wx.getUpdateManager）；不重放
@@ -645,7 +645,7 @@ recoverOnce(kind, fn):              # 同一类恢复在途时，后来者共用
 
 - **所有会弹框或会改全局状态的恢复都走 `recoverOnce`**【评审 m10】：首页并发的 5 个请求同时收到 `CONSENT_REQUIRED` 时只弹一次协议确认，结果由 5 个请求共享；`CLIENT_OUTDATED`、`NOT_A_MEMBER` 同理。原稿只有 401 续期做了单飞。用户拒绝协议后 30 秒内不再重复弹出。
 - “只有带着凭证发出去仍被拒才清登录态”的判断照搬参考工程，防止某个接口忘带令牌导致死循环。
-- 弱网下续期请求可能被重发：D4 的令牌轮换在行锁内进行，并对上一枚刷新令牌留 60 秒重试宽限，所以重发不会把自己踢下线；端上不需要额外处理。
+- 没有刷新令牌，也就没有“续期请求被重发”的问题（约定 C3；原稿这一条写的是 D4 原稿的令牌轮换，已不适用）：静默登录每次用新的 `wx.login` 登录码换一枚新令牌，重发只是多登一次。
 - 类型全部来自 `@liyoxi/contract/types/merchant`；页面里不手写接口类型。
 - `app.json` 的 `networkTimeout` 显式设置为 `request 30 秒、uploadFile 300 秒、downloadFile 600 秒`（小程序默认都是 60 秒【核实 file-2】；取值与 D5 修订稿 §5.5 一致），单次调用再按文件大小传 `timeout`。
 
@@ -754,8 +754,8 @@ withSubscribe(point: SubscribePoint, handler: () => Promise<void>): () => void
 1. 引导接口返回的 `subscribePlan[point]` 是该点位此刻要请求的模板 id（服务端已排好序、去掉冷却中的槽位，每次至多 3 个）；清单为空或 `notify.wx.enabled` 关闭时直接执行 `handler`，不出现任何入口——模板没过审不阻塞上线。
 2. 点击处理函数的**第一句**同步调用 `wx.requestSubscribeMessage`，中间不能隔 `await`，否则弹不出来【调研 ref-ops §1.9】；所以模板 id 必须来自已在内存里的引导数据，不能临时请求。
 3. 无论用户接受还是拒绝、接口成功还是失败，都继续执行 `handler`。
-4. 结果（每个模板 `accept / reject / ban / filter`）连同端上生成的 `reportId` 上报 `POST /m/notify/subscribe-results`，成功后刷新引导数据里的 `subscribePlan`。
-5. 16 个点位的键（`profile_submit`、`pay_success`、`order_submit`、`plan_confirm`、`sample_confirm`、`package_download`、`link_submit` 等）作为常量登记在 `contract`，页面只引用常量。支付成功这个点位在 `wx.requestPayment` 的成功回调里调用（平台允许支付回调触发）。
+4. 结果（每个模板 `accept / reject / ban / filter`）连同端上生成的 `reportId` 上报 `POST /m/subscribe-results`（路径以 routemap.json 为准，原稿写作 `/m/notify/subscribe-results`），成功后刷新引导数据里的 `subscribePlan`。
+5. 19 个点位的键（契约登记的数；D6 第 2.9.3 节的表 16 行，其中 3 行各并列两个键）（`profile_submit`、`pay_success`、`order_submit`、`plan_confirm`、`sample_confirm`、`package_download`、`link_submit` 等）作为常量登记在 `contract`，页面只引用常量。支付成功这个点位在 `wx.requestPayment` 的成功回调里调用（平台允许支付回调触发）。
 
 ### 4.9 上传
 
@@ -869,7 +869,7 @@ track(name, props):
   满 10 条、或距上次上报 5 秒、或 onHide / onUnload → flush()
 
 flush():
-  取出至多 50 条 → POST /m/events/batch
+  取出至多 50 条 → POST /m/analytics-events（路径以 routemap.json 为准，原稿写作 /m/events/batch）
      { sentAt, anonymousId, sessionId, clientVersion, platform, scene, events }
   返回 200 → 这批全部移除（被拒绝的也移除，重试没有意义）
   网络失败或 5xx → 放回队列并写入本地 lyx.track.queue（至多 200 条，超出丢最旧的）；下次启动先补报
@@ -884,11 +884,11 @@ flush():
 
 小程序不能直连 sentry.io（域名未备案）【核实 misc-4】。三端统一用 Sentry 协议，经自有域名转发：
 
-- `sentry-miniapp@1.20.4`，`tunnel` 指向 `https://api.<域名>/api/v1/m/telemetry/envelope`（本设计新增的平台类接口，`x-auth: optional`）；后台与下载页走各自同源的 `/api/v1/admin/telemetry/envelope`、`/api/v1/portal/telemetry/envelope`。上游选哪种见 9.2。
+- `sentry-miniapp@1.20.4`，`tunnel` 指向 `https://api.<域名>/api/v1/m/client-errors`（本设计新增的平台类接口，`x-auth: optional`；路径以 routemap.json 为准，原稿写作 `…/m/telemetry/envelope`）；后台与下载页走各自同源的 `/api/v1/admin/client-errors`、`/api/v1/portal/client-errors`。上游选哪种见 9.2。
 - **转发与业务请求隔离**【评审 m13】。端上错误激增往往发生在系统已经有问题的时候，转发不能再占住 api 的处理能力：
 
 ```
-POST …/telemetry/envelope:
+POST …/client-errors:
   1. 检查：体积 ≤200KB；项目在白名单内；限流（登录用户每分钟 30 条；匿名按 IP 每分钟 10 条）
      —— 限流走 Redis，Redis 不可用时用进程内计数（7.3），不放开
   2. 入进程内有界队列（200 条；满了丢弃最新的并计数）
@@ -903,7 +903,7 @@ POST …/telemetry/envelope:
 - `beforeSend` 清洗：去掉请求体、令牌、形如手机号与统一社会信用代码的字符串；用户标识只带 id。
 - 自动捕获：`onError`、`onUnhandledRejection`、页面不存在、接口 5xx 与网络错误（带 `X-Request-Id`）、`requestPayment` 非取消类失败、上传与下载的失败分类、手机号组件额度不足。
 - `release` = 小程序版本号，`environment` = `develop / trial / release`。
-- 体积超预算或库在 Taro Vite 构建下有兼容问题时，换成自研上报器：把上面这些钩子收集的错误以同一个转发接口上报为 Sentry envelope（约 5KB）。参考工程评估过但没落地【调研 ref-ops §1.14】，建仓第一周验证并定案。
+- 体积超预算或库在 Taro Vite 构建下有兼容问题时，换成自研上报器：把上面这些钩子收集的错误以同一个转发接口上报为 Sentry envelope（约 5KB）。参考工程评估过但没落地【调研 ref-ops §1.14】，建仓第一周验证并定案。【已定案（W0-27a）：库能构建，但主包多 157KB、超预算，小程序换成自研上报器，见 `docs/plan/external-verification/d7-09-error-reporting-taro-vite.md`】
 
 ### 4.14 隐私与提审相关配置
 
