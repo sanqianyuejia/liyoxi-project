@@ -222,6 +222,18 @@ jobs:
       # 只核对各包的状态文件合不合规（取值、字段、依赖指向）。状态汇总不入库，这里不生成也不比对
       - name: 状态文件核对
         run: node infra/ci/status-summary.mjs --check
+      # 任务进程的产物能启动（W0-23）：--check 只做装配与自检——登记与契约对得上、契约登记的聚合类型都是库里存在的表，
+      # 不连 Redis、不抢租约。产物是前面“构建”一步出的；读的是“空库跑全部迁移”一步建的 lyx_migrate_check，只读
+      - name: worker 产物自检
+        env:
+          DATABASE_URL: postgresql://liyoxi:lyx-local-dev@localhost:5442/lyx_migrate_check
+        run: node apps/worker/dist/index.js --check
+      # 托管 Redis 与队列库的兼容脚本（W0-23；验证项 V1）在本任务的 Redis 上跑通：脚本本身没坏，七项里自动的几项都过。
+      # 条数与空闲时长缩到最小；主从切换、写满两项在这里记“需人工”。有“不通过”即非 0 退出
+      - name: redis:compat
+        env:
+          REDIS_COMPAT_URL: redis://localhost:6389/0
+        run: pnpm redis:compat --jobs 500 --idle-minutes 0.05
 
   gate-classify:
     name: gate-classify
