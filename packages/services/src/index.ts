@@ -98,3 +98,26 @@ export type {
   InvariantTrigger,
   RunInvariantsInput,
 } from "./ops/index.js";
+// W1-03 协议与同意、主体与门店：两个装配入口（进程启动时各建一次；用法见 docs/README.md、tenant/README.md），
+// 公告的最小实现，以及接口层与别的域要用的类型
+export { createDocs } from "./docs/index.js";
+export type {
+  AgreementListQuery,
+  AssertConsentsInput,
+  AssertConsentsResult,
+  ConsentSigner,
+  Docs,
+  DocsDeps,
+  SignedAgreementViewer,
+} from "./docs/index.js";
+export { billingAccountPort, createTenant } from "./tenant/index.js";
+export type {
+  ActiveMembership,
+  BillingAccountOpener,
+  QuotaUsage,
+  StoreMembership,
+  Tenant,
+  TenantDeps,
+} from "./tenant/index.js";
+export { createNotices } from "./config/index.js";
+export type { Notices, NoticesDeps } from "./config/index.js";
