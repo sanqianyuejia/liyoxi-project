@@ -73,8 +73,10 @@ it("……", async () => {
 ```
 
 - “清空”只用 `SCAN` 加 `UNLINK`，不用 `FLUSHDB`、`FLUSHALL`：共享的那份 Redis 上还有别的会话、别的 worker 与本地开发的键。前缀同样有守卫（`assertTestRedisPrefix`）。
-- 首次取连接时先清掉这个前缀下上一轮的残留；测试文件跑完，自动断开并清空。收尾返回时，发出去的连接都已经真的断开（状态是 `end`）。
-- 自己另建的连接（`new Redis(...)`）收尾时用 `await disconnectTestRedis(client)`，不要 `client.disconnect()` 完就当它断了：ioredis 的 `disconnect()` 只是发起断开，状态要等对端把连接关掉才变，机器忙的时候晚到几十毫秒是常事。断言连接状态之前先等它。
+- 首次取连接时先清掉这个前缀下上一轮的残留；测试文件跑完，自动断开并清空。收尾挂在 `aroundAll` 上（与测试库同一个办法）：测试文件自己的 `afterAll` 先抛了错，收尾照样执行，键不留在共享的 Redis 上。
+- 收尾返回时，发出去的连接都已经真的断开，状态是 `end`。例外一种：收尾那一刻正等着重连的连接（Redis 不可用时就是这样），它的 socket 早就关了，收尾只取消重连，ioredis 不再发 `end` 事件，状态停在 `reconnecting`；它不会再连上，也发不出命令。
+- 等一条连接断开最多 10 秒。到点还没断开（对端一直不关）：强行关掉它，本前缀下的键照样清空，清完再报错“Redis 连接 … 毫秒内没有断开（状态停在 …），已强行关掉”。
+- 自己另建的连接（`new Redis(...)`）收尾时用 `await disconnectTestRedis(client)`，不要 `client.disconnect()` 完就当它断了：ioredis 的 `disconnect()` 只是发起断开，状态要等对端把连接关掉才变，机器忙的时候晚到几十毫秒是常事。断言连接状态之前先等它；它返回时的状态与上面两条相同。
 - BullMQ 不认 ioredis 的 `keyPrefix`，要用它自己的 `prefix` 选项：写 `` `${redis.prefix}bull` ``，连接用 `await redis.raw()`（不带前缀的连接）。
 - 连接串取环境变量 `REDIS_URL`。
 

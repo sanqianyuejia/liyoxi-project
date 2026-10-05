@@ -148,10 +148,10 @@ describe("useTestRedis 的收尾", () => {
 });
 
 /**
- * 一个只做转发的口，对端关得慢：客户端发起断开之后，它拖 delayMs 毫秒才把连接关掉。
+ * 一个只做转发的口，对端关得慢：客户端发起断开之后，它拖 delayMs 毫秒才把连接关掉；给 "never" 就一直不关。
  * 慢机器上 Redis 一侧的回应晚到就是这个样子：CI 第一次跑 test:isolation 时，收尾返回了，连接还是 ready。
  */
-async function slowClosingProxy(delayMs: number) {
+async function slowClosingProxy(delayMs: number | "never") {
   const target = new URL(process.env.REDIS_URL ?? "");
   const sockets = new Set<Socket>();
   const server = createServer({ allowHalfOpen: true }, (downstream) => {
@@ -164,6 +164,7 @@ async function slowClosingProxy(delayMs: number) {
     downstream.pipe(upstream, { end: false });
     upstream.pipe(downstream, { end: false });
     downstream.on("end", () => {
+      if (delayMs === "never") return;
       setTimeout(() => {
         upstream.destroy();
         downstream.end();
@@ -204,6 +205,33 @@ describe("断开连接", () => {
     }
   });
 
+  it("到点还没断开：强行关掉那条连接，自己前缀下的键照样清掉，然后报错", async () => {
+    // 对端一直不关；ioredis 自己的强关（disconnectTimeout，缺省 2 秒）调到 60 秒，等于没有
+    const proxy = await slowClosingProxy("never");
+    const handle = new TestRedisHandle(testRedisPrefix({ worker: String(5000 + Number(worker)) }));
+    try {
+      // 管理连接照常连真的 Redis，只有 stuck 这一条走不关的转发口
+      await handle.flush();
+      vi.stubEnv("REDIS_URL", proxy.url);
+      const stuck = await handle.client({ disconnectTimeout: 60_000 });
+      vi.unstubAllEnvs();
+      await stuck.set("leftover", "1");
+      expect(await countOf(handle.prefix)).toBe(1);
+
+      await expect(handle.dispose({ disconnectTimeoutMs: 300 })).rejects.toThrow(
+        "Redis 连接 300 毫秒内没有断开（状态停在 ready），已强行关掉",
+      );
+      expect(stuck.status).toBe("end");
+      expect(await countOf(handle.prefix)).toBe(0);
+    } finally {
+      vi.unstubAllEnvs();
+      // 上面没走到收尾就失败了的话，这里补上；已经收过尾的再调一次什么都不做
+      await handle.dispose({ disconnectTimeoutMs: 300 }).catch(() => {});
+      await flushTestRedis(direct, handle.prefix);
+      await proxy.close();
+    }
+  });
+
   it("disconnectTestRedis：连着的、正在连的、还没连的、已经断开的，返回时都是 end", async () => {
     const url = process.env.REDIS_URL ?? "";
     const ready = new Redis(url);
@@ -222,7 +250,7 @@ describe("断开连接", () => {
     expect(ready.status).toBe("end");
   });
 
-  it("disconnectTestRedis：正等着重连的连接不再重连，不会卡住", async () => {
+  it("disconnectTestRedis：正等着重连的连接不再重连，不会卡住；它的状态停在 reconnecting，不是 end", async () => {
     const outage = await createRedisOutage();
     const client = new Redis(outage.url, { retryStrategy: () => 50 });
     client.on("error", () => {});

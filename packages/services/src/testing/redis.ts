@@ -87,33 +87,50 @@ export async function flushTestRedis(redis: Redis, prefix: string): Promise<numb
 
 /** 等一条连接断开的时限。平时几毫秒；ioredis 自己到 2 秒还没关掉就强行关，这里再留些余量 */
 const DISCONNECT_TIMEOUT_MS = 10_000;
+/** 到点之后强行关掉 socket，再等它这么久 */
+const DESTROY_GRACE_MS = 1_000;
 
-/**
- * 断开一条连接，等它真的断开（状态到 end）再返回。
- * ioredis 的 disconnect() 只是发起断开：状态要等对端把连接关掉才变成 end，机器忙的时候晚到几十毫秒是常事。
- * 自己另建的连接（BullMQ 的、订阅用的）收尾时也用它，不要 disconnect() 完就当它断了。
- */
-export async function disconnectTestRedis(client: Redis): Promise<void> {
-  if (client.status === "end") return;
-  if (client.status === "reconnecting") {
-    // 正等着重连：socket 早就关了，之后不会再有 end 事件。disconnect() 取消重连，连接不会再起来
-    client.disconnect();
-    return;
-  }
-  await new Promise<void>((resolve, reject) => {
+/** 做一个动作，然后等连接的 end 事件，最多等 ms 毫秒。等到了返回 true */
+function endsWithin(client: Redis, ms: number, act: () => void): Promise<boolean> {
+  return new Promise((resolve) => {
     const onEnd = (): void => {
       clearTimeout(timer);
-      resolve();
+      resolve(true);
     };
     const timer = setTimeout(() => {
       client.off("end", onEnd);
-      reject(
-        new Error(`Redis 连接 ${DISCONNECT_TIMEOUT_MS} 毫秒内没有断开，状态停在 ${client.status}`),
-      );
-    }, DISCONNECT_TIMEOUT_MS);
+      resolve(false);
+    }, ms);
     client.once("end", onEnd);
-    client.disconnect();
+    act();
   });
+}
+
+/**
+ * 断开一条连接，等它真的断开再返回。
+ * ioredis 的 disconnect() 只是发起断开：状态要等对端把连接关掉才变成 end，机器忙的时候晚到几十毫秒是常事。
+ * 自己另建的连接（BullMQ 的、订阅用的）收尾时也用它，不要 disconnect() 完就当它断了。
+ *
+ * 返回时的状态一般是 end。例外是正等着重连的连接：它的 socket 早就关了，这里只取消重连，
+ * ioredis 不会再发 end 事件，状态就停在 reconnecting——连接不会再起来，也发不出命令。
+ *
+ * 到点（timeoutMs，缺省 10 秒）还没断开：强行关掉底下的 socket，然后抛错。对端不配合，连接也不留着。
+ */
+export async function disconnectTestRedis(
+  client: Redis,
+  timeoutMs: number = DISCONNECT_TIMEOUT_MS,
+): Promise<void> {
+  if (client.status === "end") return;
+  if (client.status === "reconnecting") {
+    client.disconnect();
+    return;
+  }
+  if (await endsWithin(client, timeoutMs, () => client.disconnect())) return;
+  const stuckAt = client.status;
+  // 还没连上过的连接没有 socket，类型声明里没写这一点
+  const socket: { destroy(): unknown } | undefined = client.stream;
+  await endsWithin(client, DESTROY_GRACE_MS, () => socket?.destroy());
+  throw new Error(`Redis 连接 ${timeoutMs} 毫秒内没有断开（状态停在 ${stuckAt}），已强行关掉`);
 }
 
 export interface TestRedis {
@@ -168,21 +185,28 @@ export class TestRedisHandle implements TestRedis {
   }
 
   /**
-   * 收尾：断开发出去的全部连接，清空本前缀。返回时这些连接都已经真的断开（状态是 end）。
-   * 先断开、后清空：断干净了，就不会再有命令往这个前缀下写。
+   * 收尾：断开发出去的全部连接，清空本前缀。
+   * 先断开、后清空：断干净了，就不会再有命令往这个前缀下写。返回时这些连接是什么状态见 disconnectTestRedis。
+   * 有连接到点还没断开（它已被强行关掉）：本前缀照样清空，清完再把那个错抛出来，键不留在共享的 Redis 上。
+   * @param options.disconnectTimeoutMs 等每条连接断开的时限，缺省 10 秒
    */
-  async dispose(): Promise<void> {
+  async dispose(options: { disconnectTimeoutMs?: number } = {}): Promise<void> {
     if (!this.#ready) return;
     await this.#ready.catch(() => {});
     const clients = this.#clients.splice(0);
     const admin = this.#admin;
     this.#admin = undefined;
     this.#ready = undefined;
+    const closed = await Promise.allSettled(
+      clients.map((client) => disconnectTestRedis(client, options.disconnectTimeoutMs)),
+    );
     try {
-      await Promise.all(clients.map((client) => disconnectTestRedis(client)));
       if (admin) await flushTestRedis(admin, this.prefix);
     } finally {
-      if (admin) await disconnectTestRedis(admin);
+      if (admin) await disconnectTestRedis(admin, options.disconnectTimeoutMs);
+    }
+    for (const result of closed) {
+      if (result.status === "rejected") throw result.reason;
     }
   }
 }
