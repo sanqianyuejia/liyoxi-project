@@ -361,6 +361,10 @@ describe("ci.yml", () => {
       'psql -X -w -d postgres -c "CREATE DATABASE lyx_migrate_check" && pnpm db:deploy',
       "pnpm db:catalog-diff",
       "pnpm db:deploy && pnpm db:catalog-diff",
+      // W0-06b：结构防漂移。结构快照无差异、约束清单比对、分区断言
+      "pnpm db:snapshot:check",
+      "pnpm db:constraints:check",
+      "pnpm db:partitions:assert",
       "docker compose -f infra/compose/local.yml up -d --wait minio",
       "pnpm exec vitest run packages/services/src/providers/storage/minio.test.ts",
       "pnpm test",
