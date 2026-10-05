@@ -146,6 +146,8 @@ export const adminTheme: ThemeConfig = {
       itemColor: color["text-secondary"],
       // 项 13px（规范 第 5.2 节“分段控件”）；选中项字重 600 在 global.css 里给
       fontSize: BODY,
+      // 选中项只是白底，不带阴影（规范 第 3 节：只有浮层有阴影；原型的分段控件也没有）。antd 缺省给它一圈浅阴影
+      boxShadowTertiary: "none",
     },
     Checkbox: {
       controlInteractiveSize: px(size.checkbox),
