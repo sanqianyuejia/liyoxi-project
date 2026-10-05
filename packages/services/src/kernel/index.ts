@@ -25,3 +25,8 @@ export {
   TX_TIMEOUT_MS,
 } from "./tx.js";
 export type { KernelViolationKind, Tx, TxRunner, TxRunnerOptions, TxRunOptions } from "./tx.js";
+
+// W0-07 时钟与主键
+export { systemClock } from "./clock.js";
+export type { Clock } from "./clock.js";
+export { uuidv7 } from "./ids.js";

@@ -1,10 +1,11 @@
 // 可拨时钟（W0-05b）。借自参考工程 packages/services/src/testing/index.ts 的 createClock：now、advance、set。
 //
 // 业务时间只取注入的时钟（01 第 5 节调用规则 4；06 第 3.2 节），测试里注入这一个：不拨就不走。
-// 形状是 { now(): Date } 加 advance、set；kernel 的 Clock 接口由 W0-07 定义，与这里同形。
+// 形状是 { now(): Date } 加 advance、set；它实现 kernel 的 Clock 接口（W0-07），要 Clock 的地方直接传它。
 // W0-19 的十二个替身只用到 now()，这只时钟可以直接传给 createFakeProviders({ clock })。
+import type { Clock } from "../kernel/index.js";
 
-export interface AdjustableClock {
+export interface AdjustableClock extends Clock {
   /** 现在几点。每次返回一个新的 Date，改它不影响时钟 */
   now(): Date;
   /** 往前拨 ms 毫秒（非负整数） */
