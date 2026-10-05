@@ -9,7 +9,8 @@
     "test": "vitest run --passWithNoTests",
     "build": "node scripts/build.mjs",
     "start": "node dist/index.js",
-    "redis:compat": "node scripts/build.mjs && node dist/redis-compat.js"
+    "redis:compat": "node scripts/build.mjs && node dist/redis-compat.js",
+    "staff:bootstrap": "node scripts/build.mjs && node dist/staff-bootstrap.js"
   },
   "dependencies": {
     "@liyoxi/contract": "workspace:*",

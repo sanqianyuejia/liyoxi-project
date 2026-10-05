@@ -67,7 +67,9 @@
     "stack:build": "node infra/stack/up.mjs build",
     "stack:up": "node infra/stack/up.mjs up",
     "stack:smoke": "node infra/stack/smoke.mjs",
-    "stack:down": "node infra/stack/up.mjs down"
+    "stack:down": "node infra/stack/up.mjs down",
+    "staff:bootstrap": "pnpm --filter @liyoxi/worker staff:bootstrap",
+    "db:seed:demo": "pnpm --filter @liyoxi/services seed:demo"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.3",
