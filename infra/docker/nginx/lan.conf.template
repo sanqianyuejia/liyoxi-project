@@ -1,0 +1,37 @@
+# 狸有戏 · 只给本地真机走局域网用的两个站点（W1-22 任务书 第 10 节第 7 项）。不在 gateway 镜像里：
+# pnpm stack:up --lan 时由 infra/stack/lan.yml 挂进模板目录，与 gateway.conf.template 一起渲染。预发、生产不用它。
+# 变量：API_UPSTREAM（同主模板）、MINIO_UPSTREAM（共享实例里 MinIO 的地址，主机:端口）。
+
+# 按 IP 进来的请求（手机连电脑的局域网地址，Host 不是三个域名）：全部转 api。
+# 标了 default_server，盖过主模板里那个只给探活的缺省站点。api 在 APP_ENV=local 下对这种 Host 各组都放行。
+server {
+  listen 8080 default_server;
+  server_name lan.invalid;
+  set $lyx_api_upstream "${API_UPSTREAM}";
+
+  location = /_gateway/healthz {
+    access_log off;
+    default_type text/plain;
+    return 200 "ok\n";
+  }
+  location / {
+    include /etc/nginx/lyx/proxy.inc;
+  }
+}
+
+# 对象存储：原样转给 MinIO。Host 不改写（预签名的签名里有它，改了验不过）；不限请求体，不缓冲（直传与下载都走这里）
+server {
+  listen 9000;
+  server_name _;
+  client_max_body_size 0;
+  set $lyx_minio_upstream "${MINIO_UPSTREAM}";
+
+  location / {
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $http_host;
+    proxy_request_buffering off;
+    proxy_buffering off;
+    proxy_pass http://$lyx_minio_upstream;
+  }
+}

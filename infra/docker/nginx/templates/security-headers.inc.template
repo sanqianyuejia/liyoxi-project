@@ -1,0 +1,9 @@
+# 静态资源的安全响应头：只在 gateway 设这一次；接口的安全头由 api 设，两边不重复（D7 第 7.2 节）。
+# 一个 location 里只要写了 add_header，就不再继承外层的：所以做成一份，后台与下载页的各个静态 location 各 include 一次。
+# 脚本只许同源；样式放开行内（Ant Design 运行时往页面里插 <style>）；图片、音视频、直传与下载另放行 MEDIA_ORIGINS
+#（对象存储与 CDN 的源，空格分隔，可以不给）。Referrer-Policy 用 same-origin：同源的写请求照常带 Origin，
+# 跨站的跳转不带来源地址。HSTS 等 TLS 落地时再加（W2-25）。
+add_header X-Content-Type-Options "nosniff" always;
+add_header X-Frame-Options "DENY" always;
+add_header Referrer-Policy "same-origin" always;
+add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: ${MEDIA_ORIGINS}; media-src 'self' blob: ${MEDIA_ORIGINS}; connect-src 'self' ${MEDIA_ORIGINS}; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;

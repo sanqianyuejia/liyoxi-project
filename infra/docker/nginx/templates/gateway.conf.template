@@ -1,0 +1,123 @@
+# 狸有戏 · gateway 的站点（D7 第 7.2 节；约定 C1；W1-22）。容器启动时由 40-lyx-render.sh 渲染到 /tmp/nginx/conf.d/。
+# 变量：API_HOST、ADMIN_HOST、PORTAL_HOST（三个域名）、API_UPSTREAM（api 的地址，主机:端口）、
+# MEDIA_ORIGINS（可不给）；可信代理网段 TRUSTED_PROXY_CIDRS 渲染成 /tmp/nginx/real-ip.inc。
+# 本地填 *.localhost，预发填 *.stg.liyoxi.timavia.com。TLS 在负载均衡终止，这里只听 8080。
+# 按域名隔离接口面：api 域名只放行 /api/v1/m/、/api/v1/hooks/ 与探活；后台域名放行静态资源与 /api/v1/admin/；
+# 下载页域名放行静态资源与 /api/v1/portal/。其余组合 404，不转给 api。
+
+# 真实客户端地址：只信 TRUSTED_PROXY_CIDRS 里的来源带来的 X-Forwarded-For；没给网段就是直连的对端地址
+include /tmp/nginx/real-ip.inc;
+real_ip_header X-Forwarded-For;
+real_ip_recursive on;
+
+resolver ${RESOLVERS} valid=10s ipv6=off;
+
+# 缺省站点：Host 不是三个域名之一（负载均衡按节点地址探活、容器自己的健康检查）。它写在最前面，
+# 没有哪个站点标 default_server 时就是它。只给探活，别的一律 404。
+server {
+  listen 8080;
+  server_name _;
+  set $lyx_api_upstream "${API_UPSTREAM}";
+
+  location = /_gateway/healthz {
+    access_log off;
+    default_type text/plain;
+    return 200 "ok\n";
+  }
+  location = /healthz {
+    include /etc/nginx/lyx/proxy.inc;
+  }
+  location = /readyz {
+    include /etc/nginx/lyx/proxy.inc;
+  }
+  location / {
+    return 404;
+  }
+}
+
+# api 域名：小程序与外部回调
+server {
+  listen 8080;
+  server_name ${API_HOST};
+  set $lyx_api_upstream "${API_UPSTREAM}";
+
+  location /api/v1/m/ {
+    include /etc/nginx/lyx/proxy.inc;
+  }
+  location /api/v1/hooks/ {
+    client_max_body_size 1m;
+    include /etc/nginx/lyx/proxy.inc;
+  }
+  location = /healthz {
+    include /etc/nginx/lyx/proxy.inc;
+  }
+  location = /readyz {
+    include /etc/nginx/lyx/proxy.inc;
+  }
+  location = /health {
+    include /etc/nginx/lyx/proxy.inc;
+  }
+  location / {
+    return 404;
+  }
+}
+
+# 后台域名：页面与 /api/v1/admin/ 同源
+server {
+  listen 8080;
+  server_name ${ADMIN_HOST};
+  root /usr/share/nginx/admin;
+  set $lyx_api_upstream "${API_UPSTREAM}";
+
+  location /api/v1/admin/ {
+    include /etc/nginx/lyx/proxy.inc;
+  }
+  location /api/ {
+    return 404;
+  }
+  # 带内容哈希的文件：长缓存（只加在成功的应答上）；没有的回 404，不回落到入口页
+  location /assets/ {
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+    include /tmp/nginx/conf.d/security-headers.inc;
+    add_header Cache-Control "public, max-age=31536000, immutable";
+    try_files $uri =404;
+  }
+  # 入口页与根上的其余文件不缓存；前端路由的地址回落到入口页
+  location / {
+    gzip on;
+    gzip_types application/json;
+    include /tmp/nginx/conf.d/security-headers.inc;
+    add_header Cache-Control "no-cache" always;
+    try_files $uri /index.html;
+  }
+}
+
+# 下载页域名：页面（含授权书验真页 /v）与 /api/v1/portal/ 同源
+server {
+  listen 8080;
+  server_name ${PORTAL_HOST};
+  root /usr/share/nginx/portal;
+  set $lyx_api_upstream "${API_UPSTREAM}";
+
+  location /api/v1/portal/ {
+    include /etc/nginx/lyx/proxy.inc;
+  }
+  location /api/ {
+    return 404;
+  }
+  location /assets/ {
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+    include /tmp/nginx/conf.d/security-headers.inc;
+    add_header Cache-Control "public, max-age=31536000, immutable";
+    try_files $uri =404;
+  }
+  location / {
+    gzip on;
+    gzip_types application/json;
+    include /tmp/nginx/conf.d/security-headers.inc;
+    add_header Cache-Control "no-cache" always;
+    try_files $uri /index.html;
+  }
+}
