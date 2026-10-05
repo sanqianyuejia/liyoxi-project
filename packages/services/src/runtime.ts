@@ -7,14 +7,24 @@
 // 它还要引 config、ops 的入口，会成环。包级文件不属于任何一层，只引各模块的 index.ts（与组合根 assembly.ts 同）。
 //
 // 数据库客户端与 Redis 连接不在返回值里：应用层用不到，也不该拿到。以后各域的服务（buildXxx(deps)）在这里装配，
-// 经返回值给出用例函数。Provider 的装配没有接：驱动的入口只许 kernel 引（D7 第 2.2 节 D8），落点由 W0-20 定。
+// 经返回值给出用例函数。
+// KF-1 接齐的三样：十二个 Provider 经 kernel 的 assembleProviders 装配（驱动的入口只许 kernel 引，D7 第 2.2 节 D8；
+// 外呼前钩子在那里接上，事务内外呼有人拦）；events、timers 在这里各建一次（构造时对照契约校验订阅者、定时器处理器、
+// 周期任务的登记，对不上进程起不来）；启动自检用 ops 的清单（两个进程共用）。
 import { createPrismaClient } from "@liyoxi/db";
 import { Redis } from "ioredis";
 
 import { assembleServices } from "./assembly.js";
 import { createConfig } from "./config/index.js";
 import type { Config } from "./config/index.js";
-import { createBizNoIssuer, createTxRunner, systemClock } from "./kernel/index.js";
+import { createEvents } from "./events/index.js";
+import type { Events } from "./events/index.js";
+import {
+  assembleProviders,
+  createBizNoIssuer,
+  createTxRunner,
+  systemClock,
+} from "./kernel/index.js";
 import type {
   Assembly,
   AssemblyEntry,
@@ -26,10 +36,17 @@ import type {
 } from "./kernel/index.js";
 import { createLogger } from "./logger.js";
 import type { Logger } from "./logger.js";
-import { bindOps, createHealth } from "./ops/index.js";
-import type { Health } from "./ops/index.js";
+import { bindOps, createHealth, createStartupChecks } from "./ops/index.js";
+import type { Health, StartupCheck } from "./ops/index.js";
+import type { Providers } from "./providers/types.js";
 import { createRateLimiter } from "./rate-limit.js";
 import type { RateLimiter } from "./rate-limit.js";
+import { createTimers } from "./timers/index.js";
+import type { Timers } from "./timers/index.js";
+
+// 启动自检的运行器与类型在 ops/startup.ts（worker 的装配也用）；这里照旧给出，包入口的导出不变
+export { runStartupChecks, StartupCheckError } from "./ops/index.js";
+export type { StartupCheck } from "./ops/index.js";
 
 /** 一个连接池的参数：连接数上限与三个会话超时（毫秒） */
 export interface DbPoolSettings {
@@ -58,23 +75,6 @@ export const DB_POOLS: Readonly<Record<AssemblyEntry, DbPoolSettings>> = {
   },
 };
 
-/** 启动自检的一项：返回问题清单，空数组即通过。抛错也算不过 */
-export interface StartupCheck {
-  readonly name: string;
-  run(): Promise<readonly string[]>;
-}
-
-/** 启动自检没过：进程起不来。issues 里是全部问题 */
-export class StartupCheckError extends Error {
-  readonly issues: readonly string[];
-
-  constructor(issues: readonly string[]) {
-    super(`启动自检没过，共 ${issues.length} 处：\n- ${issues.join("\n- ")}`);
-    this.name = "StartupCheckError";
-    this.issues = issues;
-  }
-}
-
 export interface RuntimeOptions {
   /** 哪个进程 */
   readonly entry: AssemblyEntry;
@@ -92,6 +92,11 @@ export interface RuntimeOptions {
   readonly healthCacheMs?: number;
   /** 限流等 Redis 一条命令的时限，缺省 200 毫秒；用例里放宽，免得机器忙时把慢当成断 */
   readonly rateLimitCommandTimeoutMs?: number;
+  /**
+   * 换掉十二个 Provider：只有用例会给（替身，createFakeProviders 或 W0-25 的支架，它们自带“事务内不外呼”的钩子）。
+   * 不给即 assembleProviders 按环境选实现。
+   */
+  readonly providers?: Providers;
 }
 
 export interface Runtime {
@@ -109,6 +114,12 @@ export interface Runtime {
   readonly rateLimiter: RateLimiter;
   /** 各模块的登记汇成的装配结果 */
   readonly assembly: Assembly;
+  /** 十二个外部能力。每个方法入口先过外呼前钩子：在事务里调，local、test 抛错，stg、prod 上报后照常调 */
+  readonly providers: Providers;
+  /** 出站事件：emit 与展开。构造时已对照契约校验订阅者登记 */
+  readonly events: Events;
+  /** 定时器的登记、改期、取消。构造时已对照契约校验处理器与周期任务的登记 */
+  readonly timers: Timers;
   /** 内核断言在 stg、prod 下的上报出口（local、test 下它们直接抛错）；防漏用断言也用它 */
   report(violation: KernelViolation): void;
   /** 启动自检的清单：由 runStartupChecks 逐项跑 */
@@ -119,7 +130,8 @@ export interface Runtime {
 
 /**
  * 建进程运行时。不等连接：数据库用到时才连；Redis 当场在后台开始连，不等它连上，连不上不影响启动。
- * 会抛的两种：参数缺定义（ParamDefsError）、模块登记有重名或缺实现（AssemblyError）。
+ * 会抛的几种：参数缺定义（ParamDefsError）、模块登记有重名或缺实现（AssemblyError）、订阅者或定时器的登记与契约
+ * 对不上（SubscriberRegistryError、TimerRegistryError）、Provider 的选项与环境对不上（ProviderConfigError）。
  */
 export function createRuntime(options: RuntimeOptions): Runtime {
   const { entry, env, version } = options;
@@ -176,19 +188,18 @@ export function createRuntime(options: RuntimeOptions): Runtime {
   const assembly = assembleServices({ entry, appEnv: env.APP_ENV });
   // 违规上报端口（invariants.report）的实现在 ops，要连接、时钟与装配结果（W0-24）
   const unbindOps = bindOps({ db: prisma, tx, clock, assembly });
+  const providers = options.providers ?? assembleProviders({ appEnv: env.APP_ENV, logger });
+  const events = createEvents({ assembly, clock, tx });
+  const timers = createTimers({ assembly });
 
-  const startupChecks: StartupCheck[] = [
-    {
-      // 启动阶段要求成功连上一次数据库；之后就绪与否不再看库（h01 第 3.12 节）
-      name: "db.connect",
-      async run() {
-        await prisma.$queryRaw`SELECT 1`;
-        return [];
-      },
-    },
-    // 移交表第 1 行的四个自检（security 的加解密与盲索引、审计 target_type 对表名单、聚合类型对表名单、
-    // machine 与 state_field 对库里的表与列）：各自的包合并后在这里各加一项
-  ];
+  // 连库一项加移交表第 1 行的四个自检：security 的加解密与盲索引、审计 target_type 对表名单、聚合类型对表名单、
+  // machine 与 state_field 对库里的表与列
+  const startupChecks: StartupCheck[] = createStartupChecks({
+    db: prisma,
+    appEnv: env.APP_ENV,
+    keys: env,
+    warn: (message) => logger.warn({ evt: "startup.check_skipped" }, message),
+  });
 
   return {
     entry,
@@ -202,6 +213,9 @@ export function createRuntime(options: RuntimeOptions): Runtime {
     health,
     rateLimiter,
     assembly,
+    providers,
+    events,
+    timers,
     report,
     startupChecks,
     async close() {
@@ -210,19 +224,4 @@ export function createRuntime(options: RuntimeOptions): Runtime {
       await prisma.$disconnect();
     },
   };
-}
-
-/** 逐项跑启动自检，问题一次报全：有一项不过即抛 StartupCheckError */
-export async function runStartupChecks(checks: readonly StartupCheck[]): Promise<void> {
-  const issues: string[] = [];
-  for (const check of checks) {
-    try {
-      for (const problem of await check.run()) issues.push(`${check.name}：${problem}`);
-    } catch (error) {
-      // 只带错误的名字与消息里的第一行：连接失败的报错里可能有主机名，不带连接串
-      const reason = error instanceof Error ? (error.message.split("\n")[0] ?? error.name) : "出错";
-      issues.push(`${check.name}：${reason}`);
-    }
-  }
-  if (issues.length > 0) throw new StartupCheckError(issues);
 }

@@ -200,7 +200,7 @@ const result = await threePhase.run(
 - `external` 自己的超时要明显短于 30 秒。占用过期被别的请求接手之后，原来那一方就写不回、也补偿不了：接手的一方已写完时它拿到同一份结果，还没写完时它得到 `IDEMPOTENCY_IN_PROGRESS`。
 - 三种形态（约定 C51）只是用法不同。先调外部：不写 `claim`。先落库：`claim` 落本地行，`compensate` 删行或标失败。多事务：`claim` 落的技术状态在业务失败时不回滚，要标记写在 `compensate` 里。
 - `threePhase.run` 在事务里调即抛 `KernelViolation`；`claim`、`settle`、`compensate` 里不许调 Provider。
-- 外呼前钩子：进程装配与测试装配把 `guardProviderCall` 交给 Provider 工厂，`createProviders({ …, beforeCall: guardProviderCall })`、`createFakeProviders({ beforeCall: guardProviderCall })`。在事务里调任何 Provider 方法，`local`、`test` 下抛错且请求发不出去，`stg`、`prod` 上报后照常调（第 4 节）。
+- 外呼前钩子：进程装配走 `assembleProviders(…)`（`assembly/providers.ts`，里面就是 `createProviders({ …, beforeCall: guardProviderCall })`），替身 `createFakeProviders()` 缺省带着它，都不用自己接。在事务里调任何 Provider 方法，`local`、`test` 下抛错且请求发不出去，`stg`、`prod` 上报后照常调（第 4 节）。
 - 同键的另一个占用还没提交时，后到者等它；等多久由连接自己的 `lock_timeout` 管，超时按第 2 节的表处理。
 
 样例用例在 `@liyoxi/services/testing` 的 `samplePrepay`（探针表 `lyx_sample_prepay` 上的“预下单尝试”，外部是假微信支付）：三种形态各一条，只给测试用。用例在 `three-phase/`：外呼前、中、后中断三份，形态、并发抢占、事务内外呼各一份，另有一份性质测试（连库，缺省 40 轮，`LYX_FC_RUNS`、`LYX_FC_SEED` 可改）。

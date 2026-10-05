@@ -4,6 +4,7 @@
 // 每个替身都能：记录调用、注入失败与延迟（见 base.ts）；各自另有预置与编排的入口（见各文件开头）。
 // 替身不连任何外部服务，不用任何密钥；假存储不依赖 MinIO。
 
+import { guardProviderCall } from "../../kernel/index.js";
 import { guardProviders, PROVIDER_NAMES } from "../../providers/types.js";
 import type { BeforeProviderCall, Providers } from "../../providers/types.js";
 import { createFakeAsr } from "./asr.js";
@@ -66,7 +67,10 @@ export interface FakeProviders extends Providers {
 export interface FakeProvidersOptions {
   /** 十二个替身共用的时钟；不给用系统时间 */
   clock?: FakeClock;
-  /** 外呼前钩子；缺省空转 */
+  /**
+   * 外呼前钩子；缺省是 kernel 的 guardProviderCall（KF-1 改，原先空转）：在事务里调替身的方法即抛错，
+   * 与真实装配一样。专门验别处的防线、要它空转时显式传 () => {}
+   */
   beforeCall?: BeforeProviderCall;
 }
 
@@ -86,7 +90,7 @@ export function createFakeProviders(options: FakeProvidersOptions = {}): FakePro
     invoice: createFakeInvoice({ clock }),
     mail: createFakeMail({ clock }),
   };
-  return guardProviders(fakes, options.beforeCall ?? (() => {}));
+  return guardProviders(fakes, options.beforeCall ?? guardProviderCall);
 }
 
 /** 放行十二个替身里到点的延迟应答，返回一共放行了几个 */

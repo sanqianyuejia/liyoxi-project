@@ -68,4 +68,4 @@ pnpm --filter @liyoxi/worker exec vitest run test/fault/redis-flush.test.ts   # 
 - 日志口是最小实现（不带采样、不带脱敏规则），日志库随 api 骨架定了再换。
 - 降级时消费者只是不再领新任务：已经在等任务的那一下可能还会领到一条，照常处理，不影响正确性。
 - 进程内执行的长任务（`mode: "job"`）不占着扫描循环，关停时也不等它：没跑完的由租约到期后重新认领。
-- 启动自检现在只有“聚合类型都是库里存在的表”一项；另外三项（加解密与盲索引、审计 `target_type`、状态机的表与列）等提供它们的包合并后接上。
+- 启动自检与 api 是同一份清单（`packages/services/src/ops/startup.ts`）：连库、字段加密的密钥环、审计 `target_type`、聚合类型、状态机的表与列，问题一次列全。密钥没配时预发、生产起不来，`local`、`test` 放行并记一条告警。

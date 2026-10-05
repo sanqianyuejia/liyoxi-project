@@ -51,6 +51,8 @@ async function main(): Promise<void> {
       downForMs: () => 0,
     },
     report: (violation) => logger.error({ err: violation }, "内核违规"),
+    logger,
+    keys: env,
   });
   await services.selfCheck();
   const summary = {
