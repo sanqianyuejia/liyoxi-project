@@ -134,6 +134,11 @@
       "kind": "generated",
       "check": "pnpm db:snapshot:check",
       "note": "结构快照（表、列、约束、索引、触发器、函数；不含分区子表）：只由 pnpm db:snapshot 在空库上跑完全部迁移后写出；与迁移一致由 db:snapshot:check 核对"
+    },
+    {
+      "pattern": "infra/ci/draft-freeze.sha256",
+      "kind": "frozen",
+      "note": "草稿冻结守卫的登记值：docs/data-model/schema.prisma 与 constraints/ 的 sha256。草稿已冻结，结构以迁移为准"
     }
   ]
 }
