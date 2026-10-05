@@ -174,3 +174,17 @@ const assembly = assembleForTest({ entry: "worker", extra: [sampleRegistration] 
 ```
 
 真实模块的登记之外，再追加用例自己的样例登记（W0-07b）；查重名与缺实现的口径与生产装配相同。样例的名字用 `lyxtest` 前缀（模块名 `lyxtest_…`，订阅者、kind、事件 `lyxtest.…`），不进契约的正式登记。要看预发专用的登记项写 `appEnv: "stg"`；只装样例写 `isolated: true`。登记怎么写见 [../kernel/assembly/README.md](../kernel/assembly/README.md)。
+
+## 11. 任务进程的样例（W0-23）
+
+```ts
+import { createWorkerSample, workerSampleCounts } from "@liyoxi/services/testing";
+
+const sample = createWorkerSample(); // 两个订阅者（关键类、非关键类）、两个定时器处理器、三个周期任务
+const assembly = assembleForTest({ entry: "worker", extra: [sample.registration] });
+sample.control.failing.add("lyxtest.onPlacedPlain"); // 让它被调到即抛错
+(await workerSampleCounts(prisma))["lyxtest.onPlacedPlain"]; // 它已提交的执行次数
+```
+
+样例处理器的业务副作用是 `biz_sequence` 里的一行计数，用例据此断言“恰好一次”。订阅者不做幂等（恰好一次由派发序号与行锁保证）；定时器与周期任务的样例处理器照真实处理器的规矩自己守。`control` 另可让定时器返回 `skipped`、在业务写的前后插一脚（卡住处理器、安排进程中断）。名字与 W0-15、W0-17 的样例登记相同，不能与它们同时装配。
+

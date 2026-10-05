@@ -90,6 +90,7 @@ export default {
 - `contract-check-stale-generated` 在仓库外的副本里跑真的 `pnpm contract:check`：要 pnpm 在 PATH 上、本仓库的依赖已安装（副本的依赖用符号链接指回 `packages/contract/node_modules`）。它改的是 `DictRef`：提交的生成物里只有 `DictRef`、`ErrorBody`、`SentryEnvelope` 三个组件，改别的结构生成物不变。
 - `registry-check-missing-subscriber`、`enums-check-extra-value`（W0-09a）同样在仓库外的副本里跑真的根脚本（`pnpm registry:check`、`pnpm enums:check`），条件同上一条。后一例另要本地那套 PostgreSQL 在运行、`lyx_migrate_check` 已跑过迁移（[packages/db/README.md](../../packages/db/README.md) 第 3 节），并给出 `DATABASE_URL` 或 `PG*` 环境变量；它只读那个库，不建库。连不上时这一例会红。
 - `machines-check-missing-row`（W0-12）同样在仓库外的副本里跑真的根脚本（`pnpm machines:check`），条件同 `contract-check-stale-generated`；不连库。删哪一行迁移是现挑的（第一份迁移表里第一条单占一行、`ref` 只出现一次的），迁移表随各域的包改动时不用改这个反例。
+- `worker-check-missing-aggregate-table`、`redis-compat-missing-url`（W0-23）跑的是任务进程的构建产物：要先 `pnpm --filter @liyoxi/worker build`（CI 里排在“构建”一步之后）。前一例另要本地那套 PostgreSQL 与 `DATABASE_URL`，连的是实例自带的维护库 `postgres`，只读它的系统目录。产物不在、库连不上时这两例会红。
 
 ## 5. 门禁改动分类
 
