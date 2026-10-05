@@ -33,7 +33,11 @@ export interface TestAssemblyOptions {
    * 或要看没有实现时的行为。样例与真实登记撞名照样报错，所以换实现得先把真实的那一份拿掉。
    */
   readonly withoutRealPorts?: readonly AnyPort[];
-  /** 真实模块的这几类登记不带（端口的声明不受影响）；不写即全带 */
+  /**
+   * 真实模块的这几类登记不带（端口的声明不受影响）；不写即全带。
+   * 写了 portImplementations 时，没有默认实现的单实现端口照旧带着真实模块的实现（如 tenant 的计费账户端口）：
+   * 一个都不带，装配按“缺实现”报错、起不来。要看这种端口缺实现时的行为，用 withoutRealPorts 点名。
+   */
   readonly omitReal?: readonly RegistrationKind[];
 }
 
@@ -48,13 +52,16 @@ export function assembleForTest(options: TestAssemblyOptions): Assembly {
     ),
   ]);
   const omitted = options.omitReal ?? [];
+  // 不带真实的端口实现时，没有默认实现的单实现端口除外：拿掉它，装配查“缺实现”就过不去
+  const omitPorts = omitted.includes("portImplementations");
+  const required = (port: AnyPort): boolean => !port.keyed && port.fallback === undefined;
   const real = (options.isolated === true ? [] : collectRegistrations(MODULE_ENTRIES)).map(
     (registration): ModuleRegistration => ({
       ...registration,
       ...Object.fromEntries(omitted.map((kind) => [kind, []])),
-      portImplementations: omitted.includes("portImplementations")
-        ? []
-        : registration.portImplementations.filter((item) => !overridden.has(item.port)),
+      portImplementations: registration.portImplementations.filter(
+        (item) => !overridden.has(item.port) && (!omitPorts || required(item.port)),
+      ),
     }),
   );
   return assemble({
