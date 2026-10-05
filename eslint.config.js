@@ -9,6 +9,10 @@ import tseslint from "typescript-eslint";
 import {
   dataAccessFiles,
   dataAccessRules,
+  prismaCtorOnlyFiles,
+  prismaCtorOnlyRules,
+  prismaCtorWithTxFiles,
+  prismaCtorWithTxRules,
   repoRules,
   scriptFiles,
   scriptRules,
@@ -82,6 +86,17 @@ export default defineConfig(
     // 开事务只有 kernel 一个入口：kernel 之外不得出现 $transaction（W0-07）
     files: txEntryFiles,
     rules: txEntryRules,
+  },
+  {
+    // Prisma 客户端只由 packages/db 的工厂构造：别处不得 new PrismaClient（W0-07b）。
+    // 与上一条是同一条规则，后写的整条盖掉前面的：这里的条目已把事务入口那两条拼进去
+    files: prismaCtorWithTxFiles,
+    rules: prismaCtorWithTxRules,
+  },
+  {
+    // 同上，管事务入口规则不管的 kernel 与 testing
+    files: prismaCtorOnlyFiles,
+    rules: prismaCtorOnlyRules,
   },
   prettier,
 );
