@@ -107,9 +107,10 @@ async function expectWheelReaches(
 
   await page.mouse.move(Math.round(size.width / 2), Math.round(size.height / 2));
   let scrollTop = await content.evaluate((element) => element.scrollTop);
-  for (let round = 0; round < 40; round += 1) {
+  let stalls = 0;
+  for (let round = 0; round < 40 && stalls < 2; round += 1) {
     await page.mouse.wheel(0, 400);
-    // 等这一下滚轮生效；400 毫秒内没动就是到底了（或者根本滚不动）
+    // 等这一下滚轮生效；400 毫秒内没动算一次“没滚动”，连着两次就是到底了（或者根本滚不动）
     const next = await content.evaluate(async (element, from) => {
       const deadline = performance.now() + 400;
       while (performance.now() < deadline && element.scrollTop === from) {
@@ -117,7 +118,7 @@ async function expectWheelReaches(
       }
       return element.scrollTop;
     }, scrollTop);
-    if (next === scrollTop) break;
+    stalls = next === scrollTop ? stalls + 1 : 0;
     scrollTop = next;
   }
   for (const [label, target] of Object.entries(targets)) {
