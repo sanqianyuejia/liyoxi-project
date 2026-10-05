@@ -363,8 +363,8 @@ A44 补登的词（同样是“同一语义只用一个词”）：
 | `SMS_CODE_INVALID` | m01-account | 41008 | 400 | m03-profile-asset | { attemptsLeft: integer \| null } |
 | `PHONE_UNCHANGED` | m01-account | 41009 | 400 | a03-merchant | — |
 | `PHONE_TAKEN` | m01-account | 41010 | 409 | a03-merchant | — |
-| `PHONE_IN_OTHER_ENTITY` | m02-tenant | 41103 | 409 | a03-merchant | — |
-| `QUOTA_EXCEEDED` | m02-tenant | 41106 | 409 | m04-mall-order、m06-ad | — |
+| `PHONE_IN_OTHER_ENTITY` | m02-tenant | 41103 | 409 | a03-merchant | { currentRole: 'owner' \| 'clerk' } |
+| `QUOTA_EXCEEDED` | m02-tenant | 41106 | 409 | m04-mall-order、m06-ad | { storesUsed, storeLimit, storesOver } |
 | `STORE_ARCHIVED` | m02-tenant | 41107 | 403 | m04-mall-order、m06-ad、m08-support-misc | — |
 | `PORTAL_TICKET_INVALID` | p01-portal | 41201 | 410 | m02-tenant | { reason: not_found \| expired \| rejected \| consumed \| approved \| secret_mismatch }（各接口取值见文档第 5 节） |
 | `PLAN_NOT_AVAILABLE` | m07-billing | 43001 | 409 | a05-order-delivery、a07-billing-finance | — |
@@ -384,14 +384,14 @@ A44 补登的词（同样是“同一语义只用一个词”）：
 | `TRANSFER_PROOF_LOCKED` | m07-billing | 44009 | 409 | a07-billing-finance | — |
 | `REFUND_EXECUTOR_CONFLICT` | a07-billing-finance | 44114 | 403 | a05-order-delivery | — |
 | `STORE_NOT_QUALIFIED` | m04-mall-order | 45008 | 409 | m05-delivery-publish、m06-ad | { storeId, reason: not_submitted \| pending_review \| rejected \| final_rejected } |
-| `ORDER_IN_AFTER_SALE` | m05-delivery-publish | 45101 | 409 | a05-order-delivery | — |
-| `TICKET_ON_HOLD` | m05-delivery-publish | 45103 | 409 | a05-order-delivery、a06-publish | — |
-| `SAMPLE_VERSION_STALE` | m05-delivery-publish | 45104 | 409 | a05-order-delivery | — |
-| `AD_CHANGED` | m05-delivery-publish | 45105 | 409 | a05-order-delivery | — |
-| `SAMPLE_VIEW_CHANNEL_NOT_OFFERED` | m05-delivery-publish | 45107 | 409 | p01-portal | — |
+| `ORDER_IN_AFTER_SALE` | m05-delivery-publish | 45101 | 409 | a05-order-delivery | { orderId } |
+| `TICKET_ON_HOLD` | m05-delivery-publish | 45103 | 409 | a05-order-delivery、a06-publish | { reasons: ('cancel_review'\|'plan_amendment')[] } |
+| `SAMPLE_VERSION_STALE` | m05-delivery-publish | 45104 | 409 | a05-order-delivery | { currentSampleId: string \| null, currentVersionNo: integer \| null } |
+| `AD_CHANGED` | m05-delivery-publish | 45105 | 409 | a05-order-delivery | { adIds: string[] } |
+| `SAMPLE_VIEW_CHANNEL_NOT_OFFERED` | m05-delivery-publish | 45107 | 409 | p01-portal | { previewChannels: PreviewChannel[] }（该版本提供的查看方式；与 m06 AD_PREVIEW_CHANNEL_UNAVAILABLE 同一枚举） |
 | `SAMPLE_PREVIEW_NOT_READY` | m05-delivery-publish | 45108 | 409 | p01-portal | — |
-| `DOWNLOAD_GRANT_INVALID` | m05-delivery-publish | 45109 | 409 | a06-publish、p01-portal | — |
-| `DOWNLOAD_NOT_AVAILABLE` | m05-delivery-publish | 45110 | 409 | p01-portal | — |
+| `DOWNLOAD_GRANT_INVALID` | m05-delivery-publish | 45109 | 409 | a06-publish、p01-portal | { reason: DownloadGrantInvalidReason, expiresAt: string \| null, canRegenerate: boolean } |
+| `DOWNLOAD_NOT_AVAILABLE` | m05-delivery-publish | 45110 | 409 | p01-portal | { reason: DownloadUnavailableReason } |
 | `AD_CANCEL_IN_PROGRESS` | m06-ad | 45201 | 409 | a05-order-delivery | — |
 | `AD_VERSION_STALE` | m06-ad | 45202 | 409 | a05-order-delivery、p01-portal | { currentVersionNo: integer \| null } |
 | `AD_PREVIEW_CHANNEL_UNAVAILABLE` | m06-ad | 45203 | 409 | p01-portal | { previewChannels: PreviewChannel[] } |
@@ -408,7 +408,7 @@ A44 补登的词（同样是“同一语义只用一个词”）：
 | `CONFIRM_IN_PROGRESS` | m08-support-misc | 47055 | 409 | a01-system、a04-content | — |
 | `UPLOAD_NOT_FOUND` | m08-support-misc | 47056 | 409 | a01-system、a04-content | — |
 | `UPLOAD_REJECTED` | m08-support-misc | 47057 | 400 | a01-system、a04-content | { rejectReason } |
-| `CHECKLIST_VERSION_STALE` | a01-system | 47306 | 409 | a05-order-delivery、a06-publish | — |
+| `CHECKLIST_VERSION_STALE` | a01-system | 47306 | 409 | a05-order-delivery、a06-publish | { code, currentVersionNo } |
 | `CHECKLIST_NOT_PASSED` | a01-system | 47307 | 400 | a05-order-delivery、a06-publish | { missingKeys: string[], failedKeys: string[], invalidNaKeys: string[] } |
 | `AGREEMENT_VERSION_STALE` | m01-account | 47401 | 409 | m04-mall-order、m06-ad、m07-billing | { agreementKey: string, currentAgreementVersionId: string(uuid) \| null } |
 | `APPROVAL_NOT_PENDING` | a03-merchant | 48201 | 409 | a05-order-delivery、a06-publish、a07-billing-finance | { status, decidedAt } |

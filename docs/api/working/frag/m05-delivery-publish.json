@@ -1214,49 +1214,56 @@
       "code": 45101,
       "http": 409,
       "meaning": "订购单有在途取消申请，方案的推送、确认、提出修改都暂停（10-delivery.md:413；d3-flow.md:880）。后台 `admin.deliveryPlan.push` 同样返回它",
-      "retryable": false
+      "retryable": false,
+      "details": "{ orderId }"
     },
     {
       "symbol": "PLAN_VERSION_STALE",
       "code": 45102,
       "http": 409,
       "meaning": "确认的方案版本不是当前版本（d3-flow.md:1139、1161）",
-      "retryable": false
+      "retryable": false,
+      "details": "{ currentVersionNo }"
     },
     {
       "symbol": "TICKET_ON_HOLD",
       "code": 45103,
       "http": 409,
       "meaning": "交付工单暂停中（取消审批中、方案修订待确认），属于这张工单的对象一律拒绝操作（d3-flow.md:879）。后台的样片、成片接口同样返回它；a06 的链接核验只有通过与撤销返回它，退回不检查暂停（11-publish.md:302）",
-      "retryable": false
+      "retryable": false,
+      "details": "{ reasons: ('cancel_review'|'plan_amendment')[] }"
     },
     {
       "symbol": "SAMPLE_VERSION_STALE",
       "code": 45104,
       "http": 409,
       "meaning": "操作的样片不是当前已推送的版本",
-      "retryable": false
+      "retryable": false,
+      "details": "{ currentSampleId: string | null, currentVersionNo: integer | null }"
     },
     {
       "symbol": "AD_CHANGED",
       "code": 45105,
       "http": 409,
       "meaning": "样片所用的广告版本已不是当前确认版本，不能确认（d3-flow.md:838，沿用草案名）",
-      "retryable": false
+      "retryable": false,
+      "details": "{ adIds: string[] }"
     },
     {
       "symbol": "SAMPLE_NOT_VIEWABLE",
       "code": 45106,
       "http": 409,
       "meaning": "声明的查看方式没有对应的提供或访问记录（d3-flow.md:1541 的 `422 SAMPLE_NOT_VIEWABLE` 按 C24 改为 409）",
-      "retryable": false
+      "retryable": false,
+      "details": "{ viewedVia, requiredEvidence: 'album_saved'|'portal_viewed'|'wecom_sent'|'album_or_portal' }（album_or_portal 用于开关被关闭后的 weapp 兜底）"
     },
     {
       "symbol": "SAMPLE_VIEW_CHANNEL_NOT_OFFERED",
       "code": 45107,
       "http": 409,
       "meaning": "该样片版本推送时没有提供这种查看方式；details = { previewChannels: PreviewChannel[] }",
-      "retryable": false
+      "retryable": false,
+      "details": "{ previewChannels: PreviewChannel[] }（该版本提供的查看方式；与 m06 AD_PREVIEW_CHANNEL_UNAVAILABLE 同一枚举）"
     },
     {
       "symbol": "SAMPLE_PREVIEW_NOT_READY",
@@ -1270,28 +1277,32 @@
       "code": 45109,
       "http": 409,
       "meaning": "下载授权已过期、已被重新生成或已撤销（d7-platform.md:832）。下载页的 `portal.orderItem.downloadUrls` 同样返回它",
-      "retryable": false
+      "retryable": false,
+      "details": "{ reason: DownloadGrantInvalidReason, expiresAt: string | null, canRegenerate: boolean }"
     },
     {
       "symbol": "DOWNLOAD_NOT_AVAILABLE",
       "code": 45110,
       "http": 409,
       "meaning": "成片当前不可下载或不可重新生成授权（未交付、成片包已关闭、订单项已关闭、已过使用期、文件不可用）。下载页同样返回它",
-      "retryable": false
+      "retryable": false,
+      "details": "{ reason: DownloadUnavailableReason }"
     },
     {
       "symbol": "DOWNLOAD_REGRANT_LIMIT",
       "code": 45111,
       "http": 409,
       "meaning": "今天重新生成下载授权已达 5 次",
-      "retryable": false
+      "retryable": false,
+      "details": "{ limit: 5, nextAvailableAt: string }"
     },
     {
       "symbol": "LICENSE_LETTER_NOT_READY",
       "code": 45112,
       "http": 409,
       "meaning": "授权书（或指定版次）尚未出件",
-      "retryable": false
+      "retryable": false,
+      "details": "{ renderStatus: 'queued'|'rendering'|'failed'|null }"
     },
     {
       "symbol": "CHANNEL_ACCOUNT_TAKEN",
@@ -1305,35 +1316,40 @@
       "code": 46102,
       "http": 409,
       "meaning": "账号仍被在办订单项引用或有未核查的下架任务，不能解绑（d3-flow.md:2042）",
-      "retryable": false
+      "retryable": false,
+      "details": "{ activeOrderItemCount, openTakedownTaskCount }"
     },
     {
       "symbol": "LINK_INVALID",
       "code": 46103,
       "http": 400,
       "meaning": "上线链接不合规（d3-flow.md:1759，沿用草案名；422 按 C24 改为 400）",
-      "retryable": false
+      "retryable": false,
+      "details": "{ field: string, reason: 'unparsable'|'not_https'|'too_long'|'has_credentials'|'duplicate_episode'|'episode_out_of_range' }"
     },
     {
       "symbol": "LAUNCH_SUBMISSION_OUT_OF_RANGE",
       "code": 46104,
       "http": 400,
       "meaning": "回填的实际上线日期或声明集数超出允许范围（d3-flow.md:1754）",
-      "retryable": false
+      "retryable": false,
+      "details": "{ field: 'actualLaunchDate'|'reportedEpisodeCount', min: string|integer, max: string|integer }"
     },
     {
       "symbol": "LAUNCH_WINDOW_CLOSED",
       "code": 46105,
       "http": 409,
       "meaning": "已过使用期止日，不能再回填（d3-flow.md:1754）",
-      "retryable": false
+      "retryable": false,
+      "details": "{ usageEndDate }"
     },
     {
       "symbol": "TAKEDOWN_METHOD_NOT_ALLOWED",
       "code": 46106,
       "http": 409,
       "meaning": "该账号已核验上线，不能选“未发布”（11-publish.md:654）",
-      "retryable": false
+      "retryable": false,
+      "details": "{ basis, allowedMethods: string[] }"
     }
   ],
   "externalErrors": [

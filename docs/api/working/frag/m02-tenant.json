@@ -820,7 +820,8 @@
    "code": 41101,
    "http": 409,
    "meaning": "已是其他主体的店员，不能再建主体",
-   "retryable": false
+   "retryable": false,
+   "details": "{ storeName: string | null }"
   },
   {
    "symbol": "ALREADY_OWNER",
@@ -834,28 +835,32 @@
    "code": 41103,
    "http": 409,
    "meaning": "手机号已属其他主体",
-   "retryable": false
+   "retryable": false,
+   "details": "{ currentRole: 'owner' | 'clerk' }"
   },
   {
    "symbol": "SEAT_LIMIT_REACHED",
    "code": 41104,
    "http": 409,
    "meaning": "成员名额已满（含待接受的邀请）",
-   "retryable": false
+   "retryable": false,
+   "details": "{ seatsUsed, memberLimit, limitReason }"
   },
   {
    "symbol": "STORE_LIMIT_REACHED",
    "code": 41105,
    "http": 409,
    "meaning": "门店额度已满",
-   "retryable": false
+   "retryable": false,
+   "details": "{ storesUsed, storeLimit, limitReason }"
   },
   {
    "symbol": "QUOTA_EXCEEDED",
    "code": 41106,
    "http": 409,
    "meaning": "门店数超过上限，须先停用门店才能新订购、提交广告需求（共用领域码，A77 归 m02；由 m04 m.order.create、m06 m.ad.create 返回，两者的 quote 列为 blockers）",
-   "retryable": false
+   "retryable": false,
+   "details": "{ storesUsed, storeLimit, storesOver }"
   },
   {
    "symbol": "STORE_ARCHIVED",
@@ -869,7 +874,8 @@
    "code": 41108,
    "http": 409,
    "meaning": "门店有在办事项，不能停用或删除",
-   "retryable": false
+   "retryable": false,
+   "details": "{ blockers: StoreBlocker[] }"
   },
   {
    "symbol": "LAST_ACTIVE_STORE",
@@ -883,7 +889,8 @@
    "code": 41110,
    "http": 409,
    "meaning": "不是草稿门店，只能停用",
-   "retryable": false
+   "retryable": false,
+   "details": "{ reasons: StoreNotDraftReason[] }"
   },
   {
    "symbol": "INVITATION_INVALID",
@@ -925,7 +932,8 @@
    "code": 41116,
    "http": 409,
    "meaning": "当天发出的邀请已达上限",
-   "retryable": false
+   "retryable": false,
+   "details": "{ dailyCap: integer }"
   },
   {
    "symbol": "OWNER_CANNOT_LEAVE",

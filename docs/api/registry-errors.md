@@ -51,22 +51,22 @@
 | `PHONE_TAKEN` | 41010 | 409 | 否 | 新手机号已被有成员关系或已禁用的账号使用 | — | [m01-account](m01-account.md) | a03-merchant |
 | `IDENTITY_TOO_NEW` | 41011 | 403 | 否 | 当前微信绑定不足 7 天，不能移除其他微信 | { removableAt: string(date-time) } | [m01-account](m01-account.md) | — |
 | `ACCOUNT_DELETION_BLOCKED` | 41012 | 409 | 否 | 老板注销时主体有未办结事项（details.blockers） | { blockers: DeletionBlocker[] } | [m01-account](m01-account.md) | — |
-| `ALREADY_IN_ENTITY` | 41101 | 409 | 否 | 已是其他主体的店员，不能再建主体 | — | [m02-tenant](m02-tenant.md) | — |
+| `ALREADY_IN_ENTITY` | 41101 | 409 | 否 | 已是其他主体的店员，不能再建主体 | { storeName: string \| null } | [m02-tenant](m02-tenant.md) | — |
 | `ALREADY_OWNER` | 41102 | 409 | 否 | 已是该主体的老板，不能接受店员邀请 | — | [m02-tenant](m02-tenant.md) | — |
-| `PHONE_IN_OTHER_ENTITY` | 41103 | 409 | 否 | 手机号已属其他主体 | — | [m02-tenant](m02-tenant.md) | a03-merchant |
-| `SEAT_LIMIT_REACHED` | 41104 | 409 | 否 | 成员名额已满（含待接受的邀请） | — | [m02-tenant](m02-tenant.md) | — |
-| `STORE_LIMIT_REACHED` | 41105 | 409 | 否 | 门店额度已满 | — | [m02-tenant](m02-tenant.md) | — |
-| `QUOTA_EXCEEDED` | 41106 | 409 | 否 | 门店数超过上限，须先停用门店才能新订购、提交广告需求（共用领域码，A77 归 m02；由 m04 m.order.create、m06 m.ad.create 返回，两者的 quote 列为 blockers） | — | [m02-tenant](m02-tenant.md) | m04-mall-order、m06-ad |
+| `PHONE_IN_OTHER_ENTITY` | 41103 | 409 | 否 | 手机号已属其他主体 | { currentRole: 'owner' \| 'clerk' } | [m02-tenant](m02-tenant.md) | a03-merchant |
+| `SEAT_LIMIT_REACHED` | 41104 | 409 | 否 | 成员名额已满（含待接受的邀请） | { seatsUsed, memberLimit, limitReason } | [m02-tenant](m02-tenant.md) | — |
+| `STORE_LIMIT_REACHED` | 41105 | 409 | 否 | 门店额度已满 | { storesUsed, storeLimit, limitReason } | [m02-tenant](m02-tenant.md) | — |
+| `QUOTA_EXCEEDED` | 41106 | 409 | 否 | 门店数超过上限，须先停用门店才能新订购、提交广告需求（共用领域码，A77 归 m02；由 m04 m.order.create、m06 m.ad.create 返回，两者的 quote 列为 blockers） | { storesUsed, storeLimit, storesOver } | [m02-tenant](m02-tenant.md) | m04-mall-order、m06-ad |
 | `STORE_ARCHIVED` | 41107 | 403 | 否 | 门店已停用，只能做收尾操作（门店上下文中间件返回） | — | [m02-tenant](m02-tenant.md) | m04-mall-order、m06-ad、m08-support-misc |
-| `STORE_HAS_OPEN_WORK` | 41108 | 409 | 否 | 门店有在办事项，不能停用或删除 | — | [m02-tenant](m02-tenant.md) | — |
+| `STORE_HAS_OPEN_WORK` | 41108 | 409 | 否 | 门店有在办事项，不能停用或删除 | { blockers: StoreBlocker[] } | [m02-tenant](m02-tenant.md) | — |
 | `LAST_ACTIVE_STORE` | 41109 | 409 | 否 | 是主体最后一家启用中的门店 | — | [m02-tenant](m02-tenant.md) | — |
-| `STORE_NOT_DRAFT` | 41110 | 409 | 否 | 不是草稿门店，只能停用 | — | [m02-tenant](m02-tenant.md) | — |
+| `STORE_NOT_DRAFT` | 41110 | 409 | 否 | 不是草稿门店，只能停用 | { reasons: StoreNotDraftReason[] } | [m02-tenant](m02-tenant.md) | — |
 | `INVITATION_INVALID` | 41111 | 404 | 否 | 邀请令牌不存在或与邀请不符 | — | [m02-tenant](m02-tenant.md) | — |
 | `INVITATION_USED` | 41112 | 410 | 否 | 邀请已被使用 | — | [m02-tenant](m02-tenant.md) | — |
 | `INVITATION_REVOKED` | 41113 | 410 | 否 | 邀请已撤回 | — | [m02-tenant](m02-tenant.md) | — |
 | `INVITATION_EXPIRED` | 41114 | 410 | 否 | 邀请已过期 | — | [m02-tenant](m02-tenant.md) | — |
 | `INVITATION_NOT_FOR_YOU` | 41115 | 403 | 否 | 邀请限定了手机号，与当前账号不符 | — | [m02-tenant](m02-tenant.md) | — |
-| `INVITATION_DAILY_LIMIT` | 41116 | 409 | 否 | 当天发出的邀请已达上限 | — | [m02-tenant](m02-tenant.md) | — |
+| `INVITATION_DAILY_LIMIT` | 41116 | 409 | 否 | 当天发出的邀请已达上限 | { dailyCap: integer } | [m02-tenant](m02-tenant.md) | — |
 | `OWNER_CANNOT_LEAVE` | 41117 | 409 | 否 | 老板不能退出门店 | — | [m02-tenant](m02-tenant.md) | — |
 | `PORTAL_TICKET_INVALID` | 41201 | 410 | 否 | 扫码登录票据不能用于本次操作：不存在、已过期、已作废、已换过会话、已被确认（m02 的三条接口），或待确认时密钥不符（d4-identity.md:2329）。只用于不写库的情形；要作废票据的拒绝返回 200 与 status = rejected（A101）。m02-tenant 的 lookup、approve、reject 同样返回它 | { reason: not_found \| expired \| rejected \| consumed \| approved \| secret_mismatch }（各接口取值见文档第 5 节） | [p01-portal](p01-portal.md) | m02-tenant |
 | `PORTAL_SESSION_INVALID` | 41202 | 401 | 否 | 下载页会话失效：不存在、已过期、已吊销，或授权人已不是该主体的有效老板。带了 Cookie 而 portalAuth 不通过时返回；没带 Cookie 返回 AUTH_REQUIRED。归属 p01（A77，C28 共用领域码归属表） | { reason: not_found \| expired \| revoked \| authorizer_invalid, revokeReason: portal_session.revoke_reason \| null } | [p01-portal](p01-portal.md) | — |
@@ -144,18 +144,18 @@
 | `ORDER_AD_INVALID` | 45004 | 409 | 否 | 所选广告不可用于本次订购 | { adId, reason: not_in_store \| not_confirmed \| cancelled \| cancel_pending \| slot_not_allowed, dramaId? } | [m04-mall-order](m04-mall-order.md) | — |
 | `LAUNCH_DATE_TOO_EARLY` | 45005 | 400 | 否 | 期望上线日早于订购日后第 7 个工作日 | { earliestLaunchDate } | [m04-mall-order](m04-mall-order.md) | — |
 | `STORE_NOT_QUALIFIED` | 45008 | 409 | 否 | 门店资质尚未通过，暂不能订购、绑定发布账号或提交广告需求（门店闸门 blocked）；共用领域码，m05、m06 引用（A77） | { storeId, reason: not_submitted \| pending_review \| rejected \| final_rejected } | [m04-mall-order](m04-mall-order.md) | m05-delivery-publish、m06-ad |
-| `ORDER_IN_AFTER_SALE` | 45101 | 409 | 否 | 订购单有在途取消申请，方案的推送、确认、提出修改都暂停（10-delivery.md:413；d3-flow.md:880）。后台 `admin.deliveryPlan.push` 同样返回它 | — | [m05-delivery-publish](m05-delivery-publish.md) | a05-order-delivery |
-| `PLAN_VERSION_STALE` | 45102 | 409 | 否 | 确认的方案版本不是当前版本（d3-flow.md:1139、1161） | — | [m05-delivery-publish](m05-delivery-publish.md) | — |
-| `TICKET_ON_HOLD` | 45103 | 409 | 否 | 交付工单暂停中（取消审批中、方案修订待确认），属于这张工单的对象一律拒绝操作（d3-flow.md:879）。后台的样片、成片接口同样返回它；a06 的链接核验只有通过与撤销返回它，退回不检查暂停（11-publish.md:302） | — | [m05-delivery-publish](m05-delivery-publish.md) | a05-order-delivery、a06-publish |
-| `SAMPLE_VERSION_STALE` | 45104 | 409 | 否 | 操作的样片不是当前已推送的版本 | — | [m05-delivery-publish](m05-delivery-publish.md) | a05-order-delivery |
-| `AD_CHANGED` | 45105 | 409 | 否 | 样片所用的广告版本已不是当前确认版本，不能确认（d3-flow.md:838，沿用草案名） | — | [m05-delivery-publish](m05-delivery-publish.md) | a05-order-delivery |
-| `SAMPLE_NOT_VIEWABLE` | 45106 | 409 | 否 | 声明的查看方式没有对应的提供或访问记录（d3-flow.md:1541 的 `422 SAMPLE_NOT_VIEWABLE` 按 C24 改为 409） | — | [m05-delivery-publish](m05-delivery-publish.md) | — |
-| `SAMPLE_VIEW_CHANNEL_NOT_OFFERED` | 45107 | 409 | 否 | 该样片版本推送时没有提供这种查看方式；details = { previewChannels: PreviewChannel[] } | — | [m05-delivery-publish](m05-delivery-publish.md) | p01-portal |
+| `ORDER_IN_AFTER_SALE` | 45101 | 409 | 否 | 订购单有在途取消申请，方案的推送、确认、提出修改都暂停（10-delivery.md:413；d3-flow.md:880）。后台 `admin.deliveryPlan.push` 同样返回它 | { orderId } | [m05-delivery-publish](m05-delivery-publish.md) | a05-order-delivery |
+| `PLAN_VERSION_STALE` | 45102 | 409 | 否 | 确认的方案版本不是当前版本（d3-flow.md:1139、1161） | { currentVersionNo } | [m05-delivery-publish](m05-delivery-publish.md) | — |
+| `TICKET_ON_HOLD` | 45103 | 409 | 否 | 交付工单暂停中（取消审批中、方案修订待确认），属于这张工单的对象一律拒绝操作（d3-flow.md:879）。后台的样片、成片接口同样返回它；a06 的链接核验只有通过与撤销返回它，退回不检查暂停（11-publish.md:302） | { reasons: ('cancel_review'\|'plan_amendment')[] } | [m05-delivery-publish](m05-delivery-publish.md) | a05-order-delivery、a06-publish |
+| `SAMPLE_VERSION_STALE` | 45104 | 409 | 否 | 操作的样片不是当前已推送的版本 | { currentSampleId: string \| null, currentVersionNo: integer \| null } | [m05-delivery-publish](m05-delivery-publish.md) | a05-order-delivery |
+| `AD_CHANGED` | 45105 | 409 | 否 | 样片所用的广告版本已不是当前确认版本，不能确认（d3-flow.md:838，沿用草案名） | { adIds: string[] } | [m05-delivery-publish](m05-delivery-publish.md) | a05-order-delivery |
+| `SAMPLE_NOT_VIEWABLE` | 45106 | 409 | 否 | 声明的查看方式没有对应的提供或访问记录（d3-flow.md:1541 的 `422 SAMPLE_NOT_VIEWABLE` 按 C24 改为 409） | { viewedVia, requiredEvidence: 'album_saved'\|'portal_viewed'\|'wecom_sent'\|'album_or_portal' }（album_or_portal 用于开关被关闭后的 weapp 兜底） | [m05-delivery-publish](m05-delivery-publish.md) | — |
+| `SAMPLE_VIEW_CHANNEL_NOT_OFFERED` | 45107 | 409 | 否 | 该样片版本推送时没有提供这种查看方式；details = { previewChannels: PreviewChannel[] } | { previewChannels: PreviewChannel[] }（该版本提供的查看方式；与 m06 AD_PREVIEW_CHANNEL_UNAVAILABLE 同一枚举） | [m05-delivery-publish](m05-delivery-publish.md) | p01-portal |
 | `SAMPLE_PREVIEW_NOT_READY` | 45108 | 409 | 否 | 样片水印版尚未生成，请稍后再试 | — | [m05-delivery-publish](m05-delivery-publish.md) | p01-portal |
-| `DOWNLOAD_GRANT_INVALID` | 45109 | 409 | 否 | 下载授权已过期、已被重新生成或已撤销（d7-platform.md:832）。下载页的 `portal.orderItem.downloadUrls` 同样返回它 | — | [m05-delivery-publish](m05-delivery-publish.md) | a06-publish、p01-portal |
-| `DOWNLOAD_NOT_AVAILABLE` | 45110 | 409 | 否 | 成片当前不可下载或不可重新生成授权（未交付、成片包已关闭、订单项已关闭、已过使用期、文件不可用）。下载页同样返回它 | — | [m05-delivery-publish](m05-delivery-publish.md) | p01-portal |
-| `DOWNLOAD_REGRANT_LIMIT` | 45111 | 409 | 否 | 今天重新生成下载授权已达 5 次 | — | [m05-delivery-publish](m05-delivery-publish.md) | — |
-| `LICENSE_LETTER_NOT_READY` | 45112 | 409 | 否 | 授权书（或指定版次）尚未出件 | — | [m05-delivery-publish](m05-delivery-publish.md) | — |
+| `DOWNLOAD_GRANT_INVALID` | 45109 | 409 | 否 | 下载授权已过期、已被重新生成或已撤销（d7-platform.md:832）。下载页的 `portal.orderItem.downloadUrls` 同样返回它 | { reason: DownloadGrantInvalidReason, expiresAt: string \| null, canRegenerate: boolean } | [m05-delivery-publish](m05-delivery-publish.md) | a06-publish、p01-portal |
+| `DOWNLOAD_NOT_AVAILABLE` | 45110 | 409 | 否 | 成片当前不可下载或不可重新生成授权（未交付、成片包已关闭、订单项已关闭、已过使用期、文件不可用）。下载页同样返回它 | { reason: DownloadUnavailableReason } | [m05-delivery-publish](m05-delivery-publish.md) | p01-portal |
+| `DOWNLOAD_REGRANT_LIMIT` | 45111 | 409 | 否 | 今天重新生成下载授权已达 5 次 | { limit: 5, nextAvailableAt: string } | [m05-delivery-publish](m05-delivery-publish.md) | — |
+| `LICENSE_LETTER_NOT_READY` | 45112 | 409 | 否 | 授权书（或指定版次）尚未出件 | { renderStatus: 'queued'\|'rendering'\|'failed'\|null } | [m05-delivery-publish](m05-delivery-publish.md) | — |
 | `AD_CANCEL_IN_PROGRESS` | 45201 | 409 | 否 | 广告有在途的取消申请，审批结束前不能确认、提出修改或重新提交 | — | [m06-ad](m06-ad.md) | a05-order-delivery |
 | `AD_VERSION_STALE` | 45202 | 409 | 否 | 请求里的版本号不是当前版本 | { currentVersionNo: integer \| null } | [m06-ad](m06-ad.md) | a05-order-delivery、p01-portal |
 | `AD_PREVIEW_CHANNEL_UNAVAILABLE` | 45203 | 409 | 否 | 这一版推送时没有提供这种查看方式 | { previewChannels: PreviewChannel[] } | [m06-ad](m06-ad.md) | p01-portal |
@@ -196,11 +196,11 @@
 | `ASSET_PORTRAIT_AUTH_FORBIDDEN` | 46003 | 403 | 否 | 只有老板或素材上传人可以补交肖像授权 | — | [m03-profile-asset](m03-profile-asset.md) | — |
 | `ASSET_FEEDBACK_DAILY_LIMIT` | 46004 | 409 | 否 | 今天对这条素材的反馈次数已达上限，请明天再试 | { limit: integer } | [m03-profile-asset](m03-profile-asset.md) | — |
 | `CHANNEL_ACCOUNT_TAKEN` | 46101 | 409 | 否 | 同一平台同一账号 ID 已被绑定（PRD 6.10.2-1；`uq_channel_account_platform_uid_active`） | — | [m05-delivery-publish](m05-delivery-publish.md) | — |
-| `CHANNEL_ACCOUNT_IN_USE` | 46102 | 409 | 否 | 账号仍被在办订单项引用或有未核查的下架任务，不能解绑（d3-flow.md:2042） | — | [m05-delivery-publish](m05-delivery-publish.md) | — |
-| `LINK_INVALID` | 46103 | 400 | 否 | 上线链接不合规（d3-flow.md:1759，沿用草案名；422 按 C24 改为 400） | — | [m05-delivery-publish](m05-delivery-publish.md) | — |
-| `LAUNCH_SUBMISSION_OUT_OF_RANGE` | 46104 | 400 | 否 | 回填的实际上线日期或声明集数超出允许范围（d3-flow.md:1754） | — | [m05-delivery-publish](m05-delivery-publish.md) | — |
-| `LAUNCH_WINDOW_CLOSED` | 46105 | 409 | 否 | 已过使用期止日，不能再回填（d3-flow.md:1754） | — | [m05-delivery-publish](m05-delivery-publish.md) | — |
-| `TAKEDOWN_METHOD_NOT_ALLOWED` | 46106 | 409 | 否 | 该账号已核验上线，不能选“未发布”（11-publish.md:654） | — | [m05-delivery-publish](m05-delivery-publish.md) | — |
+| `CHANNEL_ACCOUNT_IN_USE` | 46102 | 409 | 否 | 账号仍被在办订单项引用或有未核查的下架任务，不能解绑（d3-flow.md:2042） | { activeOrderItemCount, openTakedownTaskCount } | [m05-delivery-publish](m05-delivery-publish.md) | — |
+| `LINK_INVALID` | 46103 | 400 | 否 | 上线链接不合规（d3-flow.md:1759，沿用草案名；422 按 C24 改为 400） | { field: string, reason: 'unparsable'\|'not_https'\|'too_long'\|'has_credentials'\|'duplicate_episode'\|'episode_out_of_range' } | [m05-delivery-publish](m05-delivery-publish.md) | — |
+| `LAUNCH_SUBMISSION_OUT_OF_RANGE` | 46104 | 400 | 否 | 回填的实际上线日期或声明集数超出允许范围（d3-flow.md:1754） | { field: 'actualLaunchDate'\|'reportedEpisodeCount', min: string\|integer, max: string\|integer } | [m05-delivery-publish](m05-delivery-publish.md) | — |
+| `LAUNCH_WINDOW_CLOSED` | 46105 | 409 | 否 | 已过使用期止日，不能再回填（d3-flow.md:1754） | { usageEndDate } | [m05-delivery-publish](m05-delivery-publish.md) | — |
+| `TAKEDOWN_METHOD_NOT_ALLOWED` | 46106 | 409 | 否 | 该账号已核验上线，不能选“未发布”（11-publish.md:654） | { basis, allowedMethods: string[] } | [m05-delivery-publish](m05-delivery-publish.md) | — |
 | `PATROL_NOT_ELIGIBLE` | 46202 | 409 | 否 | 不能发起巡检：上线任务不在线、订单项不在上线中或工单不在服务中（11-publish.md:542） | { reason } | [a06-publish](a06-publish.md) | — |
 | `PUBLISH_LIST_LOCKED` | 46204 | 409 | 否 | 首个上线任务已提交回填，发布清单已锁定（d3-flow.md:1635） | { lockedAt } | [a06-publish](a06-publish.md) | — |
 | `PUBLISH_LIST_IMPORT_INVALID` | 46205 | 400 | 否 | 导入内容有错，整批未写入 | { rows: [{ rowNo, episodeNo, column, message }] } | [a06-publish](a06-publish.md) | — |
@@ -213,12 +213,12 @@
 | `ASSET_ALREADY_ADOPTED` | 46301 | 409 | 否 | 素材已被采用，不能改为需补拍或需肖像授权 | { adoptedCount } | [a03-merchant](a03-merchant.md) | — |
 | `ASSET_PORTRAIT_AUTH_MISSING` | 46302 | 409 | 否 | 还没有肖像授权材料，不能确认授权 | — | [a03-merchant](a03-merchant.md) | — |
 | `ASSET_NOT_PROCESSED` | 46303 | 409 | 否 | 素材还在识别中，请稍后再整理 | { processingState } | [a03-merchant](a03-merchant.md) | — |
-| `FILE_CATEGORY_NOT_ALLOWED` | 46401 | 400 | 否 | 该分类不能在此登记或签发 | — | [a01-system](a01-system.md) | — |
-| `PRODUCTION_CONTEXT_REQUIRED` | 46402 | 400 | 否 | 制作文件缺制作上下文或 AI 使用声明 | — | [a01-system](a01-system.md) | — |
-| `FILE_NOT_AVAILABLE` | 46403 | 409 | 否 | 文件未入库、已清除或已拦截 | — | [a01-system](a01-system.md) | — |
-| `FILE_RESTORE_WINDOW_PASSED` | 46404 | 409 | 否 | 已超过可恢复期限 | — | [a01-system](a01-system.md) | — |
-| `FILE_IN_USE` | 46405 | 409 | 否 | 文件仍有在用引用 | — | [a01-system](a01-system.md) | — |
-| `MEDIA_JOB_NOT_RETRYABLE` | 46406 | 409 | 否 | 业务对象已不需要该任务 | — | [a01-system](a01-system.md) | — |
+| `FILE_CATEGORY_NOT_ALLOWED` | 46401 | 400 | 否 | 该分类不能在此登记或签发 | { category } | [a01-system](a01-system.md) | — |
+| `PRODUCTION_CONTEXT_REQUIRED` | 46402 | 400 | 否 | 制作文件缺制作上下文或 AI 使用声明 | { missing: string[] } | [a01-system](a01-system.md) | — |
+| `FILE_NOT_AVAILABLE` | 46403 | 409 | 否 | 文件未入库、已清除或已拦截 | { status } | [a01-system](a01-system.md) | — |
+| `FILE_RESTORE_WINDOW_PASSED` | 46404 | 409 | 否 | 已超过可恢复期限 | { deletedAt } | [a01-system](a01-system.md) | — |
+| `FILE_IN_USE` | 46405 | 409 | 否 | 文件仍有在用引用 | { refs: array<{ refType, refId }> } | [a01-system](a01-system.md) | — |
+| `MEDIA_JOB_NOT_RETRYABLE` | 46406 | 409 | 否 | 业务对象已不需要该任务 | { reason } | [a01-system](a01-system.md) | — |
 | `WEBHOOK_SIGNATURE_INVALID` | 46601 | 401 | 否 | 验签失败：平台签名、每任务 sig 或回调令牌不符（含微信支付签名探测） | — | [h01-hooks](h01-hooks.md) | — |
 | `WEBHOOK_TIMESTAMP_SKEWED` | 46602 | 401 | 否 | 带时间戳的协议与本机相差超过 5 分钟 | — | [h01-hooks](h01-hooks.md) | — |
 | `WEBHOOK_KEY_NOT_FOUND` | 46603 | 401 | 否 | 微信支付 Wechatpay-Serial 在密钥表里查不到 | — | [h01-hooks](h01-hooks.md) | — |
@@ -259,29 +259,29 @@
 | `REPORT_CLOSE_NOT_CURRENT` | 47205 | 409 | 否 | 月度快照已被新的修订取代 | { currentReportMonthCloseId, currentRevisionNo } | [a02-workbench-report](a02-workbench-report.md) | — |
 | `DICT_TYPE_NOT_EDITABLE` | 47301 | 409 | 否 | 字典类型不可新增 | — | [a01-system](a01-system.md) | — |
 | `DICT_NAME_DUPLICATED` | 47302 | 409 | 否 | 同级重名 | — | [a01-system](a01-system.md) | — |
-| `DICT_ITEM_IN_USE` | 47303 | 409 | 否 | 字典项被引用，不能停用 | — | [a01-system](a01-system.md) | — |
-| `DICT_ITEM_LOCKED` | 47304 | 409 | 否 | 字典项规则不允许该操作 | — | [a01-system](a01-system.md) | — |
-| `PARAM_WITHDRAW_TOO_LATE` | 47305 | 409 | 否 | 参数已生效或即将生效，不能撤销 | — | [a01-system](a01-system.md) | — |
-| `CHECKLIST_VERSION_STALE` | 47306 | 409 | 否 | 清单模板版本已不是当前版 | — | [a01-system](a01-system.md) | a05-order-delivery、a06-publish |
+| `DICT_ITEM_IN_USE` | 47303 | 409 | 否 | 字典项被引用，不能停用 | { refCount: integer } | [a01-system](a01-system.md) | — |
+| `DICT_ITEM_LOCKED` | 47304 | 409 | 否 | 字典项规则不允许该操作 | { rule } | [a01-system](a01-system.md) | — |
+| `PARAM_WITHDRAW_TOO_LATE` | 47305 | 409 | 否 | 参数已生效或即将生效，不能撤销 | { effectiveAt } | [a01-system](a01-system.md) | — |
+| `CHECKLIST_VERSION_STALE` | 47306 | 409 | 否 | 清单模板版本已不是当前版 | { code, currentVersionNo } | [a01-system](a01-system.md) | a05-order-delivery、a06-publish |
 | `CHECKLIST_NOT_PASSED` | 47307 | 400 | 否 | 清单没有全部通过：必填条目缺结论、有不通过项，或在不允许“不适用”的条目上填了不适用 | { missingKeys: string[], failedKeys: string[], invalidNaKeys: string[] } | [a01-system](a01-system.md) | a05-order-delivery、a06-publish |
 | `AGREEMENT_VERSION_STALE` | 47401 | 409 | 否 | 提交的协议版本不是当前版本（按 m.agreement.list 的唯一口径判定；登录、重新同意、交易共用，A77） | { agreementKey: string, currentAgreementVersionId: string(uuid) \| null } | [m01-account](m01-account.md) | m04-mall-order、m06-ad、m07-billing |
 | `LICENSE_VERIFICATION_NOT_FOUND` | 47501 | 404 | 否 | 未查到这份授权书：验真码不存在、格式不对，或尚无已出件的版次 | — | [p01-portal](p01-portal.md) | — |
 | `AUTH_TICKET_INVALID` | 48001 | 401 | 否 | 设置密码或绑定动态口令的票据无效或过期 | — | [a01-system](a01-system.md) | — |
 | `TOTP_ALREADY_ENROLLED` | 48002 | 409 | 否 | 已绑定动态口令，不能用激活码重新绑定 | — | [a01-system](a01-system.md) | — |
-| `PASSWORD_POLICY_VIOLATED` | 48003 | 400 | 否 | 密码不符合规则 | — | [a01-system](a01-system.md) | — |
+| `PASSWORD_POLICY_VIOLATED` | 48003 | 400 | 否 | 密码不符合规则 | { rules: string[] }，取值 min_length、letters_and_digits、contains_phone、weak_password、same_as_current | [a01-system](a01-system.md) | — |
 | `PASSWORD_INCORRECT` | 48004 | 400 | 否 | 当前密码不正确 | — | [a01-system](a01-system.md) | — |
 | `MFA_CODE_INVALID` | 48005 | 400 | 否 | 动态口令或恢复码不正确 | — | [a01-system](a01-system.md) | — |
 | `CANNOT_DISABLE_SELF` | 48006 | 409 | 否 | 不能禁用当前登录的账号 | — | [a01-system](a01-system.md) | — |
 | `SELF_OPERATION_FORBIDDEN` | 48007 | 409 | 否 | 不能对自己执行该操作 | — | [a01-system](a01-system.md) | — |
 | `LAST_SUPER_ADMIN` | 48008 | 409 | 否 | 至少保留一名启用的超级管理员 | — | [a01-system](a01-system.md) | — |
-| `OPEN_WORK_EXISTS` | 48009 | 409 | 否 | 名下有在办事项，须先移交再改角色 | — | [a01-system](a01-system.md) | — |
-| `NO_HANDOVER_CANDIDATE` | 48010 | 409 | 否 | 没有同岗位的启用员工可接收 | — | [a01-system](a01-system.md) | — |
-| `LEAD_REMOVAL_ACK_REQUIRED` | 48012 | 409 | 否 | 改动后该组没有主管，须确认 | — | [a01-system](a01-system.md) | — |
+| `OPEN_WORK_EXISTS` | 48009 | 409 | 否 | 名下有在办事项，须先移交再改角色 | { openWork: array<{ source, count }> } | [a01-system](a01-system.md) | — |
+| `NO_HANDOVER_CANDIDATE` | 48010 | 409 | 否 | 没有同岗位的启用员工可接收 | { roleKey } | [a01-system](a01-system.md) | — |
+| `LEAD_REMOVAL_ACK_REQUIRED` | 48012 | 409 | 否 | 改动后该组没有主管，须确认 | { staffGroupId } | [a01-system](a01-system.md) | — |
 | `STAFF_PHONE_TAKEN` | 48013 | 409 | 否 | 手机号已被其他员工使用 | — | [a01-system](a01-system.md) | — |
-| `WECOM_USERID_TAKEN` | 48014 | 409 | 否 | 企业微信 userid 已绑定其他员工 | — | [a01-system](a01-system.md) | — |
+| `WECOM_USERID_TAKEN` | 48014 | 409 | 否 | 企业微信 userid 已绑定其他员工 | { staffId, staffName, staffStatus } | [a01-system](a01-system.md) | — |
 | `WECOM_CODE_INVALID` | 48015 | 400 | 否 | 企业微信扫码 code 无效或过期 | — | [a01-system](a01-system.md) | — |
 | `ROLE_LOCKED` | 48016 | 409 | 否 | 超级管理员角色不可修改 | — | [a01-system](a01-system.md) | — |
-| `POOL_ROLE_MISMATCH` | 48017 | 409 | 否 | 员工岗位与分配池不符或未启用 | — | [a01-system](a01-system.md) | — |
+| `POOL_ROLE_MISMATCH` | 48017 | 409 | 否 | 员工岗位与分配池不符或未启用 | { pool, roleKey } | [a01-system](a01-system.md) | — |
 | `APPROVAL_NOT_PENDING` | 48201 | 409 | 否 | 该申请已处理或已撤回（统一审批单通用码，其他文档引用） | { status, decidedAt } | [a03-merchant](a03-merchant.md) | a05-order-delivery、a06-publish、a07-billing-finance |
 | `APPROVAL_SELF_FORBIDDEN` | 48202 | 403 | 否 | 不能审批自己发起的申请（统一审批单通用码） | — | [a03-merchant](a03-merchant.md) | a05-order-delivery、a06-publish、a07-billing-finance |
 | `APPROVAL_ALREADY_PENDING` | 48203 | 409 | 否 | 该对象已有一张待审批的同类申请（统一审批单通用码） | { approvalId, requestNo } | [a03-merchant](a03-merchant.md) | a07-billing-finance |

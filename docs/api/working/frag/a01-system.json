@@ -3303,7 +3303,8 @@
    "code": 48003,
    "http": 400,
    "retryable": false,
-   "meaning": "密码不符合规则"
+   "meaning": "密码不符合规则",
+   "details": "{ rules: string[] }，取值 min_length、letters_and_digits、contains_phone、weak_password、same_as_current"
   },
   {
    "symbol": "PASSWORD_INCORRECT",
@@ -3345,21 +3346,24 @@
    "code": 48009,
    "http": 409,
    "retryable": false,
-   "meaning": "名下有在办事项，须先移交再改角色"
+   "meaning": "名下有在办事项，须先移交再改角色",
+   "details": "{ openWork: array<{ source, count }> }"
   },
   {
    "symbol": "NO_HANDOVER_CANDIDATE",
    "code": 48010,
    "http": 409,
    "retryable": false,
-   "meaning": "没有同岗位的启用员工可接收"
+   "meaning": "没有同岗位的启用员工可接收",
+   "details": "{ roleKey }"
   },
   {
    "symbol": "LEAD_REMOVAL_ACK_REQUIRED",
    "code": 48012,
    "http": 409,
    "retryable": false,
-   "meaning": "改动后该组没有主管，须确认"
+   "meaning": "改动后该组没有主管，须确认",
+   "details": "{ staffGroupId }"
   },
   {
    "symbol": "STAFF_PHONE_TAKEN",
@@ -3373,7 +3377,8 @@
    "code": 48014,
    "http": 409,
    "retryable": false,
-   "meaning": "企业微信 userid 已绑定其他员工"
+   "meaning": "企业微信 userid 已绑定其他员工",
+   "details": "{ staffId, staffName, staffStatus }"
   },
   {
    "symbol": "WECOM_CODE_INVALID",
@@ -3394,49 +3399,56 @@
    "code": 48017,
    "http": 409,
    "retryable": false,
-   "meaning": "员工岗位与分配池不符或未启用"
+   "meaning": "员工岗位与分配池不符或未启用",
+   "details": "{ pool, roleKey }"
   },
   {
    "symbol": "FILE_CATEGORY_NOT_ALLOWED",
    "code": 46401,
    "http": 400,
    "retryable": false,
-   "meaning": "该分类不能在此登记或签发"
+   "meaning": "该分类不能在此登记或签发",
+   "details": "{ category }"
   },
   {
    "symbol": "PRODUCTION_CONTEXT_REQUIRED",
    "code": 46402,
    "http": 400,
    "retryable": false,
-   "meaning": "制作文件缺制作上下文或 AI 使用声明"
+   "meaning": "制作文件缺制作上下文或 AI 使用声明",
+   "details": "{ missing: string[] }"
   },
   {
    "symbol": "FILE_NOT_AVAILABLE",
    "code": 46403,
    "http": 409,
    "retryable": false,
-   "meaning": "文件未入库、已清除或已拦截"
+   "meaning": "文件未入库、已清除或已拦截",
+   "details": "{ status }"
   },
   {
    "symbol": "FILE_RESTORE_WINDOW_PASSED",
    "code": 46404,
    "http": 409,
    "retryable": false,
-   "meaning": "已超过可恢复期限"
+   "meaning": "已超过可恢复期限",
+   "details": "{ deletedAt }"
   },
   {
    "symbol": "FILE_IN_USE",
    "code": 46405,
    "http": 409,
    "retryable": false,
-   "meaning": "文件仍有在用引用"
+   "meaning": "文件仍有在用引用",
+   "details": "{ refs: array<{ refType, refId }> }"
   },
   {
    "symbol": "MEDIA_JOB_NOT_RETRYABLE",
    "code": 46406,
    "http": 409,
    "retryable": false,
-   "meaning": "业务对象已不需要该任务"
+   "meaning": "业务对象已不需要该任务",
+   "details": "{ reason }"
   },
   {
    "symbol": "DICT_TYPE_NOT_EDITABLE",
@@ -3457,28 +3469,32 @@
    "code": 47303,
    "http": 409,
    "retryable": false,
-   "meaning": "字典项被引用，不能停用"
+   "meaning": "字典项被引用，不能停用",
+   "details": "{ refCount: integer }"
   },
   {
    "symbol": "DICT_ITEM_LOCKED",
    "code": 47304,
    "http": 409,
    "retryable": false,
-   "meaning": "字典项规则不允许该操作"
+   "meaning": "字典项规则不允许该操作",
+   "details": "{ rule }"
   },
   {
    "symbol": "PARAM_WITHDRAW_TOO_LATE",
    "code": 47305,
    "http": 409,
    "retryable": false,
-   "meaning": "参数已生效或即将生效，不能撤销"
+   "meaning": "参数已生效或即将生效，不能撤销",
+   "details": "{ effectiveAt }"
   },
   {
    "symbol": "CHECKLIST_VERSION_STALE",
    "code": 47306,
    "http": 409,
    "retryable": false,
-   "meaning": "清单模板版本已不是当前版"
+   "meaning": "清单模板版本已不是当前版",
+   "details": "{ code, currentVersionNo }"
   },
   {
    "symbol": "CHECKLIST_NOT_PASSED",
