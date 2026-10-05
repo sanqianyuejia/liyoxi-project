@@ -9,7 +9,15 @@ import { calendarDate, endOfDay, startOfDay } from "@liyoxi/shared/time";
 import type { LocalDate } from "@liyoxi/shared/time";
 
 import { createLedger } from "../billing/index.js";
-import type { Ledger, LedgerDeps, PurchaseResult } from "../billing/index.js";
+import type {
+  CaptureResult,
+  HoldResult,
+  Ledger,
+  LedgerDeps,
+  PurchaseResult,
+  ReturnReasonClass,
+  ReturnResult,
+} from "../billing/index.js";
 import { createEvents } from "../events/index.js";
 import type { Events } from "../events/index.js";
 import { createIdentityContext, createTxRunner, uuidv7 } from "../kernel/index.js";
@@ -91,6 +99,7 @@ export interface TermFixture {
 /**
  * 造一个周期与它的发放计划，样子与履约建出来的一致（D1 第 6.4 节）：
  * 不给 after：从账本时钟的现在起生效，锚定日取当天，首月当场发放，账户置为生效；
+ *   这个主体此前过期过的话就是“过期后重新开通”（origin = resume），发完首月再记一行加购积分恢复；
  * 给 after：预约周期，起点 = 上一期的止点，锚定日沿用，等 advance 到点接续。
  * 自己开一个事务，在账户锁内做。
  */
@@ -101,6 +110,11 @@ export async function openTerm(
   const { entityId, months = 1, planCode = "pro", after } = input;
   return harness.tx.run(async (tx: Tx) => {
     const { now } = await harness.ledger.lockAccount(tx, entityId);
+    const account = await tx.billingAccount.findUniqueOrThrow({ where: { entityId } });
+    if (!after && account.subStatus === "active") {
+      throw new Error("openTerm：这个主体还有生效的周期，要接在后面请给 after");
+    }
+    const resumed = !after && account.subStatus === "expired";
     const plan = await tx.plan.findUniqueOrThrow({ where: { code: planCode } });
     const revision = await tx.planRevision.findFirstOrThrow({
       where: { planId: plan.id, cancelledAt: null },
@@ -126,7 +140,7 @@ export async function openTerm(
       months,
       priceTotalFen,
       termNo: (await tx.subscriptionTerm.count({ where: { entityId } })) + 1,
-      origin: after ? "renew" : "new",
+      origin: after ? "renew" : resumed ? "resume" : "new",
       status: after ? "scheduled" : "active",
       anchorDay: dates.anchorDay,
       startDate: toDateColumn(dates.startDate),
@@ -169,6 +183,12 @@ export async function openTerm(
         grantScheduleId: first.id,
         ...(input.ctx ? { ctx: input.ctx } : {}),
       });
+      if (resumed) {
+        await harness.ledger.resumeAddon(tx, {
+          subscriptionTermId: term.id,
+          ...(input.ctx ? { ctx: input.ctx } : {}),
+        });
+      }
     } else {
       await harness.ledger.refreshNextDue(tx, entityId);
     }
@@ -216,6 +236,128 @@ export async function topUp(
   return { ...result, billingOrderId: order.id };
 }
 
+/** 给一部剧定单剧积分价（custom 修订，自账本时钟的现在起生效）。等级模板价是种子：S 3,000、A 2,000、B 1,600、C 1,000 */
+export async function priceDrama(
+  harness: LedgerHarness,
+  input: { dramaId: string; points: number; staffId: string },
+): Promise<void> {
+  const now = harness.clock.now();
+  await harness.prisma.dramaPriceRevision.create({
+    data: {
+      id: uuidv7(),
+      dramaId: input.dramaId,
+      mode: "custom",
+      customPoints: input.points,
+      // 调价前后不能相同（库里有 CHECK）：调价前的价只是展示用，随便给一个不同的
+      prevPoints: input.points + 1,
+      newPoints: input.points,
+      effectiveAt: now,
+      reasonCode: "quality",
+      createdByStaffId: input.staffId,
+      createdAt: now,
+    },
+  });
+}
+
+export interface DramaHoldFixtureInput {
+  readonly entityId: string;
+  readonly storeId: string;
+  readonly dramaId: string;
+  readonly topModel?: boolean;
+  readonly expectS?: number;
+  /** 订单项 id：订购侧预先生成；不给即现生成一个 */
+  readonly refId?: string;
+  readonly ctx?: IdentityContext;
+}
+
+const fixtureContext = (entityId: string, job: string): IdentityContext =>
+  createIdentityContext({ actor: { type: "system", job }, entityId });
+
+/** 订一部剧的冻结入参：文案取“这一单只有这一部”的值 */
+export function dramaHoldInput(input: DramaHoldFixtureInput & { refId: string }) {
+  return {
+    entityId: input.entityId,
+    storeId: input.storeId,
+    refType: "order_item" as const,
+    refId: input.refId,
+    groupRef: "LYX-TEST",
+    pricing: { kind: "drama" as const, dramaId: input.dramaId, topModel: input.topModel ?? false },
+    ...(input.expectS === undefined ? {} : { expectS: input.expectS }),
+    title: {
+      code: "order_hold" as const,
+      args: {
+        dramaTitles: ["测试短剧"],
+        count: 1,
+        pricePoints: [1],
+        discountBp: 10_000,
+        surchargeBp: 0,
+      },
+    },
+    ctx: input.ctx ?? fixtureContext(input.entityId, "lyxtest.hold"),
+  };
+}
+
+/** 冻结一部剧（一张订单项一张冻结单）。自己开一个事务 */
+export async function holdDrama(
+  harness: LedgerHarness,
+  input: DramaHoldFixtureInput,
+): Promise<HoldResult & { refId: string }> {
+  const refId = input.refId ?? uuidv7();
+  const held = await harness.tx.run((tx) =>
+    harness.ledger.hold(tx, dramaHoldInput({ ...input, refId })),
+  );
+  return { ...held, refId };
+}
+
+/** 扣减一张冻结单（开始制作）。自己开一个事务 */
+export const captureHold = (harness: LedgerHarness, pointHoldId: string): Promise<CaptureResult> =>
+  harness.tx.run(async (tx) => {
+    const found = await tx.pointHold.findUniqueOrThrow({ where: { id: pointHoldId } });
+    return harness.ledger.capture(tx, {
+      pointHoldId,
+      title: { refType: "order_item", refNo: "LYX-TEST", count: 1 },
+      ctx: fixtureContext(found.entityId, "lyxtest.capture"),
+    });
+  });
+
+/** 释放一张冻结单（开工前取消）。自己开一个事务 */
+export const releaseHold = (
+  harness: LedgerHarness,
+  pointHoldId: string,
+  reasonClass: ReturnReasonClass = "merchant",
+): Promise<ReturnResult> =>
+  harness.tx.run(async (tx) => {
+    const found = await tx.pointHold.findUniqueOrThrow({ where: { id: pointHoldId } });
+    return harness.ledger.release(tx, {
+      pointHoldId,
+      reasonClass,
+      title: { refNo: "LYX-TEST", dramaTitles: ["测试短剧"] },
+      ctx: fixtureContext(found.entityId, "lyxtest.release"),
+    });
+  });
+
+/** 退回一张已扣减的冻结单的一部分或全部。取消明细的 id 不给即现生成（每次是一次新的退回）。自己开一个事务 */
+export const refundHold = (
+  harness: LedgerHarness,
+  input: {
+    pointHoldId: string;
+    qty: number;
+    reasonClass?: ReturnReasonClass;
+    cancelRequestLineId?: string;
+  },
+): Promise<ReturnResult> =>
+  harness.tx.run(async (tx) => {
+    const found = await tx.pointHold.findUniqueOrThrow({ where: { id: input.pointHoldId } });
+    return harness.ledger.refund(tx, {
+      pointHoldId: input.pointHoldId,
+      qty: input.qty,
+      reasonClass: input.reasonClass ?? "merchant",
+      source: { type: "cancel_request_line", id: input.cancelRequestLineId ?? uuidv7() },
+      refNo: "LYX-TEST",
+      ctx: fixtureContext(found.entityId, "lyxtest.refund"),
+    });
+  });
+
 const iso = (at: Date | null): string | null => at?.toISOString() ?? null;
 
 /**
@@ -249,6 +391,11 @@ export async function dumpLedger(db: PrismaClient | Tx, entityId: string) {
   const subscriptionEvents = await db.subscriptionEvent.findMany({
     where: { entityId },
     orderBy: { seq: "asc" },
+  });
+  const holds = await db.pointHold.findMany({
+    where: { entityId },
+    orderBy: [{ heldAt: "asc" }, { id: "asc" }],
+    include: { pointHoldAllocs: { orderBy: { allocNo: "asc" } } },
   });
   return {
     account: {
@@ -288,6 +435,30 @@ export async function dumpLedger(db: PrismaClient | Tx, entityId: string) {
       heldQty: lot.heldQty,
       expiredQty: lot.expiredQty,
       costBasisFen: lot.costBasisFen,
+    })),
+    // 冻结单一族用到的另外几个桶，与 lots 同序
+    lotBuckets: lots.map((lot) => ({
+      consumedQty: lot.consumedQty,
+      convertedOutQty: lot.convertedOutQty,
+      adjustedOutQty: lot.adjustedOutQty,
+    })),
+    holds: holds.map((hold) => ({
+      refType: hold.refType,
+      qty: hold.qty,
+      status: hold.status,
+      returnedQty: hold.returnedQty,
+      forfeitedQty: hold.forfeitedQty,
+      termNo: no(hold.subscriptionTermId),
+      heldAt: iso(hold.heldAt),
+      capturedAt: iso(hold.capturedAt),
+      closedAt: iso(hold.closedAt),
+      allocs: hold.pointHoldAllocs.map((alloc) => ({
+        allocNo: alloc.allocNo,
+        lotKind: alloc.lotKind,
+        qty: alloc.qty,
+        returnedQty: alloc.returnedQty,
+        forfeitedQty: alloc.forfeitedQty,
+      })),
     })),
     operations: operations.map((op) => ({
       opType: op.opType,
