@@ -538,6 +538,8 @@ describe("nightly.yml", () => {
       'printf "%s\\n" "APP_ENV=test" "DATABASE_URL=postgresql://liyoxi:lyx-local-dev@localhost:5442/liyoxi" "REDIS_URL=redis://localhost:6389/0" >> "$GITHUB_ENV"',
       'psql -X -w -d postgres -c "CREATE DATABASE lyx_migrate_check" && pnpm db:deploy',
       "pnpm test",
+      // W0-30：M0 的演示，业主用的那条命令每晚重放一遍
+      "pnpm demo:m0",
     ]);
   });
 

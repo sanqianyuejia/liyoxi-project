@@ -23,7 +23,8 @@
     "test": "vitest run --passWithNoTests",
     "build": "echo '源码包：exports 直接指向 src，没有构建'",
     "seed": "tsx scripts/seed.ts",
-    "seeded-db": "tsx scripts/seeded-db.ts"
+    "seeded-db": "tsx scripts/seeded-db.ts",
+    "demo:m0": "tsx scripts/demo-m0.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1141.0",

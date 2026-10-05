@@ -66,3 +66,7 @@ jobs:
         run: psql -X -w -d postgres -c "CREATE DATABASE lyx_migrate_check" && pnpm db:deploy
       - name: 测试
         run: pnpm test
+      # M0 的演示（W0-30；计划 第 6.3 节“退出：演示”）：自己建演示库、跑全部迁移与种子，把样例链路重放一遍，
+      # 末尾打印四个计数；跑完删掉自己建的库。同一条链路的用例已在上面的“测试”里，这里跑的是业主用的那条命令
+      - name: 演示（demo:m0）
+        run: pnpm demo:m0
