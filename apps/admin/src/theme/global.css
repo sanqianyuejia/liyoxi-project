@@ -56,12 +56,15 @@ body {
 /*
  * 表单控件里的数字同样等宽：浏览器给 input、textarea、button、select 的缺省字体简写会把这个属性重置成 normal，
  * body 上的值继承不进去（搜索框、弹窗里输入的电话尾号、数值输入、按钮上的数字、日期浮层头部的年月），这里显式继承。
+ * 字体同理（规范 第 2.1 节：全部界面文字用同一个字体栈）：antd 的控件大多自己写了继承，日期浮层头部的年、月两个按钮没有写，
+ * 落成了浏览器给按钮的缺省字体（Arial），一并继承回来。
  */
 input,
 textarea,
 button,
 select,
 optgroup {
+  font-family: inherit;
   font-variant-numeric: inherit;
 }
 
