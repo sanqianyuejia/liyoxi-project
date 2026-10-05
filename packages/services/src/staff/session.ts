@@ -12,6 +12,7 @@ import type {
 } from "@liyoxi/contract/enums";
 import type { Staff, StaffGroup, StaffSession } from "@liyoxi/db";
 
+import { STEP_UP_TTL_MS } from "../authz/index.js";
 import { AppError, uuidv7 } from "../kernel/index.js";
 import type { AppEnv, Tx } from "../kernel/index.js";
 import { recoveryHashesOf } from "./codes.js";
@@ -24,8 +25,8 @@ export const SESSION_IDLE_MS = 60 * MINUTE;
 export const SESSION_ABSOLUTE_MS = 12 * 60 * MINUTE;
 /** 距上次续写超过这么久才再写一次 last_seen_at 与空闲过期时间 */
 export const SESSION_TOUCH_MS = MINUTE;
-/** 再验证的有效期（约定 C66：stepup_at 在 10 分钟以内） */
-export const STEP_UP_TTL_MS = 10 * MINUTE;
+/** 再验证的有效期（约定 C66：stepup_at 在 10 分钟以内）：常量只有 authz 的那一份，这里原样再给出 */
+export { STEP_UP_TTL_MS };
 
 export type SessionAuthMethod = EnumValue<typeof STAFF_SESSION_AUTH_METHOD>;
 export type SessionRevokeReason = EnumValue<typeof STAFF_SESSION_REVOKE_REASON>;

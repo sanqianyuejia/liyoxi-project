@@ -102,7 +102,7 @@ totpNow(secret, t.clock); // 按时钟算当下的动态口令
 ## 7. 已知的限度
 
 - `StaffMe` 没在这里拼：生效的权限点、模块等级、数据范围要 `authz` 规整，开关要 `config` 求值，由接口层（第三个 PR）拿 `StaffPrincipal` 去拼。
-- 再验证的窗口判断（权限点标了再验证且 `stepup_at` 超过 10 分钟）在 `authz`；这里只管写 `stepup_at` 与给出 `stepUpValidUntil`。10 分钟这个数两边各有一个常量（`STEP_UP_TTL_MS`），第三个 PR 接线时并成一个。
+- 再验证的窗口判断（权限点标了再验证且 `stepup_at` 超过 10 分钟）在 `authz`；这里只管写 `stepup_at` 与给出 `stepUpValidUntil`。10 分钟这个数只有 `authz` 的那一个常量（`STEP_UP_TTL_MS`），本模块引它并原样再导出。
 - 再验证失败不计入登录失败桶，也没有自己的计数：穷举靠 `admin.login` 档的限流（W0-22b）。
 - 登录失败不论账号存不存在都写一行 `auth_event`：量由按 IP 的限流封顶。
 - 耗时只对齐了 scrypt 这一大头；几条失败路之后写库的语句数不同，差在毫秒以内。
