@@ -11,3 +11,5 @@ export * from "./config/params.js";
 export * from "./common/index.js";
 export * from "./routes/index.js";
 export * from "./openapi.js";
+// W0-15 出站事件的载荷结构：按事件名取 schema
+export * from "./events/index.js";
