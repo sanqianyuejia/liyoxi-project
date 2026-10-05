@@ -21,6 +21,9 @@ import {
   testDatabaseUrl,
 } from "./database.js";
 import type { TestConnectionOptions, TestPackage } from "./database.js";
+// 只为类型：inject("lyxTestMaxWorkers") 的键是 global-setup.ts 里对 Vitest 的类型扩充。别的包（apps/api、apps/worker）
+// 经 @liyoxi/services/testing 引到本文件时，它们的类型检查里没有 global-setup.ts，不带这一行就认不得那个键（W0-22）
+import type {} from "./global-setup.js";
 
 /**
  * 收尾钩子的时限。删库平时不到一秒，但它要等数据库做一次检查点：
