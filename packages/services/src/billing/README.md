@@ -16,6 +16,7 @@
 | `sweep.ts` | 每分钟扫描的用例函数 `advanceDueAccounts`（循环 `billing_advance`） |
 | `invariants.ts`、`register.ts` | `billing.I1`、`I2`、`I3`、`I6`、`I7`、`I8`、`I16` 的检查与登记 |
 | `seed.ts`、`seed-data.ts` | 套餐、价目、参数的种子（W0-21） |
+| `subscription/`、`ports.ts` | 付清后的履约（建周期与发放计划、发首月）、`billing.I9`、`I10`、`I12`、两个端口的实现（W1-11a），见 [subscription/README.md](subscription/README.md) |
 
 ## 2. 用账本
 

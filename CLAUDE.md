@@ -254,6 +254,7 @@
 | `pnpm counts:report`（加 `--require M0,M1` 核对里程碑清零；加 `--detail` 逐条列 x01 的未落地清单） | 四个计数：已落地接口数、待落地数、留桩数、未实现页面数，按里程碑分列，另出 x01 归属的未落地清单。已落地数要先有已挂载清单（`pnpm exec vitest run --project api` 写出），没有时报表里会注明。口径见 [脚本](infra/ci/four-counts.mjs) 开头的注释 |
 | `pnpm --filter @liyoxi/services exec vitest run src/approval/` | 只跑 approval（审批执行器框架）的用例：发起人审批被拒与守卫各分支、并发决定各 20 轮、执行与决定分开、性质测试（固定种子、200 轮）、在途去重与幂等重放、三项每日校验。都连库：要本地的 PostgreSQL 与 `DATABASE_URL`。怎么登记一个审批类型、四个写函数怎么调、轮次与种子怎么改，见 [README](packages/services/src/approval/README.md) |
 | `pnpm --filter @liyoxi/services exec vitest run src/billing/`（任务进程里的循环：`pnpm --filter @liyoxi/worker exec vitest run test/billing-advance.test.ts`） | 只跑账本的用例：账户锁与账本时钟、月度发放、加购入账、时间推进 advance 与它的并发、逐步故障注入、七条不变量、读函数与价目读侧。连带种子的测试库，要本地的 PostgreSQL 与 `DATABASE_URL`；循环的那一份另要 Redis。账本怎么调、夹具怎么造周期，见 [README](packages/services/src/billing/README.md) |
+| `pnpm --filter @liyoxi/services exec vitest run src/billing/subscription/ src/billing/ports.test.ts` | 只跑履约（W1-11a 的账本侧）的用例：付清后建周期与发放计划、发首月、过期后重新开通、预约周期接续、周期不重叠、逐步故障注入、并发、性质测试（分摊不连库 200 轮；履约连库缺省 10 轮、固定种子，`LYX_FC_RUNS`、`LYX_FC_SEED` 可改）、三条不变量与两个端口。连带种子的测试库，要本地的 PostgreSQL 与 `DATABASE_URL`。`createFulfillment`、`fulfill` 怎么用、哪些算受阻，见 [README](packages/services/src/billing/subscription/README.md) |
 
 本地连接参数：配置只经 `loadEnv`（`packages/services/src/kernel/env.ts`）读环境变量，会话与测试不建、不读 `.env`，在命令前或 shell 里给出。取值出处是 [local.yml](infra/compose/local.yml)，账号与口令是固定的开发值，只对本机这套容器有效；CI 的服务容器用同一组值。
 
