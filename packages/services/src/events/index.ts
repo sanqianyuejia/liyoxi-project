@@ -9,3 +9,15 @@ export { SubscriberRegistryError } from "./subscribers.js";
 export type { SubscriberEntry, SubscriberTable } from "./subscribers.js";
 export { EXPAND_BATCH_SIZE } from "./expand.js";
 export type { ExpandResult } from "./expand.js";
+export {
+  findI8Violations,
+  I8_DELIVERY_MAX_OVERDUE_MS,
+  I8_EVENT_MAX_AGE_MS,
+  I8_MAX_VIOLATIONS,
+} from "./invariants.js";
+export {
+  assertAggregateTables,
+  emittedAggregateTypes,
+  findMissingAggregateTables,
+} from "./aggregates.js";
+export { registration } from "./register.js";
