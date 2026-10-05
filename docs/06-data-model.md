@@ -472,7 +472,7 @@
 
 ## 8. 校验与下一步
 
-**校验**：在本机执行 `python3 tools/schema-check/check.py`（准备步骤见 [tools/schema-check](../tools/schema-check/README.md)）。它会校验 `schema.prisma`、在临时库里建表并执行 `constraints/` 的全部语句，再逐列比对文档与库结构。改动任何一份分组文档、`schema.prisma` 或约束文件后都应重跑。
+**校验**：在本机执行 `python3 tools/schema-check/check.py`（准备步骤见 [tools/schema-check](../tools/schema-check/README.md)）。草稿已冻结，结构以迁移为准：它在临时库里跑完 `packages/db` 的全部迁移，再逐列比对分组文档与库结构；由草稿 `schema.prisma` 与 `constraints/` 建库的旧流程留在 `--from-draft`。改动任何一份分组文档后都应重跑；`schema.prisma` 与约束文件不再改（`pnpm db:draft-freeze:check` 把守），结构要变就写新迁移。
 
 **没有验证的**：业务代码与真实数据下的行为；Prisma 迁移工具生成的迁移脚本（只用了离线生成建表语句）；PostgreSQL 17 上的执行（本机校验用 14）；性能与索引在真实数据量下的效果；各文档里的 mermaid 图没有用渲染工具检查。
 
