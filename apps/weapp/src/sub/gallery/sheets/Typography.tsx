@@ -55,7 +55,7 @@ export default function TypographySheet() {
       <Demo title="2.2 多行文字行高 1.5">
         <View className="lyx-demo__note">
           平台整理好后会通知您。素材审核一般在 1
-          个工作日内完成；审核没有通过时，会写明原因与下一步， 您补充后可以重新提交。
+          个工作日内完成；审核没有通过时，会写明原因与下一步，您补充后可以重新提交。
         </View>
       </Demo>
     </>
