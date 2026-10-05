@@ -54,6 +54,8 @@ export interface QueueChannel {
   ): QueueConsumer;
   /** Redis 已连续不可用多久，毫秒；可用即 0 */
   downForMs(): number;
+  /** 探一下 Redis 通不通；结果同时记进 downForMs */
+  ping(): Promise<boolean>;
   close(): Promise<void>;
 }
 
@@ -100,6 +102,8 @@ export function createQueueChannel(options: QueueChannelOptions): QueueChannel {
     async enqueue(queue, jobId, data) {
       assertNotInTransaction(`queue.enqueue(${queue})`);
       try {
+        // 连接没就绪（还在连、正在重连）就不等：BullMQ 会一直等到连上为止
+        if (producer.status !== "ready") throw new Error("Redis 未连接");
         await withTimeout(
           queueOf(queue).add(queue, data, {
             jobId,
@@ -150,6 +154,14 @@ export function createQueueChannel(options: QueueChannelOptions): QueueChannel {
     },
 
     downForMs: () => (downSince === undefined ? 0 : monotonic() - downSince),
+
+    async ping() {
+      const alive =
+        producer.status === "ready" && (await producer.ping().catch(() => "")) === "PONG";
+      if (alive) markUp();
+      else markDown();
+      return alive;
+    },
 
     async close() {
       await Promise.allSettled(closers.splice(0).map((close) => close()));

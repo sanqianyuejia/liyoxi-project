@@ -23,3 +23,6 @@ export * from "./calendar.js";
 export * from "./timers.js";
 // W0-23：任务进程的样例订阅者、定时器处理器、周期任务（带业务副作用，用例据此断言恰好一次）
 export * from "./worker.js";
+// 只在类型上带上 globalSetup 对 Vitest 的声明补充（inject("lyxTestMaxWorkers") 的类型）：
+// 应用层的包只引本入口，不带这一行它们的类型检查过不了。运行时没有这条导入
+import type {} from "./global-setup.js";
