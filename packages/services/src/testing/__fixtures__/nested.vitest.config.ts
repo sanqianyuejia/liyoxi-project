@@ -10,6 +10,9 @@ export default defineConfig({
   test: {
     root: fileURLToPath(new URL("../../../", import.meta.url)),
     include: ["src/testing/__fixtures__/*.fixture.ts"],
+    // 夹具要连 Redis：机器忙的时候不用缺省的 5 秒，与外层的用例同一个时限
+    testTimeout: 60_000,
+    hookTimeout: 120_000,
     provide: { lyxTestMaxWorkers: 1 },
   },
 });

@@ -13,6 +13,9 @@ export default defineConfig({
   test: {
     root: fileURLToPath(new URL("../../../", import.meta.url)),
     include: ["src/testing/__fixtures__/*.fixture.ts"],
+    // 夹具都要建库、连库：实例忙的时候（别的会话同时在跑）建一个库就可以慢过缺省的 5 秒，时限放宽
+    testTimeout: 60_000,
+    hookTimeout: 120_000,
     provide: workers > 0 ? { lyxTestMaxWorkers: workers } : {},
   },
 });
