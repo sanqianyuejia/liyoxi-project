@@ -1277,6 +1277,15 @@ h3.lyx-section-title {
   font-weight: var(--lyx-font-weight-semibold);
 }
 
+/*
+ * 标签那一行的字号、行高跟标签自己走（13px、正文的 1.6）。antd 把这一行留在全局字号 14 上，行框比标签高出半个多像素，
+ * 标签文字的下沿到控件就不是整 6 了（规范 第 5.3 节：标签与控件间距 6；实测 6.6）。
+ */
+:root .ant-form-item .ant-form-item-label {
+  font-size: var(--lyx-font-size-body);
+  line-height: var(--lyx-line-height-body);
+}
+
 .ant-form-item .ant-form-item-explain,
 .ant-form-item .ant-form-item-extra {
   font-size: var(--lyx-font-size-caption);
