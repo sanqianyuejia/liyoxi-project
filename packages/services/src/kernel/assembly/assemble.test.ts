@@ -7,7 +7,7 @@ import * as alpha from "./__fixtures__/lyxtest_alpha/index.js";
 import * as beta from "./__fixtures__/lyxtest_beta/index.js";
 import { assemble, AssemblyError } from "./assemble.js";
 import type { AssemblyIssue } from "./assemble.js";
-import { collectRegistrations, RegistrationShapeError } from "./collect.js";
+import { auditModuleEntries, collectRegistrations, RegistrationShapeError } from "./collect.js";
 import { defineRegistration, implement, implementKeyed, REGISTRATION_KINDS } from "./types.js";
 import type { Assembly, AssemblyEntry, ModuleRegistration } from "./types.js";
 
@@ -61,6 +61,42 @@ describe("收集：从模块入口里取 registration", () => {
     expect(() => collectRegistrations({ lyxtest_renamed: alpha })).toThrow(
       /模块 lyxtest_renamed .*模块名写的是 lyxtest_alpha，要与目录名相同/,
     );
+  });
+});
+
+describe("入口清单与模块目录对账", () => {
+  const directories = [
+    { name: "lyxtest_alpha", hasRegisterFile: true },
+    { name: "lyxtest_beta", hasRegisterFile: true },
+    { name: "lyxtest_plain", hasRegisterFile: false },
+  ];
+
+  it("一致：没有问题", () => {
+    expect(auditModuleEntries({ ...SAMPLE_ENTRIES, lyxtest_plain: {} }, directories)).toEqual([]);
+  });
+
+  it("有 register.ts 而入口没给出 registration：查得出来", () => {
+    expect(
+      auditModuleEntries(
+        { lyxtest_alpha: alpha, lyxtest_beta: {}, lyxtest_plain: {} },
+        directories,
+      ),
+    ).toEqual([
+      "模块 lyxtest_beta 有 register.ts，入口 index.ts 却没有给出 registration：登记收不到",
+    ]);
+  });
+
+  it("清单多一个、少一个，入口给出了登记却没有 register.ts：各报一条", () => {
+    expect(
+      auditModuleEntries(
+        { lyxtest_alpha: alpha, lyxtest_plain: beta, lyxtest_gone: {} },
+        directories,
+      ),
+    ).toEqual([
+      "组合根清单里的 lyxtest_gone 没有对应的模块目录",
+      "模块目录 lyxtest_beta 不在组合根的清单里",
+      "模块 lyxtest_plain 的入口给出了 registration，目录里却没有 register.ts：登记要写在 register.ts 里",
+    ]);
   });
 });
 

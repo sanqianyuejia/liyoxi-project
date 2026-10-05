@@ -51,3 +51,44 @@ export function collectRegistrations(
   }
   return collected;
 }
+
+/** 磁盘上的一个模块目录 */
+export interface ModuleDirectory {
+  readonly name: string;
+  /** 目录里有没有 register.ts */
+  readonly hasRegisterFile: boolean;
+}
+
+/**
+ * 组合根的入口清单与磁盘上的模块目录对一遍，返回对不上的地方；空数组即一致。
+ * 组合根的自测用它：模块建了 register.ts 却忘了在入口再导出，登记就收不到，这里把它查出来。
+ */
+export function auditModuleEntries(
+  entries: Readonly<Record<string, object>>,
+  directories: readonly ModuleDirectory[],
+): string[] {
+  const problems: string[] = [];
+  const onDisk = new Set(directories.map((directory) => directory.name));
+  for (const name of Object.keys(entries).sort()) {
+    if (!onDisk.has(name)) problems.push(`组合根清单里的 ${name} 没有对应的模块目录`);
+  }
+  for (const directory of [...directories].sort((a, b) => (a.name < b.name ? -1 : 1))) {
+    const entry = entries[directory.name];
+    if (entry === undefined) {
+      problems.push(`模块目录 ${directory.name} 不在组合根的清单里`);
+      continue;
+    }
+    const exported = REGISTRATION_EXPORT in entry;
+    if (directory.hasRegisterFile && !exported) {
+      problems.push(
+        `模块 ${directory.name} 有 register.ts，入口 index.ts 却没有给出 ${REGISTRATION_EXPORT}：登记收不到`,
+      );
+    }
+    if (!directory.hasRegisterFile && exported) {
+      problems.push(
+        `模块 ${directory.name} 的入口给出了 ${REGISTRATION_EXPORT}，目录里却没有 register.ts：登记要写在 register.ts 里`,
+      );
+    }
+  }
+  return problems;
+}

@@ -2,11 +2,13 @@
 export { assemble, ASSEMBLY_ISSUE_CATEGORIES, AssemblyError } from "./assemble.js";
 export type { AssembleOptions, AssemblyIssue, AssemblyIssueCategory } from "./assemble.js";
 export {
+  auditModuleEntries,
   collectRegistrations,
   isModuleRegistration,
   REGISTRATION_EXPORT,
   RegistrationShapeError,
 } from "./collect.js";
+export type { ModuleDirectory } from "./collect.js";
 export {
   ASSEMBLY_ENTRIES,
   CLEANUP_EVERY,

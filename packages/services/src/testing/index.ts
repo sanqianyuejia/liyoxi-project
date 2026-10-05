@@ -9,3 +9,6 @@ export * from "@liyoxi/db/testing";
 export * from "./clock.js";
 export * from "./fault/index.js";
 export * from "./redis.js";
+
+// W0-07b：测试装配（真实模块的登记之外追加样例登记）
+export * from "./assembly.js";
