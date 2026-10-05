@@ -2,12 +2,14 @@
   "name": "@liyoxi/worker",
   "version": "0.1.0",
   "private": true,
-  "description": "任务进程入口：出站事件中继、定时器扫描、队列消费（骨架由 W0-23 接）",
+  "description": "任务进程入口：数据库租约、出站中继与派发、定时器扫描、周期补登记、队列消费（W0-23）",
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --passWithNoTests",
-    "build": "echo '占位：真实构建（tsup）由 W0-23 接'"
+    "build": "node scripts/build.mjs",
+    "start": "node dist/index.js",
+    "redis:compat": "node scripts/build.mjs && node dist/redis-compat.js"
   },
   "dependencies": {
     "@liyoxi/contract": "workspace:*",
@@ -15,5 +17,8 @@
     "@liyoxi/shared": "workspace:*",
     "bullmq": "6.3.9",
     "ioredis": "6.0.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
   }
 }

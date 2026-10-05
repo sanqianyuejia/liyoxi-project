@@ -186,6 +186,10 @@ importers:
       ioredis:
         specifier: 6.0.0
         version: 6.0.0
+    devDependencies:
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
 
   packages/config: {}
 
