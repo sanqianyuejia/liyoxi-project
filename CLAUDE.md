@@ -240,6 +240,7 @@
 | `pnpm status-tone:check` | 状态字典键与契约枚举同名：状态色调字典（`packages/shared/src/design/status-tone`）里写了“表.列”的条目，那一列在契约里绑定了枚举，取值都在枚举的取值之内，一处不符即非 0 退出。只读文件，不连库。字典加条目、契约改枚举取值之后跑它。口径见 [脚本](packages/shared/scripts/status-tone-check.ts) 开头的注释 |
 | `pnpm --filter @liyoxi/admin dev`（看样：浏览器开 `http://localhost:5183/dev/showcase`） | 后台的开发服务器（端口 5183，带样例页与夹具，不用起 api）。陈列页（看样页）把构件、设计变量、状态取色、图标照规范的章节逐组摆出来；它的截图随 `pnpm admin:e2e` 出在 `apps/admin/dist/e2e-shots/showcase-*.png`。见 [README](apps/admin/README.md)“陈列页” |
 | `pnpm weapp:shots -- --sheet colors`（可给多次） | 只出小程序陈列里某张基础样张的图 `apps/weapp/shots/dist/png/gallery__sheet-<样张名>.png`（颜色、文字、间距圆角、状态取色表）。不带参数时每张各出一张。看样怎么看见 [看样清单](docs/plan/sample-review/W0-29.md) |
+| `pnpm --filter @liyoxi/services exec vitest run src/docs/ src/tenant/` | 只跑 docs（协议的当前版本、同意记录、待同意与指纹、已签署协议、占位版本）与 tenant（建主体、成员关系解析、门店列表与额度、资质结论的三个写函数）的用例。连库的走带种子的测试库，要本地的 PostgreSQL 与 `DATABASE_URL`。两个模块各有一个装配入口 `createDocs`、`createTenant`，用法见 [docs](packages/services/src/docs/README.md)、[tenant](packages/services/src/tenant/README.md) 的 README；商家读侧的事实端口见 [kernel/ports](packages/services/src/kernel/ports/README.md) |
 
 本地连接参数：配置只经 `loadEnv`（`packages/services/src/kernel/env.ts`）读环境变量，会话与测试不建、不读 `.env`，在命令前或 shell 里给出。取值出处是 [local.yml](infra/compose/local.yml)，账号与口令是固定的开发值，只对本机这套容器有效；CI 的服务容器用同一组值。
 
