@@ -16,6 +16,9 @@ export * from "./meta.js";
 export * from "./registry.js";
 export * from "./resource-paths.js";
 export { pathParamNames, routeProblems, type RouteCheckInput } from "./validate.js";
+// W0-22b：按 operationId 的两张登记——限流档位（约定 C68）、三段式用例（约定 C51）
+export * from "./rate-limits.js";
+export * from "./three-phase.js";
 export { ROUTE_DOCS, ROUTE_PLACEMENTS };
 
 /** 全部路由、只有元数据的路由与只登记的条目 */

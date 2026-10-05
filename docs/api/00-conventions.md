@@ -808,7 +808,7 @@ V1.0 小程序不播放预告片、样片默认不在小程序内播放（`05-ri
 | `portal.global` | 全部 `portal.*`（缺省） | 每会话 300 次 / 分 |
 | `telemetry` | `m.clientError.create`、`admin.clientError.create`、`portal.clientError.create` | 登录用户 30 条 / 分；匿名每 IP 10 条 / 分（`d7-platform.md:884`） |
 | `hooks.ip` | 全部回调：`hooks.wechatpay.transaction.notify`、`hooks.wechatpay.refund.notify`、`hooks.wechat.message.verify`、`hooks.wechat.message.receive`、`hooks.wecom.event.verify`、`hooks.wecom.event.receive`、`hooks.ci.mediaJob.wake`、`hooks.asr.mediaJob.wake`、`hooks.sms.statusReport.receive`（V1.1 `hooks.esign.event.receive`） | 不按用户限流；每来源 IP 高上限保护，额度为部署配置（`d4-identity.md:1785`）；请求体 ≤1 MB（C6） |
-| 单资源 | `m.paymentOrder.sync`（`POST /m/payment-orders/{paymentOrderId}/sync`） | 每单每 3 秒一次（`d2-payment.md:555`） |
+| `m.payment_sync`（单资源） | `m.paymentOrder.sync`（`POST /m/payment-orders/{paymentOrderId}/sync`） | 每单每 3 秒一次（`d2-payment.md:555`） |
 
 挂了专用档位的路由同时受所在组的缺省档位约束（`m.global`、`admin.global`、`portal.global`；回调没有缺省档位）。根路径探活不挂档位（C1）。涉及钱与安全状态的计数（账号锁定、每日邀请数、短信验证码的号码限频）以数据库为准，不靠 Redis（`d4-identity.md:1787`；`02-identity-tenant.md:357`）。
 
