@@ -50,7 +50,7 @@ FROM nginx:stable-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed4307
 # 官方镜像自带的缺省站点不要；它的入口脚本照用：按文件名顺序执行 /docker-entrypoint.d/ 下的脚本，再起 nginx
 RUN rm -f /etc/nginx/conf.d/default.conf
 COPY infra/docker/nginx/nginx.conf /etc/nginx/nginx.conf
-COPY infra/docker/nginx/proxy.inc /etc/nginx/lyx/proxy.inc
+COPY infra/docker/nginx/proxy.conf /etc/nginx/lyx/proxy.conf
 COPY infra/docker/nginx/templates/ /etc/nginx/lyx-templates/
 # 入口脚本只执行带可执行位的：这里写死，不依赖检出时保没保住文件权限
 COPY --chmod=0755 infra/docker/nginx/40-lyx-render.sh /docker-entrypoint.d/40-lyx-render.sh

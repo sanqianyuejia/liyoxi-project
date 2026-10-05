@@ -336,6 +336,10 @@ async function gatewayChecks(config) {
     body: health.body.slice(0, 300),
   });
 
+  // Host 不是三个域名之一（负载均衡按节点地址探活）：只给探活
+  const byAddress = await request(port, `127.0.0.1:${port}`, "/readyz");
+  check("按地址来的 /readyz 回 200（负载均衡探活）", byAddress.status === 200, byAddress.status);
+
   await staticChecks(port, admin, "后台");
   await staticChecks(port, portal, "下载页");
 
@@ -544,11 +548,19 @@ function constraintChecks(config, flags) {
   check(m("不是特权容器"), host.Privileged === false, host.Privileged);
   check(m(`进程数上限 ${spec.pidsLimit}`), host.PidsLimit === spec.pidsLimit, host.PidsLimit);
   check(m("内存上限与 compose.verify.yml 相同"), host.Memory === spec.memoryBytes, host.Memory);
-  check(
-    m("内存加交换区的上限等于内存上限（不许用交换区）"),
-    host.MemorySwap === spec.memoryBytes,
-    host.MemorySwap,
-  );
+  // 宿主机的内核不支持限制交换区时，Docker 会把这一项丢掉（inspect 里是 -1）：那就核对不了，明说，不算不通过
+  const swapLimit = docker(["info", "--format", "{{.SwapLimit}}"], { capture: true });
+  if (swapLimit.stdout.trim() === "false") {
+    console.log(
+      "  没核对 mediatool：交换区的上限（宿主机不支持限制交换区，docker info 的 SwapLimit 是 false）",
+    );
+  } else {
+    check(
+      m("内存加交换区的上限等于内存上限（不许用交换区）"),
+      host.MemorySwap === spec.memoryBytes,
+      host.MemorySwap,
+    );
+  }
   check(m("CPU 上限与 compose.verify.yml 相同"), host.NanoCpus === spec.nanoCpus, host.NanoCpus);
   const tmp = /^\/tmp:(.+)$/.exec(spec.tmpfs[0] ?? "")?.[1] ?? "";
   check(
