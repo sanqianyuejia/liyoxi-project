@@ -35,7 +35,9 @@
     "db:validate": "pnpm --filter @liyoxi/db validate",
     "db:deploy": "pnpm --filter @liyoxi/db migrate:deploy",
     "db:catalog-diff": "node infra/ci/db-catalog-diff.mjs",
-    "db:verify-managed": "node infra/ci/db-verify-managed.mjs"
+    "db:verify-managed": "node infra/ci/db-verify-managed.mjs",
+    "registry:generate": "pnpm --filter @liyoxi/contract registry:generate",
+    "registry:check": "pnpm registry:generate && git diff --exit-code -- docs/plan/x01-map.md && node infra/ci/check-untracked.mjs docs/plan/x01-map.md && pnpm --filter @liyoxi/contract registry:check"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.3",

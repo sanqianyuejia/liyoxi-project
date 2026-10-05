@@ -17,6 +17,10 @@
       "types": "./src/enums/index.ts",
       "default": "./src/enums/index.ts"
     },
+    "./registry": {
+      "types": "./src/registry/index.ts",
+      "default": "./src/registry/index.ts"
+    },
     "./types/merchant": {
       "types": "./generated/merchant.d.ts"
     },
@@ -32,7 +36,9 @@
     "test": "vitest run",
     "build": "echo '源码包：exports 直接指向 src，没有构建'",
     "generate": "tsx scripts/generate.ts",
-    "check": "pnpm generate && git diff --exit-code -- generated"
+    "check": "pnpm generate && git diff --exit-code -- generated",
+    "registry:generate": "tsx scripts/registry-map.ts",
+    "registry:check": "tsx scripts/registry-check.ts"
   },
   "dependencies": {
     "@hono/zod-openapi": "1.6.3",

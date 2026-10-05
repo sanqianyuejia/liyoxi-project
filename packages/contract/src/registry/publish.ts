@@ -1,0 +1,45 @@
+// publish 模块登记的 x01 名字（docs/api/x01-events-jobs.md）。名字写出即冻结：改名等于新开一个（x01 第 6 节 V1、V7、V8）。
+import { defineRegistry, event, job, subscriber, timer } from "./define.js";
+
+export const registry = defineRegistry("publish", {
+  events: [
+    event("account.submitted", "channel_account"),
+    event("account.verified", "channel_account"),
+    event("account.abnormal", "channel_account"),
+    event("account.unbound", "channel_account"),
+    event("launch.created", "launch_task"),
+    event("launch.submitted", "launch_task"),
+    event("launch.verified", "launch_task"),
+    event("launch.returned", "launch_task"),
+    event("launch.verify_revoked", "launch_task"),
+    event("launch.voided", "launch_task"),
+    event("launch.settled", "launch_task"),
+    event("takedown.created", "takedown_task"),
+    event("takedown.merchant_confirmed", "takedown_task"),
+    event("takedown.checked", "takedown_task"),
+    event("takedown.found_online", "takedown_task"),
+    event("takedown.basis_reopened", "takedown_task"),
+    event("takedown.escalated", "takedown_task"),
+    event("takedown.breach_notified", "takedown_task"),
+    event("takedown.voided", "takedown_task"),
+    event("patrol.created", "patrol_task"),
+    event("patrol.passed", "patrol_task"),
+    event("patrol.abnormal", "patrol_task"),
+    event("patrol.reminded", "patrol_task"),
+    event("patrol.recovered", "patrol_task"),
+    event("patrol.voided", "patrol_task"),
+    event("launch.remind_due", null, "not_emitted"),
+    event("launch.overdue_due", null, "not_emitted"),
+    event("takedown.remind_due", null, "not_emitted"),
+  ],
+  subscribers: [
+    subscriber("publish.onLicenseExtended", "M6", "critical"),
+    subscriber("publish.onCalendarImported", "M6"),
+  ],
+  timers: [
+    timer("takedown.create", "order_item", "M6", "critical"),
+    timer("takedown.overdue", "takedown_task", "M6"),
+    timer("patrol.followup", "patrol_task", "M6"),
+  ],
+  jobs: [job("patrol.weekly_generate", "M6")],
+});
