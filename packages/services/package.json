@@ -30,6 +30,7 @@
     "@liyoxi/contract": "workspace:*",
     "@liyoxi/db": "workspace:*",
     "@liyoxi/shared": "workspace:*",
+    "bullmq": "6.3.9",
     "ioredis": "6.0.0",
     "zod": "4.6.5"
   },

@@ -56,3 +56,6 @@ export * from "./assembly/index.js";
 // W0-17 五个端口：告警、不变量上报、埋点直记、通知场景解析、提醒查询；kernel 的登记（声明这五个端口）
 export * from "./ports/index.js";
 export { registration } from "./register.js";
+
+// W0-23 队列封装：连接、入队、消费者工厂、Redis 可用性探测
+export * from "./queue/index.js";
