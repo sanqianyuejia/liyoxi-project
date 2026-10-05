@@ -3,6 +3,8 @@
 // 另断言：1366 × 768 下三个样例页没有横向滚动；请求带齐约定的请求头；二次确认勾选前不能点；
 // 规范写明数值的几处（双行数据行高 56、高 40 的按钮圆角 8、主按钮悬停加深、弹窗关闭按钮 32 × 32 且距边 24）。
 // 滚得到底：筛选表格页一屏装不下时，只用鼠标滚轮滚到底，最后一行与分页条都要完整可见（规范 第 5.1 节“内容区纵向滚动”）。
+// 另有一步不经样例页最外层那层容器：直接放进内容区的高区块同样滚得到底（钉住外壳那条“直接子项不压缩”）。
+// 弹窗两个方向居中（规范 第 5.3 节）；按钮、文字链、弹窗关闭键用键盘走到时是主色聚焦环（规范 第 12 节），没有 antd 缺省的浅色描边。
 // 截图（1440 × 900）写到 dist/e2e-shots，CI 当产物上传：01–04 是验收要的外壳与三种骨架（02b 是筛选表格滚到底的样子），
 // 05–12 是顺路留的几个状态（空、出错、处理后、冲突、上传失败、二次确认、403、已处理的事项）。断言用角色与文字定位，不用样式类名。
 import { mkdirSync } from "node:fs";
@@ -187,6 +189,55 @@ async function boxOf(target: Locator): Promise<{ width: number; height: number; 
   });
 }
 
+/** 样式变量里的阴影算出来的 box-shadow（浏览器的写法）：聚焦环拿它比，用例里不写色值 */
+async function tokenShadow(page: Page, variable: string): Promise<string> {
+  return page.evaluate((name) => {
+    const probe = document.createElement("span");
+    probe.style.boxShadow = `var(${name})`;
+    document.body.appendChild(probe);
+    const value = getComputedStyle(probe).boxShadow;
+    probe.remove();
+    return value;
+  }, variable);
+}
+
+/**
+ * 键盘走到一个元素之后：焦点在它上面、浏览器按键盘聚焦算（:focus-visible），样子是规范 第 12 节的主色聚焦环，
+ * 没有 Ant Design 缺省的那圈浅色描边（第三轮复审的阻断项）。调用之前要用真实的按键（Tab）把焦点送过来。
+ */
+async function expectFocusRing(page: Page, target: Locator, name: string): Promise<void> {
+  await expect(target, `${name}：按 Tab 之后焦点应当在它上面`).toBeFocused();
+  const ring = await tokenShadow(page, "--lyx-shadow-focus-ring");
+  await expect
+    .poll(
+      () =>
+        target.evaluate((element) => {
+          const style = getComputedStyle(element);
+          return {
+            keyboard: element.matches(":focus-visible"),
+            outline: style.outlineStyle,
+            ring: style.boxShadow,
+          };
+        }),
+      { message: `${name}：键盘聚焦时应当是主色聚焦环` },
+    )
+    .toEqual({ keyboard: true, outline: "none", ring });
+}
+
+/** 弹窗四边到视口四边的留白：上下之差、左右之差（取整） */
+async function offCenter(
+  page: Page,
+  dialog: Locator,
+): Promise<{ vertical: number; horizontal: number } | null> {
+  const box = await dialog.boundingBox();
+  const size = page.viewportSize();
+  if (!box || !size) return null;
+  return {
+    vertical: Math.round(Math.abs(box.y - (size.height - box.y - box.height))),
+    horizontal: Math.round(Math.abs(box.x - (size.width - box.x - box.width))),
+  };
+}
+
 test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page }) => {
   mkdirSync(SHOTS_DIR, { recursive: true });
   const backend = createSampleBackend();
@@ -242,6 +293,30 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     // 没登记的地址：页面不存在
     await page.goto("/no/such/page");
     await expect(page.getByRole("heading", { name: "页面不存在" })).toBeVisible();
+  });
+
+  await test.step("内容区的直接子项不被压缩：不经样例页那层容器，区块再高也滚得到底", async () => {
+    // 还没实现的页面：页头与卡片直接就是内容区的子项（三个样例页最外层另包了一层 display: contents 的容器，
+    // 外壳那条“直接子项不压缩”落在那层容器上，量不到）
+    await page.goto("/merchants");
+    await expect(page.getByRole("heading", { name: "页面建设中" })).toBeVisible();
+    // 往内容区里直接放一个裁圆角的高区块：设了 overflow 的弹性子项最小高度按 0 算，正是会被压进可见高度的那一种
+    await page.getByTestId("shell-content").evaluate((content) => {
+      const block = document.createElement("section");
+      block.className = "lyx-card";
+      block.style.overflow = "hidden";
+      block.setAttribute("aria-label", "冒烟用的高区块");
+      for (let index = 1; index <= 40; index += 1) {
+        const line = document.createElement("p");
+        line.textContent = `第 ${index} 行`;
+        block.appendChild(line);
+      }
+      content.appendChild(block);
+    });
+    const block = page.getByRole("region", { name: "冒烟用的高区块" });
+    await expectWheelReaches(page, "直接放进内容区的高区块", {
+      最后一行: block.getByText("第 40 行", { exact: true }),
+    });
   });
 
   await test.step("筛选表格：翻页、改筛选、换页签、排序都进 URL", async () => {
@@ -305,6 +380,15 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     await table.getByRole("columnheader", { name: "可用积分" }).click();
     await expect(page).toHaveURL(/[?&]sort=-availablePoints(&|$)/);
 
+    // 键盘聚焦（规范 第 12 节）：从最后一个可排序的表头按 Tab，走到操作列的第一个文字链，是主色聚焦环
+    await table.getByRole("columnheader", { name: "累计实付" }).focus();
+    await page.keyboard.press("Tab");
+    await expectFocusRing(
+      page,
+      table.getByRole("link", { name: "详情" }).first(),
+      "表格里的文字链",
+    );
+
     // 刷新不丢筛选
     await page.reload();
     await expect(table.getByText("共 23 条")).toBeVisible();
@@ -356,6 +440,12 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     for (const button of [approve, detail.getByRole("button", { name: "驳回" })]) {
       expect(await boxOf(button)).toMatchObject({ height: 40, radius: "8px" });
     }
+    // 键盘聚焦：从最后一个复选框按 Tab，依次走到“驳回”（危险描边）与“审核通过”（主按钮），都是主色聚焦环
+    await detail.getByRole("checkbox").last().focus();
+    await page.keyboard.press("Tab");
+    await expectFocusRing(page, detail.getByRole("button", { name: "驳回" }), "危险描边按钮");
+    await page.keyboard.press("Tab");
+    await expectFocusRing(page, approve, "主按钮");
     await approve.hover();
     await expect
       .poll(() => approve.evaluate((element) => getComputedStyle(element).backgroundColor))
@@ -364,6 +454,10 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
 
     // 处理成功的提示是右上角通知；自动选中下一条；选中项进 URL；计数变化
     await expect(page.getByText("青柠茶饮（春熙路店）：审核已通过")).toBeVisible();
+    // 操作结果用状态播报（规范 第 10 节）：成功的通知是 role=status
+    await expect(
+      page.getByRole("status").filter({ hasText: "青柠茶饮（春熙路店）：审核已通过" }),
+    ).toBeVisible();
     await expect(detail.getByRole("heading", { level: 2 })).toHaveText("好运来便利店");
     await expect(page).toHaveURL(/[?&]id=rv-2(&|$)/);
     await expect(queue.getByRole("tab", { name: /待审核/ })).toContainText("3");
@@ -394,6 +488,12 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     await queue.getByRole("tab", { name: /今日已审核/ }).click();
     await expect(page).toHaveURL(/[?&]tab=done(&|$)/);
     await expect(page.getByTestId("queue-result")).toContainText("审核已通过");
+    // 提示条无描边（规范 第 5.3 节）：antd 自带的 1px 描边去掉了
+    expect(
+      await page
+        .getByTestId("queue-result")
+        .evaluate((element) => getComputedStyle(element).borderTopWidth),
+    ).toBe("0px");
     // 提示条的字色取色调的文字色，不是正文色（规范 第 5.3 节“提示条”：色调取 1.4 的“文字 + 浅底”）
     const settledText = page.getByTestId("queue-result").getByText("审核已通过，已通知商家");
     expect(await settledText.evaluate((element) => getComputedStyle(element).color)).toBe(
@@ -481,7 +581,31 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     for (const button of [confirm, dialog.getByRole("button", { name: "取消" })]) {
       await expect.poll(() => boxOf(button)).toMatchObject({ height: 40, radius: "8px" });
     }
+    // 弹窗两个方向都居中（规范 第 5.3 节“弹窗｜居中”）：上下留白相等、左右留白相等；最小视口与原型的画板尺寸各量一遍
+    for (const size of [MIN_VIEWPORT, SHOT_VIEWPORT, MIN_VIEWPORT]) {
+      await resize(page, size);
+      await expect
+        .poll(() => offCenter(page, dialog), {
+          message: `弹窗在 ${size.width} × ${size.height} 下应当两个方向都居中`,
+        })
+        .toEqual({ vertical: 0, horizontal: 0 });
+    }
+    // 带框勾选行的文字 13px（规范 第 5.3 节）
+    expect(
+      await dialog
+        .getByText("我已核对门店与联系电话，确认禁用")
+        .evaluate((element) => getComputedStyle(element).fontSize),
+    ).toBe("13px");
     await shot(page, "10-detail-confirm-dialog");
+    // 键盘聚焦：弹窗的关闭键、“取消”（次按钮）、“确认禁用”（危险实心）用 Tab 走到时都是主色聚焦环
+    await dialog.getByRole("textbox", { name: "请输入联系电话后 4 位" }).focus();
+    await page.keyboard.press("Shift+Tab");
+    await expectFocusRing(page, close, "弹窗关闭键");
+    await dialog.getByRole("checkbox").focus();
+    await page.keyboard.press("Tab");
+    await expectFocusRing(page, dialog.getByRole("button", { name: "取消" }), "次按钮");
+    await page.keyboard.press("Tab");
+    await expectFocusRing(page, confirm, "危险实心按钮");
     await confirm.click();
     await expect(page.getByText("晴天洗衣：账号已禁用")).toBeVisible();
     await expect(dialog).toBeHidden();
