@@ -61,3 +61,10 @@ export const A01_SYSTEM = defineRouteDoc("a01-system", [
   timers,
   webhookEvents,
 ]);
+
+// 已带结构的路由与本文档的结构：api 的处理器与别的域从契约入口取（W1-01a 起；各域补结构时在这里各加自己的资源文件）
+export * from "./auth.js";
+export * from "./auth.schemas.js";
+export * from "./error-details.js";
+export * from "./sessions.js";
+export * from "./structures.js";

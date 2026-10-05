@@ -1,8 +1,32 @@
 // 后台：登录、员工、权限与系统 · auth（docs/api/a01-system.md）。由 routemap.json 接管（W0-10），之后以本文件为准：
 // 改接口同 PR 改 routemap.json 与分组文档，pnpm contract:docs-check 对账。归属的里程碑在 ../milestones.ts。
+// W1-01a：登录链路的八条（3.1–3.8）已带结构；其余四条（3.9、3.10、3.86、3.87）随 G2-A。
+import { errorResponses, okResponse } from "../../common/index.js";
+import type { z } from "../../zod.js";
+import { adminRoute } from "../builders.js";
 import { adminMeta } from "../meta-only.js";
 
-export const adminAuthActivate = adminMeta({
+import {
+  ActivateBodySchema,
+  AuthNextSchema,
+  ConfirmTotpBodySchema,
+  EnrollTotpBodySchema,
+  LoginBodySchema,
+  SetPasswordBodySchema,
+  StaffMeSchema,
+  StepUpBodySchema,
+  StepUpResultSchema,
+  TotpConfirmResultSchema,
+  TotpEnrollmentSchema,
+  VerifyMfaBodySchema,
+} from "./auth.schemas.js";
+
+/** JSON 请求体的声明 */
+const jsonBody = <T extends z.ZodType>(schema: T) => ({
+  body: { required: true as const, content: { "application/json": { schema } } },
+});
+
+export const adminAuthActivate = adminRoute({
   method: "post",
   path: "/admin/auth/activate",
   operationId: "admin.auth.activate",
@@ -11,6 +35,9 @@ export const adminAuthActivate = adminMeta({
   "x-permission": null,
   "x-idempotent": "none",
   "x-idempotent-reason": "登录前的激活与首次绑定，此时没有会话（C47 本稿归入登录与换会话）",
+  "x-rate-limit": "admin.login",
+  request: jsonBody(ActivateBodySchema),
+  responses: { ...okResponse(AuthNextSchema), ...errorResponses(400, 401, 403, 429) },
 });
 
 export const adminAuthBindWecom = adminMeta({
@@ -32,7 +59,7 @@ export const adminAuthChangePassword = adminMeta({
   "x-idempotent": "required",
 });
 
-export const adminAuthConfirmTotp = adminMeta({
+export const adminAuthConfirmTotp = adminRoute({
   method: "post",
   path: "/admin/auth/confirm-totp",
   operationId: "admin.auth.confirmTotp",
@@ -41,9 +68,15 @@ export const adminAuthConfirmTotp = adminMeta({
   "x-permission": null,
   "x-idempotent": "none",
   "x-idempotent-reason": "登录前的激活与首次绑定，此时没有会话（C47 本稿归入登录与换会话）",
+  "x-rate-limit": "admin.login",
+  request: jsonBody(ConfirmTotpBodySchema),
+  responses: {
+    ...okResponse(TotpConfirmResultSchema),
+    ...errorResponses(400, 401, 403, 409, 429),
+  },
 });
 
-export const adminAuthEnrollTotp = adminMeta({
+export const adminAuthEnrollTotp = adminRoute({
   method: "post",
   path: "/admin/auth/enroll-totp",
   operationId: "admin.auth.enrollTotp",
@@ -52,9 +85,12 @@ export const adminAuthEnrollTotp = adminMeta({
   "x-permission": null,
   "x-idempotent": "none",
   "x-idempotent-reason": "登录前的激活与首次绑定，此时没有会话（C47 本稿归入登录与换会话）",
+  "x-rate-limit": "admin.login",
+  request: jsonBody(EnrollTotpBodySchema),
+  responses: { ...okResponse(TotpEnrollmentSchema), ...errorResponses(400, 401, 403, 409, 429) },
 });
 
-export const adminAuthLogin = adminMeta({
+export const adminAuthLogin = adminRoute({
   method: "post",
   path: "/admin/auth/login",
   operationId: "admin.auth.login",
@@ -63,18 +99,22 @@ export const adminAuthLogin = adminMeta({
   "x-permission": null,
   "x-idempotent": "none",
   "x-idempotent-reason": "登录与换会话（A18）",
+  "x-rate-limit": "admin.login",
+  request: jsonBody(LoginBodySchema),
+  responses: { ...okResponse(AuthNextSchema), ...errorResponses(400, 401, 403, 429) },
 });
 
-export const adminAuthMeGet = adminMeta({
+export const adminAuthMeGet = adminRoute({
   method: "get",
   path: "/admin/auth/me",
   operationId: "admin.auth.me.get",
   summary: "当前员工、模块等级、已开启的权限点、是否主管、数据范围（驱动菜单、路由守卫、按钮显隐）",
   "x-permission": null,
   "x-idempotent-reason": "纯查询（GET 不写库，A19）",
+  responses: { ...okResponse(StaffMeSchema), ...errorResponses(401, 429) },
 });
 
-export const adminAuthSetPassword = adminMeta({
+export const adminAuthSetPassword = adminRoute({
   method: "post",
   path: "/admin/auth/set-password",
   operationId: "admin.auth.setPassword",
@@ -83,9 +123,12 @@ export const adminAuthSetPassword = adminMeta({
   "x-permission": null,
   "x-idempotent": "none",
   "x-idempotent-reason": "登录前的激活与首次绑定，此时没有会话（C47 本稿归入登录与换会话）",
+  "x-rate-limit": "admin.login",
+  request: jsonBody(SetPasswordBodySchema),
+  responses: { ...okResponse(AuthNextSchema), ...errorResponses(400, 401, 403, 429) },
 });
 
-export const adminAuthStepUp = adminMeta({
+export const adminAuthStepUp = adminRoute({
   method: "post",
   path: "/admin/auth/step-up",
   operationId: "admin.auth.stepUp",
@@ -93,9 +136,12 @@ export const adminAuthStepUp = adminMeta({
   "x-permission": null,
   "x-idempotent": "none",
   "x-idempotent-reason": "再验证，本稿归入登录与换会话一类（C47）",
+  "x-rate-limit": "admin.login",
+  request: jsonBody(StepUpBodySchema),
+  responses: { ...okResponse(StepUpResultSchema), ...errorResponses(400, 401, 403, 429) },
 });
 
-export const adminAuthVerifyMfa = adminMeta({
+export const adminAuthVerifyMfa = adminRoute({
   method: "post",
   path: "/admin/auth/verify-mfa",
   operationId: "admin.auth.verifyMfa",
@@ -104,6 +150,9 @@ export const adminAuthVerifyMfa = adminMeta({
   "x-permission": null,
   "x-idempotent": "none",
   "x-idempotent-reason": "登录与换会话（A18）",
+  "x-rate-limit": "admin.login",
+  request: jsonBody(VerifyMfaBodySchema),
+  responses: { ...okResponse(StaffMeSchema), ...errorResponses(400, 401, 403, 429) },
 });
 
 export const adminAuthMeEnrollTotp = adminMeta({

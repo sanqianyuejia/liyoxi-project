@@ -2,6 +2,94 @@
   "components": {
     "parameters": {},
     "schemas": {
+      "ActivateBody": {
+        "properties": {
+          "activationCode": {
+            "pattern": "^[A-Za-z0-9]{8}$",
+            "type": "string"
+          },
+          "phone": {
+            "pattern": "^1\\d{10}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "phone",
+          "activationCode"
+        ],
+        "type": "object"
+      },
+      "AuthNext": {
+        "properties": {
+          "methods": {
+            "items": {
+              "enum": [
+                "totp",
+                "recovery"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "next": {
+            "enum": [
+              "mfa",
+              "set_password",
+              "enroll_totp",
+              "login"
+            ],
+            "type": "string"
+          },
+          "ticket": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ticketExpiresAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "next",
+          "ticket",
+          "ticketExpiresAt",
+          "methods"
+        ],
+        "type": "object"
+      },
+      "ConfirmTotpBody": {
+        "properties": {
+          "code": {
+            "pattern": "^\\d{6}$",
+            "type": "string"
+          },
+          "ticket": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "ticket",
+          "code"
+        ],
+        "type": "object"
+      },
       "DictRef": {
         "properties": {
           "code": {
@@ -14,6 +102,19 @@
         "required": [
           "code",
           "name"
+        ],
+        "type": "object"
+      },
+      "EnrollTotpBody": {
+        "properties": {
+          "ticket": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "ticket"
         ],
         "type": "object"
       },
@@ -63,11 +164,479 @@
         ],
         "type": "object"
       },
+      "LoginBody": {
+        "properties": {
+          "password": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "phone": {
+            "pattern": "^1\\d{10}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "phone",
+          "password"
+        ],
+        "type": "object"
+      },
       "SentryEnvelope": {
         "description": "Sentry envelope 原文，≤200KB",
         "maxLength": 204800,
         "minLength": 1,
         "type": "string"
+      },
+      "SetPasswordBody": {
+        "properties": {
+          "newPassword": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "ticket": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "ticket",
+          "newPassword"
+        ],
+        "type": "object"
+      },
+      "StaffBrief": {
+        "properties": {
+          "isLead": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "roleKey": {
+            "enum": [
+              "super_admin",
+              "cs",
+              "delivery_manager",
+              "editor",
+              "publisher",
+              "content_ops",
+              "channel_ops",
+              "finance"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          },
+          "staffId": {
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "staffNo": {
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "active",
+              "disabled"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          }
+        },
+        "required": [
+          "staffId",
+          "staffNo",
+          "name",
+          "roleKey",
+          "isLead",
+          "status"
+        ],
+        "type": "object"
+      },
+      "StaffMe": {
+        "properties": {
+          "dataScope": {
+            "enum": [
+              "own",
+              "group",
+              "all"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          },
+          "displayName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "flags": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "moduleLevels": {
+            "properties": {
+              "billing": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "channel": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "delivery": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "drama": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "finance": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "merchant": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "ops": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "order": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "publish": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "report": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "service": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "system": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "workbench": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "workbench",
+              "drama",
+              "billing",
+              "merchant",
+              "order",
+              "delivery",
+              "publish",
+              "service",
+              "finance",
+              "report",
+              "ops",
+              "system",
+              "channel"
+            ],
+            "type": "object"
+          },
+          "mustChangePassword": {
+            "type": "boolean"
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "phoneMask": {
+            "type": "string"
+          },
+          "recoveryCodesLeft": {
+            "maximum": 10,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "roleName": {
+            "type": "string"
+          },
+          "serverTime": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "session": {
+            "properties": {
+              "absoluteExpiresAt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "authMethod": {
+                "enum": [
+                  "password+totp",
+                  "password+recovery"
+                ],
+                "type": "string",
+                "x-open-enum": true
+              },
+              "idleExpiresAt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "staffSessionId": {
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                "type": "string"
+              },
+              "stepUpValidUntil": {
+                "format": "date-time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "staffSessionId",
+              "authMethod",
+              "idleExpiresAt",
+              "absoluteExpiresAt",
+              "stepUpValidUntil"
+            ],
+            "type": "object"
+          },
+          "staff": {
+            "$ref": "#/components/schemas/StaffBrief"
+          },
+          "staffGroup": {
+            "anyOf": [
+              {
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "staffGroupId": {
+                    "format": "uuid",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "staffGroupId",
+                  "name"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "wecomBindStatus": {
+            "enum": [
+              "none",
+              "invited",
+              "bound",
+              "unbound"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          }
+        },
+        "required": [
+          "staff",
+          "displayName",
+          "phoneMask",
+          "roleName",
+          "staffGroup",
+          "moduleLevels",
+          "permissions",
+          "dataScope",
+          "wecomBindStatus",
+          "mustChangePassword",
+          "recoveryCodesLeft",
+          "session",
+          "flags",
+          "serverTime"
+        ],
+        "type": "object"
+      },
+      "StepUpBody": {
+        "properties": {
+          "code": {
+            "pattern": "^(?:\\d{6}|[A-Za-z0-9]{5}-?[A-Za-z0-9]{5})$",
+            "type": "string"
+          },
+          "method": {
+            "enum": [
+              "totp",
+              "recovery"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "code"
+        ],
+        "type": "object"
+      },
+      "StepUpResult": {
+        "properties": {
+          "stepUpValidUntil": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stepUpValidUntil"
+        ],
+        "type": "object"
+      },
+      "TotpConfirmResult": {
+        "properties": {
+          "me": {
+            "$ref": "#/components/schemas/StaffMe"
+          },
+          "recoveryCodes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "me",
+          "recoveryCodes"
+        ],
+        "type": "object"
+      },
+      "TotpEnrollment": {
+        "properties": {
+          "otpauthUri": {
+            "type": "string"
+          },
+          "secret": {
+            "type": "string"
+          },
+          "ticket": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "ticketExpiresAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "otpauthUri",
+          "secret",
+          "ticket",
+          "ticketExpiresAt"
+        ],
+        "type": "object"
+      },
+      "VerifyMfaBody": {
+        "properties": {
+          "code": {
+            "pattern": "^(?:\\d{6}|[A-Za-z0-9]{5}-?[A-Za-z0-9]{5})$",
+            "type": "string"
+          },
+          "method": {
+            "enum": [
+              "totp",
+              "recovery"
+            ],
+            "type": "string"
+          },
+          "ticket": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "ticket",
+          "method",
+          "code"
+        ],
+        "type": "object"
       }
     }
   },
@@ -76,6 +645,821 @@
     "version": "1.0.0"
   },
   "openapi": "3.1.0",
-  "paths": {},
+  "paths": {
+    "/api/v1/admin/auth/activate": {
+      "post": {
+        "operationId": "admin.auth.activate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AuthNext"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          }
+        },
+        "summary": "新员工或被重置的员工凭短信激活码换取设置密码票据",
+        "x-auth": "public",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "登录前的激活与首次绑定，此时没有会话（C47 本稿归入登录与换会话）",
+        "x-rate-limit": "admin.login"
+      }
+    },
+    "/api/v1/admin/auth/confirm-totp": {
+      "post": {
+        "operationId": "admin.auth.confirmTotp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmTotpBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/TotpConfirmResult"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          }
+        },
+        "summary": "校验一次动态口令完成绑定，生成 10 个恢复码（只显示一次）并建会话",
+        "x-auth": "public",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "登录前的激活与首次绑定，此时没有会话（C47 本稿归入登录与换会话）",
+        "x-rate-limit": "admin.login"
+      }
+    },
+    "/api/v1/admin/auth/enroll-totp": {
+      "post": {
+        "operationId": "admin.auth.enrollTotp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrollTotpBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/TotpEnrollment"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          }
+        },
+        "summary": "生成动态口令密钥，返回 otpauth 地址供扫码绑定",
+        "x-auth": "public",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "登录前的激活与首次绑定，此时没有会话（C47 本稿归入登录与换会话）",
+        "x-rate-limit": "admin.login"
+      }
+    },
+    "/api/v1/admin/auth/login": {
+      "post": {
+        "operationId": "admin.auth.login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AuthNext"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          }
+        },
+        "summary": "手机号 + 密码登录第一步，返回第二因子票据",
+        "x-auth": "public",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "登录与换会话（A18）",
+        "x-rate-limit": "admin.login"
+      }
+    },
+    "/api/v1/admin/auth/me": {
+      "get": {
+        "operationId": "admin.auth.me.get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/StaffMe"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          }
+        },
+        "summary": "当前员工、模块等级、已开启的权限点、是否主管、数据范围（驱动菜单、路由守卫、按钮显隐）",
+        "x-auth": "staff",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "纯查询（GET 不写库，A19）"
+      }
+    },
+    "/api/v1/admin/auth/set-password": {
+      "post": {
+        "operationId": "admin.auth.setPassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPasswordBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AuthNext"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          }
+        },
+        "summary": "凭设置密码票据设置登录密码（首次登录、重置后）",
+        "x-auth": "public",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "登录前的激活与首次绑定，此时没有会话（C47 本稿归入登录与换会话）",
+        "x-rate-limit": "admin.login"
+      }
+    },
+    "/api/v1/admin/auth/step-up": {
+      "post": {
+        "operationId": "admin.auth.stepUp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepUpBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/StepUpResult"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          }
+        },
+        "summary": "敏感操作前的再验证（动态口令），成功后前端自动重放原请求",
+        "x-auth": "staff",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "再验证，本稿归入登录与换会话一类（C47）",
+        "x-rate-limit": "admin.login"
+      }
+    },
+    "/api/v1/admin/auth/verify-mfa": {
+      "post": {
+        "operationId": "admin.auth.verifyMfa",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyMfaBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/StaffMe"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          }
+        },
+        "summary": "校验 6 位动态口令或恢复码，建立员工会话",
+        "x-auth": "public",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "登录与换会话（A18）",
+        "x-rate-limit": "admin.login"
+      }
+    },
+    "/api/v1/admin/sessions/current": {
+      "delete": {
+        "operationId": "admin.session.current.delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "type": "null"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          }
+        },
+        "summary": "退出登录：吊销当前会话（当前会话视图别名，A41）",
+        "x-auth": "staff",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "退出登录（A43）；重复退出无副作用，端上把 401 当作已退出"
+      }
+    }
+  },
   "webhooks": {}
 }

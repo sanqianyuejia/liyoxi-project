@@ -183,7 +183,7 @@
 | `roleName` | string | 是 | 角色名称 | `staff_role.name` |
 | `staffGroup` | object \| null | 是 | `{ staffGroupId, name }`；未分组为 `null` | `staff_group.id`、`staff_group.name` |
 | `moduleLevels` | object | 是 | 13 个模块的等级，键见第 4 节 `ModuleKey`，值 `n` / `v` / `o` / `e`；缺失的键按代码默认值补齐，注册表外的键丢弃 | `staff_role.module_levels` |
-| `permissions` | array<string> | 是 | 本人此刻生效的敏感操作权限点：角色 `actions` 里 `on = true` 的键，带 `leadOnly` 的只在 `is_lead = true` 时计入；超级管理员为注册表全部键 | `staff_role.actions`、`staff.is_lead` |
+| `permissions` | array<string> | 是 | 本人此刻生效的敏感操作权限点：角色 `actions` 里 `on = true` 的键，带 `leadOnly` 的只在 `is_lead = true` 时计入；超级管理员为 V1.0 的全部键 | `staff_role.actions`、`staff.is_lead` |
 | `dataScope` | enum | 是 | 生效的数据范围：`own` / `group` / `all`。角色为 `own` 且本人是主管时升为 `group`（proto-admin-e.md:138） | `staff_role.data_scope`、`staff.is_lead` |
 | `wecomBindStatus` | enum | 是 | `none` / `invited` / `bound` / `unbound` | `staff.wecom_bind_status` |
 | `mustChangePassword` | boolean | 是 | 参数 `admin.password_max_age_days` 大于 0 且密码已超期时为真，前端引导到修改密码；默认参数为 0，恒为假 | 计算：`staff.password_changed_at` |
@@ -842,7 +842,7 @@
 | 对应画板 | 原型无：激活页（首次改密） |
 | 出处 | 路线图 `a01.auth.set-password`（草案 `POST /auth/password`）；d4-identity.md:997、1050-1059 |
 
-**请求**：请求体 `SetPasswordBody`：`ticket`（string，必填）、`newPassword`（string，必填，10–128 字符）。
+**请求**：请求体 `SetPasswordBody`：`ticket`（string，必填）、`newPassword`（string，必填，1–128 字符；口令规则由服务端判，不合规回 `PASSWORD_POLICY_VIOLATED`）。
 
 **响应**：`AuthNext`：`staff.totp_enrolled_at` 为空 → `next = enroll_totp`，新票据 15 分钟；已绑定过（重置密码、重新启用的情形）→ `next = login`，`ticket` 为 `null`，用新密码加原有动态口令走正常登录。
 

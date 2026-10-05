@@ -27,3 +27,5 @@ export * from "./events/index.js";
 // 同一份文档后到的包不用再动这里，在文档目录的 index.ts 里加自己的资源文件即可
 export * from "./routes/m01-account/index.js";
 export * from "./routes/m02-tenant/index.js";
+// W1-01a：a01 里已带结构的路由与结构（登录链路九条；StaffBrief、AdminPage<T>、AdminCursorPage<T>）。同一份文档后到的包不用再动这里
+export * from "./routes/a01-system/index.js";

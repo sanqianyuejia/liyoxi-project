@@ -338,9 +338,18 @@ describe("提交的生成物（任务书 W0-08 第 11 节第 1 项）", () => {
   //     加具名结构时再改组件清单（现在只有 DictRef、ErrorBody、SentryEnvelope）。
   // 这是预期替换，不算“删改已有黄金条目”。替换时把断言换成新的现状（条数、组件名），不要整条删掉。
   // 路由清单本身的条数、与路线图的对账在 src/routes/routes.test.ts 与 pnpm contract:docs-check。
-  it("路由都已登记：带结构的 8 条在商家端文档里，其余还只有元数据；三份文档都有通用结构与错误体", async () => {
-    // W1-03：m01 的协议 5 条、m02 的建主体、门店列表、记住当前门店各 1 条
+  it("路由都已登记：带结构的 17 条在商家端与后台文档里，其余还只有元数据；三份文档都有通用结构与错误体", async () => {
+    // W1-03：m01 的协议 5 条、m02 的建主体、门店列表、记住当前门店各 1 条；W1-01a：a01 的登录链路 9 条
     expect(allRoutes.map((route) => route.operationId).sort()).toEqual([
+      "admin.auth.activate",
+      "admin.auth.confirmTotp",
+      "admin.auth.enrollTotp",
+      "admin.auth.login",
+      "admin.auth.me.get",
+      "admin.auth.setPassword",
+      "admin.auth.stepUp",
+      "admin.auth.verifyMfa",
+      "admin.session.current.delete",
       "m.agreement.list",
       "m.agreementConsent.create",
       "m.agreementConsent.list",
@@ -350,7 +359,7 @@ describe("提交的生成物（任务书 W0-08 第 11 节第 1 项）", () => {
       "m.me.currentStore.replace",
       "m.store.list",
     ]);
-    expect(allMetaOnlyRoutes).toHaveLength(656);
+    expect(allMetaOnlyRoutes).toHaveLength(647);
     expect(allRegistryOnly).toHaveLength(5);
     const common = ["DictRef", "ErrorBody", "SentryEnvelope"];
     /** 各文档的 paths 条数与具名结构 */
@@ -379,7 +388,25 @@ describe("提交的生成物（任务书 W0-08 第 11 节第 1 项）", () => {
           ...common,
         ],
       },
-      admin: { paths: 0, schemas: common },
+      admin: {
+        paths: 9,
+        schemas: [
+          "ActivateBody",
+          "AuthNext",
+          "ConfirmTotpBody",
+          "EnrollTotpBody",
+          "LoginBody",
+          "SetPasswordBody",
+          "StaffBrief",
+          "StaffMe",
+          "StepUpBody",
+          "StepUpResult",
+          "TotpConfirmResult",
+          "TotpEnrollment",
+          "VerifyMfaBody",
+          ...common,
+        ],
+      },
       portal: { paths: 0, schemas: common },
     };
     for (const [name, want] of Object.entries(expected)) {
