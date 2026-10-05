@@ -1,7 +1,7 @@
-// billing 的不变量检查项（W1-10）：账户与批次这一半——billing.I1、I2、I3、I6、I7、I8、I16。
+// billing 的不变量检查项（W1-10）：账本内核的九条——billing.I1–I8、I16。
 // 依据：07 分组 第 5.6 节的登记表与各表“不变量”一节；D1 第 9 节。由 ops 的 invariant.full 每日调度。
 // 涉及积分与金额的一律不自愈（heal: none）：修正走调整单或 fix 操作。直接关系数量的 P1，漏跑、顺序、缓存类 P2。
-// I4、I5（冻结单与分摊）随冻结一族登记；I9–I13、I15、I17 随履约与 M4。
+// I9–I13、I15、I17 随履约与 M4。
 // 每条检查是一句 SQL，返回违规对象、所属主体与说明；可按主体缩小范围（后台手工触发）。一次至多报 500 条。
 import { invariantNow } from "../kernel/index.js";
 import type { InvariantRegistration, InvariantSeverity } from "../kernel/index.js";
@@ -106,6 +106,55 @@ const i3 = check(
             IS DISTINCT FROM (s.plan_qty, s.addon_qty, s.held_qty)`,
 );
 
+/**
+ * billing.I4：冻结单的应扣 = 分摊数量之和，累计退回、不予退回 = 分摊行对应列之和；
+ * 每个批次的冻结 = 该批次上所有在冻结状态的冻结单的分摊量之和（批次侧不符时对象是批次）。
+ */
+const i4 = check(
+  "billing.I4",
+  "P1",
+  `SELECT 'point_hold' AS subject_type, h.id AS subject_id, h.entity_id,
+          jsonb_build_object('problem', 'alloc_sum',
+                             'hold', jsonb_build_array(h.qty, h.returned_qty, h.forfeited_qty),
+                             'allocs', jsonb_build_array(s.qty, s.returned_qty, s.forfeited_qty)) AS detail
+     FROM point_hold h
+     CROSS JOIN LATERAL (
+       SELECT COALESCE(sum(a.qty), 0)::int AS qty,
+              COALESCE(sum(a.returned_qty), 0)::int AS returned_qty,
+              COALESCE(sum(a.forfeited_qty), 0)::int AS forfeited_qty
+         FROM point_hold_alloc a WHERE a.point_hold_id = h.id) s
+    WHERE (h.qty, h.returned_qty, h.forfeited_qty) IS DISTINCT FROM (s.qty, s.returned_qty, s.forfeited_qty)
+    UNION ALL
+   SELECT 'point_lot', l.id, l.entity_id,
+          jsonb_build_object('problem', 'lot_held', 'heldQty', l.held_qty, 'allocated', s.qty)
+     FROM point_lot l
+     CROSS JOIN LATERAL (
+       SELECT COALESCE(sum(a.qty), 0)::int AS qty
+         FROM point_hold_alloc a JOIN point_hold h ON h.id = a.point_hold_id
+        WHERE a.point_lot_id = l.id AND h.status = 'held') s
+    WHERE l.held_qty <> s.qty`,
+);
+
+/**
+ * billing.I5：已扣减的冻结单，应扣 − 累计退回 − 不予退回 = 它留在“已消耗”的数量（按它的流水累加）；
+ * 没扣减过的（冻结中、已释放）在“已消耗”里应为 0。
+ */
+const i5 = check(
+  "billing.I5",
+  "P1",
+  `SELECT 'point_hold' AS subject_type, h.id AS subject_id, h.entity_id,
+          jsonb_build_object('status', h.status, 'expected', e.qty, 'consumed', c.qty) AS detail
+     FROM point_hold h
+     CROSS JOIN LATERAL (
+       SELECT CASE WHEN h.status IN ('captured', 'refunded_partial', 'refunded_full')
+                   THEN h.qty - h.returned_qty - h.forfeited_qty ELSE 0 END AS qty) e
+     CROSS JOIN LATERAL (
+       SELECT (COALESCE(sum(m.qty) FILTER (WHERE m.to_bucket = 'consumed'), 0)
+             - COALESCE(sum(m.qty) FILTER (WHERE m.from_bucket = 'consumed'), 0))::int AS qty
+         FROM point_ledger_entry m WHERE m.point_hold_id = h.id) c
+    WHERE e.qty <> c.qty`,
+);
+
 /** billing.I6：已过到期时刻超过 10 分钟的套餐批次，可用为 0 */
 const i6 = check(
   "billing.I6",
@@ -176,5 +225,15 @@ const i16 = check(
     ORDER BY entity_id, source DESC, seq`,
 );
 
-/** 账户与批次这一半的七条，按编号 */
-export const billingInvariants: readonly InvariantRegistration[] = [i1, i2, i3, i6, i7, i8, i16];
+/** 账本内核的九条，按编号 */
+export const billingInvariants: readonly InvariantRegistration[] = [
+  i1,
+  i2,
+  i3,
+  i4,
+  i5,
+  i6,
+  i7,
+  i8,
+  i16,
+];
