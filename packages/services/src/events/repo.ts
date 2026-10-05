@@ -128,9 +128,10 @@ export interface StaleDelivery {
   readonly entityId: string | null;
 }
 
-/** 到期时间早于 before、仍待派发（pending、retry）的投递行；退避中的行到期时间在后面，不在其中 */
+/** 到期时间早于 before、状态在 statuses 之内的投递行；退避中的行到期时间在后面，不在其中 */
 export function selectStaleDeliveries(
   tx: Tx,
+  statuses: readonly string[],
   before: Date,
   limit: number,
 ): Promise<StaleDelivery[]> {
@@ -138,8 +139,9 @@ export function selectStaleDeliveries(
     `SELECT d.outbox_event_id::text AS "eventId", d.subscriber, d.status, d.attempts::int AS attempts,
             d.next_attempt_at AS "nextAttemptAt", e.event_type AS "eventType", e.entity_id::text AS "entityId"
      FROM outbox_delivery d JOIN outbox_event e ON e.id = d.outbox_event_id
-     WHERE d.status IN ('pending', 'retry') AND d.next_attempt_at < $1::timestamptz
-     ORDER BY d.next_attempt_at, d.outbox_event_id, d.subscriber LIMIT $2::int`,
+     WHERE d.status = ANY($1::text[]) AND d.next_attempt_at < $2::timestamptz
+     ORDER BY d.next_attempt_at, d.outbox_event_id, d.subscriber LIMIT $3::int`,
+    statuses,
     before.toISOString(),
     limit,
   );

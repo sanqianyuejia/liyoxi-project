@@ -1,6 +1,8 @@
 // events.I8（W0-15）：没有超过 5 分钟未展开的事件；没有超过 15 分钟仍待派发且不在退避中的投递行。
 // 依据：01 分组 第 2.3、2.4 节“不变量”；15 分组 第 2.4、5.2 节。P2，只在 full 运行里查，不自愈。
 // 调度与落库在 W0-24；这里只给查询函数，并在 register.ts 登记。
+import type { EnumValue, OUTBOX_DELIVERY_STATUS } from "@liyoxi/contract/enums";
+
 import type { InvariantViolation, Tx } from "../kernel/index.js";
 import { databaseNow, selectStaleDeliveries, selectStaleEvents } from "./repo.js";
 
@@ -8,6 +10,9 @@ export const I8_EVENT_MAX_AGE_MS = 5 * 60_000;
 export const I8_DELIVERY_MAX_OVERDUE_MS = 15 * 60_000;
 /** 每一段至多报多少条：中继停摆时积压可以很大，报最老的这些就够定位，不把整张表搬出来 */
 export const I8_MAX_VIOLATIONS = 500;
+
+/** “仍待派发”的状态：待派发、失败待重试。取值来自契约的枚举 */
+const WAITING: ReadonlyArray<EnumValue<typeof OUTBOX_DELIVERY_STATUS>> = ["pending", "retry"];
 
 export interface I8Options {
   /** “现在”。不给即取数据库时间：投递行的到期时间本来就是数据库时间 */
@@ -26,6 +31,7 @@ export async function findI8Violations(
   );
   const deliveries = await selectStaleDeliveries(
     tx,
+    WAITING,
     new Date(now - I8_DELIVERY_MAX_OVERDUE_MS),
     I8_MAX_VIOLATIONS,
   );
