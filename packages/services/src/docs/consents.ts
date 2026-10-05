@@ -2,8 +2,9 @@
 // 登录、重新同意、加入，以及订购、广告需求、付款单四个交易场景都经这里，与各自的业务写同一事务。
 //
 //   每份协议一行，INSERT … ON CONFLICT DO NOTHING；命中唯一索引即返回已有记录（同一账号同一版本重复提交只有一行）。
-//   协议键与版本不一致、场景收不了这份协议 → VALIDATION_FAILED；
-//   不是这份协议此刻的当前版本（含尚未生效的、已被取代的）→ AGREEMENT_VERSION_STALE，带当前版本 id。
+//   协议键与版本不一致、用户级场景里混进别的协议 → VALIDATION_FAILED；
+//   不是这份协议此刻的当前版本（含尚未生效的、已被取代的）→ AGREEMENT_VERSION_STALE，带当前版本 id；
+//   交易接口只交版本 id，交成别的协议的版本同样按过期处理（协议键取自版本行）。
 //
 // 手机号密文与脱敏串、称呼脱敏串、角色、openid 的 HMAC、主体快照都由调用方带入：docs 不读身份表与主体表。
 // docs 只返回“用户级协议是否已齐”与指纹，不写 merchant_user.consent_stamp（由 identity 自己写）。
@@ -139,16 +140,21 @@ export async function assertConsents(
     if (asked?.agreementKey !== undefined && version !== undefined && asked.agreementKey !== key) {
       invalid("协议键与版本不一致");
     }
-    if (version !== undefined && !version.agreement.scenes.includes(scene)) {
-      invalid(userScene ? "本场景只收用户级协议" : "这份协议不在本场景签署");
-    }
     const live = current.get(key);
-    if (version === undefined || version.contentSha256 === null || live?.id !== versionId) {
+    const stale = (): never => {
       const details: AgreementVersionStaleDetails = {
         agreementKey: key,
         currentAgreementVersionId: live?.id ?? null,
       };
       throw new AppError("AGREEMENT_VERSION_STALE", { details });
+    };
+    if (version !== undefined && !version.agreement.scenes.includes(scene)) {
+      // 用户级场景里混进别的协议是入参不对；交易接口只交版本 id，交成别的协议的版本按过期处理（m01 第 2.7 节末段）
+      if (userScene) invalid("本场景只收用户级协议");
+      stale();
+    }
+    if (version === undefined || version.contentSha256 === null || live?.id !== versionId) {
+      return stale();
     }
     const consentMode = version.agreement.consentMode;
     return {

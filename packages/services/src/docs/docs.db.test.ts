@@ -349,6 +349,31 @@ describe("同意记录、待同意与指纹、已签署协议（验收 2–4）"
       const secondOrder = await order("01890000-0000-7000-8000-00000000b002", "LYX2026010590002");
       expect(secondOrder.consents[0]?.consentNo).not.toBe(firstOrder.consents[0]?.consentNo);
 
+      // 交易接口只交版本 id：交成别的协议的版本按过期处理，协议键取自版本行
+      const wrong = await appError(() =>
+        tx.run((handle) =>
+          docs.assertConsents(handle, owner.ctx, {
+            scene: "order_submit",
+            consents: [{ agreementVersionId: user }],
+            signer: owner.signer,
+            entity: {
+              entityId: merchant.entity.id,
+              entityName: null,
+              usccEnc: null,
+              usccMask: null,
+              storeId: merchant.store.id,
+            },
+            biz: {
+              type: "drama_order",
+              id: "01890000-0000-7000-8000-00000000b003",
+              no: "LYX2026010590003",
+            },
+          }),
+        ),
+      );
+      expect(wrong.error).toBe("AGREEMENT_VERSION_STALE");
+      expect(wrong.details).toEqual({ agreementKey: "user", currentAgreementVersionId: user });
+
       const viewer = { merchantUserId: ownerId, entityId: merchant.entity.id };
       const asOwner = await docs.listSignedAgreements({ role: "owner", ...viewer }, { limit: 20 });
       if (asOwner.viewerRole !== "owner") throw new Error("老板视图的判别字段不对");
