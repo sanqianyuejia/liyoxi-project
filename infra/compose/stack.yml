@@ -1,0 +1,176 @@
+# 狸有戏 · 本地整套环境：gateway → api，worker 与无网络的 mediatool 共用一个卷（01 第 11 节；D7 第 7.2、7.4 节；W1-22）。
+#
+# 用法：pnpm stack:build（出三个镜像）→ pnpm stack:up（依赖没起先起、建库、迁移、播种、四个容器都健康才返回）
+#       → pnpm stack:smoke → pnpm stack:down（卷与库保留；加 --reset 删库与卷）。说明见 infra/stack/README.md。
+# 不要直接 docker compose up：建库、迁移、播种与可信代理网段都由 infra/stack/up.mjs 先做好。
+# 库、Redis、对象存储不在这里：用 local.yml 那一份共享实例，经它的网络（liyoxi_default）按容器名连。
+# 另一个项目名 liyoxi-stack，起停互不影响；容器名写死为 lyx-*，与预发节点上的同名，整套只起一份、各 worktree 共用。
+# 只有 gateway 发布端口，缺省只绑回环地址（真机走局域网：pnpm stack:up --lan，见 README）。
+# 口令只有 local.yml 那一组公开的开发值；api、worker 拿到的环境变量就是 loadEnv 读的那几个，没有密钥文件。
+# 库用 lyx_stack（liyoxi 留给手工开发）；Redis 用 1 号库：键前缀照 APP_ENV=local 的缺省（lyx:local:），
+# 与手工开发在 0 号库上的同名队列分开，免得两边的 worker 互相领对方的任务。
+name: liyoxi-stack
+
+services:
+  # 这一段照抄 infra/docker/mediatool/compose.verify.yml 的 mediatool（README 第 3 节）：一条都不能少。
+  # 多出来的三行：容器名；memswap_limit（不写时宿主机有交换区会用到 2GB，X-02 复审备注 9）；重启策略。
+  mediatool:
+    image: liyoxi/mediatool:${LYX_STACK_TAG:-local}
+    container_name: lyx-mediatool
+    network_mode: none
+    read_only: true
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 1
+    tmpfs:
+      - /tmp:size=64m
+    volumes:
+      - work:/work
+    restart: on-failure
+
+  api:
+    image: liyoxi/server:${LYX_STACK_TAG:-local}
+    container_name: lyx-api
+    command: ["node", "apps/api/dist/server.js", "--port", "3000"]
+    init: true
+    read_only: true
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m
+    environment:
+      APP_ENV: local
+      LOG_LEVEL: info
+      DATABASE_URL: postgresql://liyoxi:lyx-local-dev@lyx-postgres:5432/${LYX_STACK_DB:-lyx_stack}
+      REDIS_URL: redis://lyx-redis:6379/1
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - 'fetch("http://127.0.0.1:3000/readyz").then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))'
+      interval: 3s
+      timeout: 5s
+      retries: 40
+    stop_grace_period: 60s
+    restart: on-failure
+
+  worker:
+    image: liyoxi/server:${LYX_STACK_TAG:-local}
+    container_name: lyx-worker
+    command: ["node", "apps/worker/dist/index.js"]
+    init: true
+    read_only: true
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m
+    environment:
+      APP_ENV: local
+      LOG_LEVEL: info
+      DATABASE_URL: postgresql://liyoxi:lyx-local-dev@lyx-postgres:5432/${LYX_STACK_DB:-lyx_stack}
+      REDIS_URL: redis://lyx-redis:6379/1
+    volumes:
+      - work:/work
+    # mediatool 先起：命名卷第一次挂载时沿用它镜像里 /work 的属主；套接字也由它建
+    depends_on:
+      mediatool:
+        condition: service_healthy
+    # 健康 = 租约那一行的心跳在 60 秒之内（与 /health 判 worker 的口径相同）：进程起来并抢到租约才算
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          psql "$$DATABASE_URL" -X -w -Atc "SELECT count(*) FROM worker_lease WHERE name = 'primary'
+          AND heartbeat_at > clock_timestamp() - interval '60 seconds'" | grep -qx 1
+      interval: 3s
+      timeout: 5s
+      retries: 40
+    stop_grace_period: 60s
+    restart: on-failure
+
+  gateway:
+    image: liyoxi/gateway:${LYX_STACK_TAG:-local}
+    container_name: lyx-gateway
+    read_only: true
+    user: "101:101"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m
+    environment:
+      API_HOST: api.localhost
+      ADMIN_HOST: admin.localhost
+      PORTAL_HOST: portal.localhost
+      API_UPSTREAM: lyx-api:3000
+      # 可信代理：本地填共享网络的网段，由 up.mjs 现查后传进来
+      TRUSTED_PROXY_CIDRS: ${LYX_STACK_TRUSTED_CIDRS:-}
+      # 写进 CSP 的对象存储源：本机的 MinIO
+      MEDIA_ORIGINS: http://localhost:9100
+    ports:
+      - "${LYX_STACK_BIND:-127.0.0.1}:${LYX_STACK_PORT:-8080}:8080"
+    restart: on-failure
+
+  # 下面两个是一次性容器，由 up.mjs 经 docker compose run --rm 起：顺带验了镜像里的迁移与播种入口
+  migrate:
+    image: liyoxi/server:${LYX_STACK_TAG:-local}
+    profiles:
+      - tools
+    working_dir: /app/packages/db
+    command: ["prisma", "migrate", "deploy"]
+    init: true
+    read_only: true
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m
+    environment:
+      DATABASE_URL: postgresql://liyoxi:lyx-local-dev@lyx-postgres:5432/${LYX_STACK_DB:-lyx_stack}
+
+  seed:
+    image: liyoxi/server:${LYX_STACK_TAG:-local}
+    profiles:
+      - tools
+    command: ["node", "apps/worker/dist/seed.js"]
+    init: true
+    read_only: true
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m
+    environment:
+      APP_ENV: local
+      LOG_LEVEL: info
+      DATABASE_URL: postgresql://liyoxi:lyx-local-dev@lyx-postgres:5432/${LYX_STACK_DB:-lyx_stack}
+      REDIS_URL: redis://lyx-redis:6379/1
+
+networks:
+  # local.yml 那个项目的网络；api、worker、gateway 与两个一次性容器都接在上面
+  default:
+    name: liyoxi_default
+    external: true
+
+volumes:
+  # mediatool 与 worker 共享的目录
+  work:
+    name: lyx-stack-work
