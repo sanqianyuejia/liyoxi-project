@@ -25,10 +25,10 @@ server {
     return 200 "ok\n";
   }
   location = /healthz {
-    include /etc/nginx/lyx/proxy.inc;
+    include /etc/nginx/lyx/proxy.conf;
   }
   location = /readyz {
-    include /etc/nginx/lyx/proxy.inc;
+    include /etc/nginx/lyx/proxy.conf;
   }
   location / {
     return 404;
@@ -42,20 +42,20 @@ server {
   set $lyx_api_upstream "${API_UPSTREAM}";
 
   location /api/v1/m/ {
-    include /etc/nginx/lyx/proxy.inc;
+    include /etc/nginx/lyx/proxy.conf;
   }
   location /api/v1/hooks/ {
     client_max_body_size 1m;
-    include /etc/nginx/lyx/proxy.inc;
+    include /etc/nginx/lyx/proxy.conf;
   }
   location = /healthz {
-    include /etc/nginx/lyx/proxy.inc;
+    include /etc/nginx/lyx/proxy.conf;
   }
   location = /readyz {
-    include /etc/nginx/lyx/proxy.inc;
+    include /etc/nginx/lyx/proxy.conf;
   }
   location = /health {
-    include /etc/nginx/lyx/proxy.inc;
+    include /etc/nginx/lyx/proxy.conf;
   }
   location / {
     return 404;
@@ -70,7 +70,7 @@ server {
   set $lyx_api_upstream "${API_UPSTREAM}";
 
   location /api/v1/admin/ {
-    include /etc/nginx/lyx/proxy.inc;
+    include /etc/nginx/lyx/proxy.conf;
   }
   location /api/ {
     return 404;
@@ -101,7 +101,7 @@ server {
   set $lyx_api_upstream "${API_UPSTREAM}";
 
   location /api/v1/portal/ {
-    include /etc/nginx/lyx/proxy.inc;
+    include /etc/nginx/lyx/proxy.conf;
   }
   location /api/ {
     return 404;
