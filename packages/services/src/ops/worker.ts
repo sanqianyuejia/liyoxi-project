@@ -129,6 +129,8 @@ export function buildWorkerServices(options: WorkerServicesOptions): WorkerServi
   const delivery = { tx, subscribers: events.subscribers, channel, alerts };
   // 账本（W1-10）：每分钟扫描用它推进到点的主体
   const ledger = createLedger({ clock, events });
+  // 扫描里出错过的主体（进程内的记忆）：下一轮排到正常的主体后面，不占着名额饿死别人
+  const laggards = new Map<string, number>();
   const timing = { tx, assembly, registry: timers.registry, clock, alerts, channel };
   return {
     assembly,
@@ -151,6 +153,6 @@ export function buildWorkerServices(options: WorkerServicesOptions): WorkerServi
     runTimer: (ref) => runTimer(timing, ref),
     ensureRecurring: () => tx.run((handle) => timers.ensureRecurring(handle, clock.now())),
     advanceBilling: (sweepOptions) =>
-      advanceDueAccounts({ db: prisma, tx, clock, ledger, alerts }, sweepOptions),
+      advanceDueAccounts({ db: prisma, tx, clock, ledger, alerts, laggards }, sweepOptions),
   };
 }
