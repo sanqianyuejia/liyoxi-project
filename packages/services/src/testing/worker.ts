@@ -1,9 +1,10 @@
 // 任务进程的样例（W0-23）：带业务副作用的样例订阅者、定时器处理器、周期任务。只给测试用，不进生产装配。
 // 副作用是 biz_sequence 里的一行计数（内核自己的表，应用角色可写）：处理器在自己的事务里把计数加一，
-// 用例据此断言“恰好一次”。处理器本身不做幂等：重复执行就会多加，恰好一次要靠派发序号与行锁保证。
+// 用例据此断言“恰好一次”。订阅者本身不做幂等：重复执行就会多加，恰好一次要靠派发序号与行锁保证。
+// 定时器与周期任务的处理器自己守（见 claimOnce）：定时器的恰好一次本来就靠处理器的业务守卫（D3 第 21.3 节）。
 // 名字沿用 W0-15、W0-17 的样例事件与样例 kind（lyxtest 前缀）；与 sampleSubscriberRegistration、
 // sampleTimerRegistration 的名字相同，不能同时装配。
-import { defineRegistration } from "../kernel/index.js";
+import { defineRegistration, uuidv7 } from "../kernel/index.js";
 import type { ModuleRegistration, RecurringRunContext, Tx } from "../kernel/index.js";
 import { SAMPLE_JOB_KINDS, SAMPLE_TIMER_KINDS } from "./timers.js";
 
@@ -27,6 +28,22 @@ export const WORKER_SAMPLE_SUBSCRIBERS = {
 interface RawDb {
   $executeRawUnsafe(query: string, ...values: unknown[]): Promise<number>;
   $queryRawUnsafe<T = unknown>(query: string, ...values: unknown[]): Promise<T>;
+}
+
+/**
+ * 定时器与周期任务的样例处理器照真实处理器的规矩写：重复执行时自己守住“只做一次”。
+ * 做法是文档里提醒类处理器的那一种——带去重键发一条事件（这里直接插一行 lyxtest.pinged），键已存在即已做过。
+ * 两次并发执行时，后到的那次在唯一索引上等前一次提交，然后什么都不插。
+ */
+async function claimOnce(tx: Tx, key: string): Promise<boolean> {
+  const inserted = await tx.$executeRawUnsafe(
+    `INSERT INTO outbox_event (id, event_type, payload, actor_type, occurred_at, dedupe_key)
+     VALUES ($1::uuid, 'lyxtest.pinged', '{"v":1,"n":1}'::jsonb, 'system', now(), $2::text)
+     ON CONFLICT (dedupe_key) DO NOTHING`,
+    uuidv7(),
+    key,
+  );
+  return inserted === 1;
 }
 
 /** 样例的业务写：把这个处理器的计数加一 */
@@ -114,8 +131,12 @@ export function createWorkerSample(options: WorkerSampleOptions = {}): WorkerSam
       rearmAfterSkip: kind === SAMPLE_TIMER_KINDS.revivable,
       handle: async (tx, timer) => {
         if (control.skipping.has(kind)) return "skipped" as const;
-        await act(kind, timer.id, inTx(tx));
-        return "fired" as const;
+        let fresh = false;
+        await act(kind, timer.id, async (name) => {
+          fresh = await claimOnce(tx, `tmr:lyxtest:${timer.id}`);
+          if (fresh) await bumpWorkerSample(tx, name);
+        });
+        return fresh ? ("fired" as const) : ("skipped" as const);
       },
     })),
     recurringJobs: [
@@ -124,8 +145,15 @@ export function createWorkerSample(options: WorkerSampleOptions = {}): WorkerSam
         schedule: { every: "minutes", minutes: 5 },
         catchUp: true,
         run: async (ctx) => {
-          await act(SAMPLE_JOB_KINDS.every5, ctx.scheduledFor.toISOString(), inTx(ctx.tx));
-          return { bumped: 1 };
+          const slot = ctx.scheduledFor.toISOString();
+          let bumped = 0;
+          await act(SAMPLE_JOB_KINDS.every5, slot, async (name) => {
+            const tx = ctx.tx;
+            if (tx === undefined) throw new Error(`样例：${name} 没有拿到事务句柄`);
+            if (await claimOnce(tx, `lyxtest:${name}:${slot}`))
+              bumped = await bumpWorkerSample(tx, name);
+          });
+          return { bumped };
         },
       },
       {
@@ -135,11 +163,14 @@ export function createWorkerSample(options: WorkerSampleOptions = {}): WorkerSam
         ...options.longJob,
         run: async (ctx) => {
           if (control.long !== undefined) return control.long(ctx);
-          await act(SAMPLE_JOB_KINDS.daily, ctx.scheduledFor.toISOString(), (name) => {
+          const slot = ctx.scheduledFor.toISOString();
+          await act(SAMPLE_JOB_KINDS.daily, slot, (name) => {
             if (ctx.runTx === undefined) throw new Error("样例：长任务没有拿到开事务的入口");
-            return ctx.runTx((tx) => bumpWorkerSample(tx, name));
+            return ctx.runTx(async (tx) => {
+              if (await claimOnce(tx, `lyxtest:${name}:${slot}`)) await bumpWorkerSample(tx, name);
+            });
           });
-          return { scheduledFor: ctx.scheduledFor.toISOString() };
+          return { scheduledFor: slot };
         },
       },
       {

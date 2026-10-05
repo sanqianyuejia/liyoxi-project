@@ -42,5 +42,6 @@ export type {
   ConsumeOutcome,
   DeliveryRef,
   DispatchDeps,
+  DispatchOptions,
   DispatchResult,
 } from "./dispatch.js";

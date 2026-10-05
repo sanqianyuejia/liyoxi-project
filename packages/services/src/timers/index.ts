@@ -49,3 +49,24 @@ export { purgeFiredRecurring, RECURRING_RETENTION_DAYS, registration } from "./r
 export { CONTRACT_TIMER_CATALOG, TimerRegistryError } from "./registry.js";
 export type { ScheduledJob, TimerCatalog, TimerKindInfo, TimerRegistry } from "./registry.js";
 export { scheduleProblem, slotAfter, slotAtOrBefore } from "./schedule.js";
+// W0-23：扫描认领、派发、runTimer、长任务模式
+export {
+  attemptLimit,
+  claimTimers,
+  SCAN_BATCH_SIZE,
+  TIMER_LEASE_SEC,
+  TIMER_MAX_ATTEMPTS,
+  TIMER_QUEUE,
+  timerJobId,
+} from "./scan.js";
+export type {
+  RunTimerOutcome,
+  ScanDeps,
+  ScanOptions,
+  ScanResult,
+  TimerRef,
+  TimerRunDeps,
+} from "./scan.js";
+export { scanDue } from "./dispatch.js";
+export { runTimer, TIMER_BACKOFF_SEC } from "./run.js";
+export { JOB_BACKOFF_SEC, runJobTimer } from "./job-mode.js";

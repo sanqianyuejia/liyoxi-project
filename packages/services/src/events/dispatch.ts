@@ -55,6 +55,12 @@ export interface DispatchDeps {
 /** done 已消费；stale 已被接管或已处理过，没落结果；deferred 不认识的事件类型，延后；retry 失败待重试；dead 进死信 */
 export type ConsumeOutcome = "done" | "stale" | "deferred" | "retry" | "dead";
 
+export interface DispatchOptions {
+  readonly limit?: number;
+  /** 每处理完一行调一次：循环的看门狗据此知道它还在动 */
+  readonly beat?: () => void;
+}
+
 export interface DispatchResult {
   readonly claimed: number;
   readonly enqueued: number;
@@ -222,9 +228,9 @@ export async function consumeDelivery(
  */
 export async function dispatchDue(
   deps: DispatchDeps,
-  limit: number = DISPATCH_BATCH_SIZE,
+  options: DispatchOptions = {},
 ): Promise<DispatchResult> {
-  const { claimed, dead } = await deps.tx.run((tx) => claimDeliveries(tx, limit));
+  const { claimed, dead } = await deps.tx.run((tx) => claimDeliveries(tx, options.limit));
   for (const row of dead) await raiseExhausted(deps.alerts, row, "处理器失联：租约到期仍未消费");
 
   const enqueued: DeliveryRef[] = [];
@@ -248,6 +254,7 @@ export async function dispatchDue(
         released.push(row);
       }
     }
+    options.beat?.();
   }
   if (enqueued.length > 0) {
     await deps.tx.run((tx) => updateLeased(tx, enqueued, "is_enqueued = true"));
