@@ -489,6 +489,16 @@ body {
   border-bottom: var(--lyx-border-width-default) solid var(--lyx-color-border-light);
 }
 
+/*
+ * 可排序的表头能用键盘聚焦（Tab 走到、回车排序），聚焦时要有看得见的环（规范 第 12 节：按钮、链接、可点的行用主色聚焦环）。
+ * antd 缺省只变字色。表头格子挨着格子、外面又是裁圆角的卡片，向外扩的环会被盖住或裁掉，这里画成向内的 2px 主色环。
+ * 规范没写表头这一种，请业主看样时定（状态文件偏差 16）。
+ */
+.lyx-table .ant-table-thead > tr > th.ant-table-column-has-sorters:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 var(--lyx-border-width-strong) var(--lyx-color-primary);
+}
+
 /* 行高两档：单行内容 44，双行内容 56。一行里有双行单元格（.lyx-cell-2）就取 56，页面不用另外声明 */
 .lyx-table .ant-table-tbody > tr > td {
   height: var(--lyx-size-table-row);
@@ -1049,8 +1059,18 @@ a.lyx-link--danger:hover {
   color: var(--lyx-color-toast-icon);
 }
 
+/*
+ * 失败：红色感叹号（规范 第 8 节）。危险色的线条落在深色的通知底上对比度只有 2.6，几乎看不出来；
+ * 设计变量里没有深底上用的红，这里仍用危险色，做成“红底圆 + 白色感叹号”：圆填危险色，感叹号用反白。
+ * 图标是图标集的 alert-circle（一个 circle 加一条 path）。规范没写深底上的红，请业主看样时定（状态文件偏差 16）。
+ */
 .lyx-toast-icon--danger {
-  color: var(--lyx-color-danger);
+  color: var(--lyx-color-text-inverse);
+}
+
+.lyx-toast-icon--danger circle {
+  fill: var(--lyx-color-danger);
+  stroke: var(--lyx-color-danger);
 }
 
 /* ---------- 二次确认（规范 第 5.3 节“二次确认弹窗”） ---------- */
