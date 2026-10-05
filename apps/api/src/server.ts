@@ -1,9 +1,11 @@
 // api 进程的入口（W0-22）。构建产物是 dist/server.js：node apps/api/dist/server.js [--port 3000] [--host 0.0.0.0]
+//   [--trusted-proxy-hops 1] [--trusted-proxy-cidrs 10.0.0.0/8,192.168.0.0/16]
 //
 // 启动：读环境变量 → 建运行时（参数缺定义、模块登记不对即失败）→ 建应用（路由漏挂中间件即失败）
 // → 启动自检（要成功连上一次数据库）→ 监听 → 就绪。任何一步失败：打一条日志，退出码 1。
 // 退出：收到 SIGTERM、SIGINT 即进入排空（/readyz 回 503），不再接新连接，在途请求处理完后断开数据库与 Redis，退出码 0。
 // 监听端口走命令行参数，不是环境变量；镜像标签在构建时写进产物（任务书 第 10 节第 4 项）。
+// 可信代理的跳数与网段同样走命令行参数（取客户端 IP 用，http/client-ip.ts）：不给即 1 跳、回环与私有网段。
 import { parseArgs } from "node:util";
 
 import { serve } from "@hono/node-server";
@@ -11,6 +13,7 @@ import { createRuntime, loadEnv, runStartupChecks } from "@liyoxi/services";
 import type { Runtime } from "@liyoxi/services";
 
 import { createApp } from "./app.js";
+import { DEFAULT_TRUSTED_PROXY } from "./http/client-ip.js";
 import { HANDLERS } from "./routes/index.js";
 import { VERSION } from "./version.js";
 
@@ -18,6 +21,8 @@ const { values } = parseArgs({
   options: {
     port: { type: "string", default: "3000" },
     host: { type: "string", default: "0.0.0.0" },
+    "trusted-proxy-hops": { type: "string" },
+    "trusted-proxy-cidrs": { type: "string" },
   },
 });
 const port = Number(values.port);
@@ -29,7 +34,18 @@ if (!Number.isInteger(port) || port < 0 || port > 65_535) {
 let runtime: Runtime | undefined;
 try {
   runtime = createRuntime({ entry: "api", env: loadEnv(), version: VERSION });
-  const api = createApp({ runtime, handlers: HANDLERS });
+  // 跳数、网段写错了在 createApp 里抛错，走下面的启动失败
+  const trustedProxy = {
+    hops:
+      values["trusted-proxy-hops"] === undefined
+        ? DEFAULT_TRUSTED_PROXY.hops
+        : Number(values["trusted-proxy-hops"]),
+    cidrs:
+      values["trusted-proxy-cidrs"] === undefined
+        ? DEFAULT_TRUSTED_PROXY.cidrs
+        : values["trusted-proxy-cidrs"].split(",").filter((cidr) => cidr.trim() !== ""),
+  };
+  const api = createApp({ runtime, handlers: HANDLERS, trustedProxy });
   await runStartupChecks(runtime.startupChecks);
 
   const { logger } = runtime;

@@ -34,34 +34,31 @@ export const idempotency: RouteMiddlewareFactory = (route, runtime) => {
   const scope = route.operationId;
   const redact = route["x-redact-on-replay"] ?? [];
   const merchant = routeGroupOf(route) === "m";
-  return {
-    name: "idempotency",
-    handler: async (c, next) => {
-      const idem = createIdempotencyContext({
-        mode,
-        scope,
-        redact,
-        actor: c.get("identity")?.actor ?? null,
-        key: c.req.header(IDEMPOTENCY_KEY_HEADER) ?? null,
-        ...(mode === "required"
-          ? {
-              request: {
-                method: c.req.method,
-                pathParams: c.req.param(),
-                body: await jsonBody(c),
-                // 商家端另计入门店上下文：同一个键在不同门店下视为不同请求（A121）
-                storeId: merchant ? (c.req.header(STORE_ID_HEADER) ?? null) : null,
-              },
-            }
-          : {}),
-      });
-      c.set("idem", idem);
-      await next();
-      if (idem.replayed) c.res.headers.set(IDEMPOTENT_REPLAYED_HEADER, "true");
-      if (c.res.status < 400) {
-        assertIdempotencyUsed(idem, { appEnv: runtime.env.APP_ENV, report: runtime.report });
-      }
-    },
+  return async (c, next) => {
+    const idem = createIdempotencyContext({
+      mode,
+      scope,
+      redact,
+      actor: c.get("identity")?.actor ?? null,
+      key: c.req.header(IDEMPOTENCY_KEY_HEADER) ?? null,
+      ...(mode === "required"
+        ? {
+            request: {
+              method: c.req.method,
+              pathParams: c.req.param(),
+              body: await jsonBody(c),
+              // 商家端另计入门店上下文：同一个键在不同门店下视为不同请求（A121）
+              storeId: merchant ? (c.req.header(STORE_ID_HEADER) ?? null) : null,
+            },
+          }
+        : {}),
+    });
+    c.set("idem", idem);
+    await next();
+    if (idem.replayed) c.res.headers.set(IDEMPOTENT_REPLAYED_HEADER, "true");
+    if (c.res.status < 400) {
+      assertIdempotencyUsed(idem, { appEnv: runtime.env.APP_ENV, report: runtime.report });
+    }
   };
 };
 

@@ -107,6 +107,28 @@ export const rateLimitedRoute = merchantRoute({
   responses: okResponse(z.null()),
 });
 
+/** 另挂一个专用档位：与所在组的缺省档位同时生效 */
+export const signedTierRoute = merchantRoute({
+  method: "get",
+  path: "/m/lyxtest-things/signed",
+  operationId: "m.lyxtestThing.signed",
+  "x-auth": "public",
+  "x-clerk-view": "same",
+  "x-rate-limit": "m.sign",
+  responses: okResponse(z.null()),
+});
+
+/** 写了一个没登记的档位 */
+export const unknownTierRoute = merchantRoute({
+  method: "get",
+  path: "/m/lyxtest-things/unknown-tier",
+  operationId: "m.lyxtestThing.unknownTier",
+  "x-auth": "public",
+  "x-clerk-view": "same",
+  "x-rate-limit": "m.lyxtest_nope",
+  responses: okResponse(z.null()),
+});
+
 /** 处理器被执行了几次：用例据此断言“重放不再执行” */
 export const executions = { update: 0 };
 
@@ -161,6 +183,10 @@ export const hookReceiveHandler = defineHandler(hookReceiveRoute, (c) => c.text(
 export const capabilityHandler = defineHandler(capabilityRoute, (c) => ok(c, null));
 
 export const rateLimitedHandler = defineHandler(rateLimitedRoute, (c) => ok(c, null));
+
+export const signedTierHandler = defineHandler(signedTierRoute, (c) => ok(c, null));
+
+export const unknownTierHandler = defineHandler(unknownTierRoute, (c) => ok(c, null));
 
 /** 四组各一条加几条辅助的：配上 fakeAuth 与 signature 的顶替件就挂得上 */
 export const SAMPLE_HANDLERS = [

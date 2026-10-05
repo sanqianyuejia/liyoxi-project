@@ -41,6 +41,7 @@ export type {
 export type { FinanceHealth, FlowHealth, Health, HealthSummary } from "./ops/index.js";
 // W0-22b 限流器：进程运行时建好经 runtime.rateLimiter 给出；类型给 api 的限流中间件用
 export { createRateLimiter, degradedLimit } from "./rate-limit.js";
+export { actorKey } from "./kernel/index.js";
 export type {
   RateLimitCheck,
   RateLimitDecision,

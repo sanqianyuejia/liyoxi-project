@@ -16,7 +16,7 @@ const thingId = uuidv7();
 const start = () =>
   testApi.start({
     handlers: SAMPLE_HANDLERS,
-    before: [
+    middlewares: [
       fakeAuth({ actor: { type: "merchant", id: userId, client: "weapp", role: "owner" } }),
       stubMiddleware("signature"),
     ],
