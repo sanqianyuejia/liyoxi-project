@@ -297,4 +297,4 @@ DATABASE_URL=<同上> pnpm db:partitions:assert --db <库名>
 - 快照不逐行判（`generated` 口径）：单独改快照过不了 `db:snapshot:check`；改了生成脚本的输出再重出快照，检查是绿的，要连同脚本的差异一起看（第 5.1 节的限度同样适用）。
 - 迁移规范检查按文本认语句：动态拼出来再 `EXECUTE` 的、先建函数再调它来删东西的，查不出；“带不带默认值”按迁移自己的文本推。迁移是甲类，靠评审。
 - 06 第 1 节的数量是从正文那一条里按句式读出来的：句式被改写、读不出数时检查报错（不当成通过），把 `db-structure-lib.mjs` 的 `readDocCounts` 一起改（改已有的检查脚本，走 `gate-change` PR）。
-- 本地那个长期留着的 `lyx_migrate_check` 过了月初会少一个月的分区，`pnpm db:partitions:assert` 会红：删掉重建（`packages/db/README.md` 第 3 节）。
+- 本地那个长期留着的 `lyx_migrate_check` 过了月初会少一个月的分区，`pnpm db:partitions:assert` 会红：删掉重建（`packages/db/README.md` 第 3 节）。CI 里只有一种情形会这样：迁移在北京时间月末的最后几分钟跑完、断言在下个月的头几分钟跑，那一次重跑即可。
