@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -20,7 +20,8 @@ import { createPrismaClient, type PrismaClient } from "./index.js";
 //             十张表的外键指向别的表，为了不把上游的行一路造出来，插入时让外键（与别的触发器）不触发；
 //             权限检查不受它影响。改、删、清空的断言一律不用这个连接。
 //   readonly  lyx_readonly
-// 期望的权限清单写在本文件里（下面几个常量），与迁移里的授权语句各写各的：迁移漏了、多了，或以后加表没补授权，这里都会红。
+// 期望的权限清单在 src/grants.expected.json（与核对脚本 infra/ci/db-verify-grants.mjs 共用一份），与迁移里的授权语句各写各的：
+// 迁移漏了、多了，或以后加表没补授权，这里都会红。
 
 // 全仓用例并行跑时库很忙：建库、两遍迁移、删库各要十几秒，缺省的 5 秒（用例）与 10 秒（钩子）不够
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 180_000 });
@@ -53,74 +54,26 @@ const names = (text: string): string[] => text.trim().split(/\s+/);
 
 // ===== 期望的权限清单 =====
 
-/** 只增表（06 第 4 节“只增”一列为“是”的 16 张）→ 另授列级 UPDATE 的列（触发器放行“写一次”的那几列） */
-const APPEND_ONLY: Record<string, string[]> = {
-  outbox_event: ["published_at"],
-  status_transition: [],
-  assignment_history: names(
-    "contact_due_at sla_snapshot contacted_at contacted_by_staff_id contact_voided_at updated_at",
-  ),
-  audit_log: [],
-  auth_event: [],
-  drama_copyright_revision: [],
-  price_tier_revision: [],
-  subscription_event: [],
-  ledger_operation: [],
-  point_ledger_entry: [],
-  finance_config_revision: ["effective_at"],
-  delivery_download_log: ["client_ack", "client_ack_at"],
-  manual_reminder_log: [],
-  agreement_consent: [],
-  param_value: ["cancelled_at"],
-  analytics_event: [],
-};
-/** 行不物理删除：file_object（06 分组 第 5.4 节）、08 分组的 11 张（第 1 节）、客服工单（12 分组 第 1 节） */
-const NO_DELETE = names(`
-  file_object
-  billing_order payment_txn transfer_proof refund_request refund_txn payment_exception
-  wx_bill_file wx_bill_line recon_day invoice_request invoice_doc
-  service_ticket
-`);
-/** 常规读写的 135 张，按 06 第 4 节的分组排 */
-const FULL = names(`
-  idempotency_record biz_sequence outbox_delivery timer work_calendar_day
-  merchant_user wechat_identity user_session portal_session merchant_user_notice sms_verification
-  wecom_contact account_change_request entity store entity_member store_member invitation
-  referral_code portal_ticket
-  staff staff_group staff_role staff_activation staff_session assignment_pool_member
-  assignment_cursor follow_up approval_request
-  store_profile store_profile_media store_service_item qualification_submission qualification_doc
-  drama drama_episode drama_permit drama_copyright drama_stat
-  file_ref file_purge_run media_info media_check upload_batch upload_batch_item media_job
-  production_record master_checkout playable_asset zip_bundle drama_trailer drama_episode_master
-  store_asset store_asset_file store_asset_insight store_asset_tag store_asset_usage
-  store_asset_demand ocr_result
-  plan plan_revision plan_promo_claim point_pack drama_price_revision billing_param
-  billing_account subscription_term grant_schedule point_lot point_hold point_hold_alloc
-  billing_entity_daily valuation_policy point_entry_valuation point_adjustment_request
-  term_extension_request
-  cart_item drama_order order_item order_item_account order_item_placement cancel_request
-  cancel_request_line ad ad_version ad_revision
-  delivery_ticket delivery_ticket_stage delivery_ticket_pause delivery_plan delivery_plan_version
-  delivery_plan_change_request sample episode_output qc_record delivery_release delivery_reissue
-  download_grant publish_list publish_list_episode
-  channel_account channel_account_submission launch_task launch_submission patrol_batch
-  patrol_task takedown_task
-  notify_scene wx_template_slot sms_template notification notification_delivery merchant_message
-  staff_message wx_subscribe_quota agreement agreement_version license_letter
-  license_letter_revision
-  dict_type dict_item site_config_revision home_banner site_notice feature_flag
-  checklist_template analytics_event_dedup analytics_identity report_month_close export_job
-  webhook_event worker_lease alert_event invariant_run invariant_violation
-`);
+/** 期望的授权：与核对脚本 infra/ci/db-verify-grants.mjs 共用一份。各项的含义见那份文件开头的“说明” */
+interface ExpectedGrants {
+  /** 逻辑表 → lyx_app 的表级权限（按字母序、逗号连接） */
+  tables: Record<string, string>;
+  /** 只增表（06 第 4 节“只增”一列为“是”的 16 张） */
+  appendOnly: string[];
+  /** 另授列级 UPDATE 的列（触发器放行“写一次”的那几列） */
+  columnUpdate: Record<string, string[]>;
+  /** 以属主身份执行的函数 → 可以执行它的角色 */
+  definerFunctions: Record<string, string[]>;
+}
+const EXPECTED = JSON.parse(
+  readFileSync(join(pkg, "src/grants.expected.json"), "utf8"),
+) as ExpectedGrants;
+/** 只增表 → 另授列级 UPDATE 的列 */
+const APPEND_ONLY: Record<string, string[]> = Object.fromEntries(
+  EXPECTED.appendOnly.map((table) => [table, EXPECTED.columnUpdate[table] ?? []]),
+);
 /** lyx_app 在 166 张逻辑表上的表级权限 */
-const TABLE_PRIVILEGES: Record<string, string> = {
-  ...Object.fromEntries(FULL.map((table) => [table, "DELETE,INSERT,SELECT,UPDATE"])),
-  ...Object.fromEntries(NO_DELETE.map((table) => [table, "INSERT,SELECT,UPDATE"])),
-  ...Object.fromEntries(Object.keys(APPEND_ONLY).map((table) => [table, "INSERT,SELECT"])),
-  service_ticket_entry: "INSERT,SELECT",
-  service_ticket_ref: "DELETE,INSERT,SELECT",
-};
+const TABLE_PRIVILEGES = EXPECTED.tables;
 /** 14 个自增列（表.列）；它们背后的序列加审计编号的序列 audit_no_seq，lyx_app 各有 USAGE */
 const SERIAL_COLUMNS = [
   ...names(`
@@ -573,28 +526,32 @@ describe("触发器那一道还在：表的属主也改不了、删不了（任�
   const truncate = (table: string) =>
     expectTrigger(table, `TRUNCATE ${table} CASCADE`, "TRUNCATE not allowed");
 
-  it.each(Object.keys(APPEND_ONLY))(
+  it.each(Object.keys(APPEND_ONLY).filter((table) => table !== "auth_event"))(
     "%s：属主 UPDATE、DELETE、TRUNCATE 被触发器拒（23001）",
     async (table) => {
       const where = `WHERE id = ${idOf(table)}`;
       await expectTrigger(table, `UPDATE ${table} SET id = gen_random_uuid() ${where}`, "");
       await truncate(table);
-      if (table === "auth_event") {
-        // 事实：auth_event 的 DELETE 没有触发器（清理函数要用它删，03-staff-authz-audit.sql）。
-        // 拦应用的是权限；属主删得掉。这里在事务里删一行再回滚，把这一点钉住
-        const deleted = await sqlState(() =>
-          owner.$transaction(async (tx) => {
-            expect(await tx.$executeRawUnsafe(`DELETE FROM auth_event ${where}`)).toBe(1);
-            throw new Error("回滚");
-          }),
-        );
-        expect(deleted).toContain("回滚");
-      } else {
-        await expectTrigger(table, `DELETE FROM ${table} ${where}`, "");
-      }
+      await expectTrigger(table, `DELETE FROM ${table} ${where}`, "");
       expect(await query(owner, `SELECT id FROM ${table} ${where}`)).toHaveLength(1);
     },
   );
+
+  it("auth_event：属主 UPDATE、TRUNCATE 被触发器拒（23001）；DELETE 没有触发器，属主删得掉", async () => {
+    const where = `WHERE id = ${idOf("auth_event")}`;
+    await expectTrigger("auth_event", `UPDATE auth_event SET id = gen_random_uuid() ${where}`, "");
+    await truncate("auth_event");
+    // 事实：auth_event 的 DELETE 没有触发器（清理函数要用它删，03 分组 第 2.11 节）。拦应用的只有权限那一道
+    // （上一组里 lyx_app 的 DELETE 报 42501）。这里以属主的身份在事务里删掉这一行再回滚，把这一点钉住
+    const deleted = await sqlState(() =>
+      owner.$transaction(async (tx) => {
+        expect(await tx.$executeRawUnsafe(`DELETE FROM auth_event ${where}`)).toBe(1);
+        throw new Error("回滚");
+      }),
+    );
+    expect(deleted).toContain("回滚");
+    expect(await query(owner, `SELECT id FROM auth_event ${where}`)).toHaveLength(1);
+  });
 
   it("file_object：属主 DELETE、TRUNCATE 被触发器拒（23001）", async () => {
     const where = `WHERE id = ${idOf("file_object")}`;
@@ -618,8 +575,23 @@ describe("file_object（任务书 第 7 节第 5 条）", () => {
 });
 
 describe("授权没有漏表（任务书 第 7 节第 6 条）", () => {
-  it("166 张逻辑表逐张：lyx_app 的表级权限等于清单；分区子表与 _prisma_migrations 上没有", async () => {
+  it("期望清单自洽：166 张表；16 张只增表都只有 INSERT、SELECT；例外列所在的表没有表级 UPDATE", () => {
     expect(Object.keys(TABLE_PRIVILEGES)).toHaveLength(166);
+    expect(EXPECTED.appendOnly).toHaveLength(16);
+    expect(EXPECTED.appendOnly.map((table) => TABLE_PRIVILEGES[table])).toEqual(
+      EXPECTED.appendOnly.map(() => "INSERT,SELECT"),
+    );
+    for (const table of Object.keys(EXPECTED.columnUpdate)) {
+      expect(TABLE_PRIVILEGES[table], table).toBeDefined();
+      expect(TABLE_PRIVILEGES[table], table).not.toContain("UPDATE");
+    }
+    // 权限集合的写法：四种权限按字母序、逗号连接，SELECT 与 INSERT 每张表都有
+    for (const [table, privileges] of Object.entries(TABLE_PRIVILEGES)) {
+      expect(privileges, table).toMatch(/^(DELETE,)?INSERT,SELECT(,UPDATE)?$/);
+    }
+  });
+
+  it("166 张逻辑表逐张：lyx_app 的表级权限等于清单；分区子表与 _prisma_migrations 上没有", async () => {
     const actual = await query<{ name: string; part: boolean; privileges: string }>(
       owner,
       `select c.relname::text as name, c.relispartition as part,
@@ -646,7 +618,7 @@ describe("授权没有漏表（任务书 第 7 节第 6 条）", () => {
          from pg_attribute a join pg_class c on c.oid = a.attrelid, aclexplode(a.attacl) x
         where c.relnamespace = 'public'::regnamespace order by 1`,
     );
-    const expected = Object.entries(APPEND_ONLY)
+    const expected = Object.entries(EXPECTED.columnUpdate)
       .flatMap(([table, list]) => list.map((column) => `${table}.${column} lyx_app UPDATE`))
       .sort();
     expect(expected).toHaveLength(11);
@@ -687,6 +659,80 @@ describe("授权没有漏表（任务书 第 7 节第 6 条）", () => {
         .map((seq) => ({ seq, privileges: "USAGE" })),
     );
     expect(await sqlState(exec(app, "select setval('audit_no_seq', 1)"))).toBe(DENIED);
+  });
+
+  it("模式与库：两个角色在 public 上只有 USAGE、没有 CREATE，库上没有 CREATE", async () => {
+    // 授权里写明的：GRANT CREATE ON SCHEMA public TO lyx_app 之类在这一句红
+    const granted = await query<{ role: string; privilege: string }>(
+      owner,
+      `select x.grantee::regrole::text as role, x.privilege_type::text as privilege
+         from pg_namespace n, aclexplode(n.nspacl) x
+        where n.nspname = 'public' and x.grantee in ('lyx_app'::regrole, 'lyx_readonly'::regrole)
+        order by 1, 2`,
+    );
+    expect(granted).toEqual([
+      { role: "lyx_app", privilege: "USAGE" },
+      { role: "lyx_readonly", privilege: "USAGE" },
+    ]);
+    // 实际生效的（连同经 PUBLIC 得到的）
+    const effective = await query(
+      owner,
+      `select r::text as role, has_schema_privilege(r, 'public', 'USAGE') as usage,
+              has_schema_privilege(r, 'public', 'CREATE') as schema_create,
+              has_database_privilege(r, current_database(), 'CREATE') as database_create
+         from unnest(array['lyx_app', 'lyx_readonly']) r order by 1`,
+    );
+    expect(effective).toEqual(
+      ["lyx_app", "lyx_readonly"].map((role) => ({
+        role,
+        usage: true,
+        schema_create: false,
+        database_create: false,
+      })),
+    );
+    expect(await sqlState(exec(app, "CREATE TABLE lyx_grants_probe (id integer)"))).toBe(DENIED);
+  });
+
+  it("没有带转授权的授权（WITH GRANT OPTION）：表、列、序列、函数、模式、库上都没有", async () => {
+    const grantable = await query<{ entry: string }>(
+      owner,
+      `select e.kind || ' ' || e.name || ' ' || e.grantee::regrole || ' ' || e.privilege_type as entry
+         from (
+           select 'relation' as kind, c.relname::text as name, x.grantee, x.privilege_type, x.is_grantable
+             from pg_class c, aclexplode(c.relacl) x where c.relnamespace = 'public'::regnamespace
+           union all
+           select 'column', c.relname || '.' || a.attname, x.grantee, x.privilege_type, x.is_grantable
+             from pg_attribute a join pg_class c on c.oid = a.attrelid, aclexplode(a.attacl) x
+            where c.relnamespace = 'public'::regnamespace
+           union all
+           select 'function', p.oid::regprocedure::text, x.grantee, x.privilege_type, x.is_grantable
+             from pg_proc p, aclexplode(p.proacl) x where p.pronamespace = 'public'::regnamespace
+           union all
+           select 'schema', n.nspname::text, x.grantee, x.privilege_type, x.is_grantable
+             from pg_namespace n, aclexplode(n.nspacl) x where n.nspname = 'public'
+           union all
+           select 'database', d.datname::text, x.grantee, x.privilege_type, x.is_grantable
+             from pg_database d, aclexplode(d.datacl) x where d.datname = current_database()
+         ) e
+        where e.is_grantable order by 1`,
+    );
+    expect(grantable).toEqual([]);
+  });
+
+  it("以属主身份执行的函数恰是清单里的几个：PUBLIC 不能执行，能执行的角色与清单相同", async () => {
+    const definers = await query<{ name: string; who: string }>(
+      owner,
+      `select p.proname::text as name,
+              (select coalesce(string_agg(g, ',' order by g), '')
+                 from unnest(array['lyx_app', 'lyx_readonly', 'public']) g
+                where has_function_privilege(g, p.oid, 'EXECUTE')) as who
+         from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prosecdef order by 1`,
+    );
+    expect(definers).toEqual(
+      Object.entries(EXPECTED.definerFunctions)
+        .map(([name, roles]) => ({ name, who: [...roles].sort().join(",") }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    );
   });
 });
 
