@@ -26,6 +26,10 @@ export const THREE_PHASE_OPERATIONS = {
   "admin.smsTemplate.testSend": "commit-first",
   "m.qualificationDoc.create": "external-first",
   "admin.uploadBatchItem.complete": "multi-tx",
+  "admin.auth.bindWecom": "external-first",
+  "admin.file.complete": "multi-tx",
+  "admin.file.restore": "external-first",
+  "admin.file.erase": "multi-tx",
 } as const satisfies Record<string, ThreePhaseShape>;
 
 /** 这条路由是不是三段式用例：登记表里有，或路由自己标了 x-three-phase */
