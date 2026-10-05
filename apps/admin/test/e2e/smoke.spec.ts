@@ -932,6 +932,13 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     expect(await numericOf(table.getByRole("button", { name: "下一页" })), "分页的小按钮").toBe(
       "tabular-nums",
     );
+    // 表单控件的字体同样继承界面字体（浏览器给按钮的缺省字体是另一种；日期浮层头部的年、月按钮就落在它上面）
+    expect(
+      await table
+        .getByRole("button", { name: "下一页" })
+        .evaluate((element) => getComputedStyle(element).fontFamily),
+      "分页的小按钮的字体",
+    ).toBe(await page.evaluate(() => getComputedStyle(document.body).fontFamily));
     // 可排序表头里没点亮的排序箭头取色板里的禁用色（antd 缺省算出来的颜色不在色板里）
     expect(
       await table
@@ -986,6 +993,11 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     expect(await lineHeightRatio(form.getByText("主体信息", { exact: true })), "卡片标题").toBe(
       await tokenNumber(page, "--lyx-line-height-title"),
     );
+    // antd 卡片里直接写的正文同样是 1.6：antd 给卡片另设了一遍它的缺省行高
+    expect(
+      await lineHeightRatio(form.getByText("主体信息照营业执照填写", { exact: false })),
+      "卡片里的正文",
+    ).toBe(await tokenNumber(page, "--lyx-line-height-body"));
     expect(await lineHeightRatio(form.getByText("只有运营看得到", { exact: false }))).toBe(
       await tokenNumber(page, "--lyx-line-height-body"),
     );

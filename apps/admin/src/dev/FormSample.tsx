@@ -78,6 +78,10 @@ export function FormSample() {
         style={{ display: "flex", flexDirection: "column", gap: "var(--lyx-layout-section-gap)" }}
       >
         <Card title="主体信息">
+          {/* 卡片里直接写的一段正文：字号、行高都不用页面管（规范 第 2.3 节：段落行高 1.6） */}
+          <p style={{ margin: "0 0 var(--lyx-space-14)" }}>
+            主体信息照营业执照填写，保存后由运营核对；与证照对不上的会退回补正。
+          </p>
           <div style={{ maxWidth: 480 }}>
             <Form.Item label="主体名称" name="entityName" rules={required("请填写主体名称")}>
               <Input placeholder="营业执照上的名称" />
