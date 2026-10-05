@@ -173,9 +173,9 @@ node infra/ci/classify-gate-changes.mjs --base origin/main --labels gate-change
 
 怎么判：名下的文件内容有变、新增文件，都算只增，逐个文件列进 PR 顶部的清单（如“重新生成的生成物，内容有变：加 3 行、删 1 行（与源码一致由 `pnpm design:check` 把关）”），CI 打 `gate-touch`。删除已有的生成物算放松。改这类条目（换检查命令、拿掉 `check`、加 `except`）与改别的条目一样，是放松。
 
-前提：这个口径不看生成物里写了什么，它与源码一致不一致全靠条目的 `check` 写的那道检查。所以只有“CI 的 `verify` 里确实有一步在跑、重新生成后比对”的目录才配用它。`test/gate-generated.test.ts` 对清单里每个 `generated` 条目逐条核对，有一条不满足 `pnpm test` 就红：
+前提：这个口径不看生成物里写了什么，它与源码一致不一致全靠条目的 `check` 写的那道检查。所以只有“CI 的必过任务里确实有一步在跑、重新生成后比对”的目录才配用它。`test/gate-generated.test.ts` 对清单里每个 `generated` 条目逐条核对，有一条不满足 `pnpm test` 就红：
 
-- 写了 `check`，且它逐字是 `ci.yml` 的 `verify` 里单独的一步（一行 `run:`），那一步不带条件（`if`、`continue-on-error` 写在步骤开头的“`- if:`”也算）；
+- 写了 `check`，且它逐字是 `ci.yml` 的某个必过任务里单独的一步（一行 `run:`），那一步不带条件（`if`、`continue-on-error` 写在步骤开头的“`- if:`”也算）。必过任务指 `required` 的 `needs` 里列的、自己不带 `if` 的任务：不连库的检查在 `verify`，要连库的（如重新生成时要建库的）在 `test`；不在 `needs` 里的任务、只在 PR 上跑的 `gate-classify` 不算；
 - `check` 是“`pnpm <根脚本>`”，根脚本的写法是“`pnpm <重新生成的根脚本> && git diff --exit-code -- <目录>`”（后面可以再用 `&&` 接别的步骤，不许出现 `||`、`;`、单个的 `&` 与换行）；
 - 条目的匹配式就是“`<目录>/**`”，与根脚本比对的是同一个目录。
 

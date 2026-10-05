@@ -5,7 +5,7 @@
     "一个文件命中几条就按几条各判一遍，有一条判为放松即放松；条目的先后没有意义。except 里的路径不按那一条判，但仍算门禁路径：文档不逐行判；检查脚本与门禁自测由各自的 new-file 条目判。",
     "kind 的取值：append（只许加行，加的行不得是忽略、豁免、白名单，也不得是关掉、降级检查的写法）、new-file（只许新增文件，改已有的一律算放松）、workflow（只许加整个步骤或任务）、frozen（一动就算放松；新建也算，除非它的条目是同一个 PR 的差异里新登记的：分支头的清单里有，共同祖先与目标分支头的清单里都没有）、tsconfig（按解析后的键值判：新增键算只增，删改已有键值、关掉严格性开关、新增 exclude 之类算放松）、manifest（依赖只许新增且写精确版本；已有的 typecheck、test、lint 脚本不得删、不得改松；prettier、lint-staged 之类的工具配置键一动就算放松）、root-manifest（另管根脚本、engines、packageManager、依赖覆盖项；已知集合以外的顶层键有变即算放松）、lockfile、layers、registry（本清单：只许加条目）、generated（入库的生成物：内容有变、新增文件都算只增并列出，不逐行判；删除算放松）。",
     "遮蔽：ESLint、Prettier、commitlint、lint-staged 都会在别的文件名或别的目录里找配置，找到了就不看已登记的那一份。所以这几个工具的配置文件名在任何目录下都按 frozen 登记（已登记为 append 的那一份除外），新增即算放松。",
-    "generated 条目必须另写 check：把关这份生成物与源码一致的检查命令。它得是 CI 的 verify 里单独的一步，背后的根脚本是“重新生成 → git diff --exit-code -- 该目录”（infra/ci/test/gate-generated.test.ts 核对）。没写 check 的判不出，按放松算。没有这样一道检查的目录不用这个口径。",
+    "generated 条目必须另写 check：把关这份生成物与源码一致的检查命令。它得是 CI 的某个必过任务（required 的 needs 里列的、自己不带条件的任务）里单独的一步，背后的根脚本是“重新生成 → git diff --exit-code -- 该目录”（infra/ci/test/gate-generated.test.ts 核对）。没写 check 的判不出，按放松算。没有这样一道检查的目录不用这个口径。",
     "新增门禁文件：往 files 末尾加一条（只增）。改、删已有条目是放松，只在单独的 gate-change PR 里做。用法见 infra/ci/README.md。"
   ],
   "files": [

@@ -36,28 +36,50 @@ const rootScripts = (JSON.parse(read("package.json")) as { scripts: Record<strin
 
 const indentOf = (line: string) => line.length - line.trimStart().length;
 
-/** verify 任务的各个步骤（每个步骤是它的那几行）。按行读：工作流的写法由 workflows.test.ts 保证按行读得准 */
-function verifySteps(workflow: string): string[][] {
+/** 一个任务的正文：它的键下面的各行，不含空行与注释。按行读：工作流的写法由 workflows.test.ts 保证按行读得准 */
+function jobLines(workflow: string, id: string): string[] {
   const lines = workflow.split("\n");
-  const start = lines.indexOf("  verify:");
+  const start = lines.indexOf(`  ${id}:`);
   if (start < 0) return [];
-  const steps: string[][] = [];
-  let inSteps = false;
+  const body: string[] = [];
   for (const line of lines.slice(start + 1)) {
     if (line.trim() === "" || line.trimStart().startsWith("#")) continue;
-    const indent = indentOf(line);
-    if (indent < 4) break;
-    if (indent === 4) inSteps = line === "    steps:";
+    if (indentOf(line) < 4) break;
+    body.push(line);
+  }
+  return body;
+}
+
+/** 一个任务的各个步骤（每个步骤是它的那几行） */
+function jobSteps(workflow: string, id: string): string[][] {
+  const steps: string[][] = [];
+  let inSteps = false;
+  for (const line of jobLines(workflow, id)) {
+    if (indentOf(line) === 4) inSteps = line === "    steps:";
     else if (inSteps && line.startsWith("      - ")) steps.push([line]);
     else if (inSteps) steps.at(-1)?.push(line);
   }
   return steps;
 }
 
+/**
+ * 必过任务：required 的 needs 里列的任务，去掉自己带 if 的（带条件的任务会被跳过，比如只在 PR 上跑的 gate-classify）。
+ * 必过检查拆成并行任务之后，检查不都在 verify 里：要连库的在 test。不在 needs 里的任务没过，required 照样绿，不算。
+ */
+function requiredJobs(workflow: string): string[] {
+  const needs: string[] = [];
+  let inNeeds = false;
+  for (const line of jobLines(workflow, "required")) {
+    if (indentOf(line) === 4) inNeeds = line === "    needs:";
+    else if (inNeeds && /^ {6}- [\w-]+$/.test(line)) needs.push(line.slice(8));
+  }
+  return needs.filter((id) => !jobLines(workflow, id).some((line) => /^ {4}if:/.test(line)));
+}
+
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
- * generated 条目的问题：没写 check；check 不是 verify 里单独的一步（逐字的一行 run，不带条件）；
+ * generated 条目的问题：没写 check；check 不是某个必过任务里单独的一步（逐字的一行 run，不带条件）；
  * check 背后的根脚本不是“重新生成 → git diff --exit-code -- 条目的那个目录”。没有问题时返回空数组。
  */
 function generatedEntryProblems(
@@ -66,7 +88,11 @@ function generatedEntryProblems(
   scripts: Record<string, string>,
 ): string[] {
   const problems: string[] = [];
-  const steps = verifySteps(workflow);
+  const conditional = (step: string[]) =>
+    step.some((line) => /^(?: {6}- | {8})(?:if|continue-on-error):/.test(line));
+  const steps = requiredJobs(workflow).flatMap((id) =>
+    jobSteps(workflow, id).map((lines) => ({ id, lines })),
+  );
   for (const entry of entries.filter((item) => item.kind === "generated")) {
     const where = `条目 ${entry.pattern}`;
     const check = typeof entry.check === "string" ? entry.check.trim() : "";
@@ -74,11 +100,11 @@ function generatedEntryProblems(
       problems.push(`${where}：没写检查命令（check）`);
       continue;
     }
-    const step = steps.find((lines) => lines.includes(`        run: ${check}`));
-    if (step === undefined) {
-      problems.push(`${where}：检查命令 ${check} 不是 ci.yml 的 verify 里单独的一步`);
-    } else if (step.some((line) => /^(?: {6}- | {8})(?:if|continue-on-error):/.test(line))) {
-      problems.push(`${where}：verify 里跑 ${check} 的那一步带了条件，不是每次都跑`);
+    const found = steps.filter((step) => step.lines.includes(`        run: ${check}`));
+    if (found.length === 0) {
+      problems.push(`${where}：检查命令 ${check} 不是 ci.yml 的必过任务里单独的一步`);
+    } else if (found.every((step) => conditional(step.lines))) {
+      problems.push(`${where}：${found[0]?.id} 里跑 ${check} 的那一步带了条件，不是每次都跑`);
     }
     const dir = entry.pattern.endsWith("/**") ? entry.pattern.slice(0, -3) : "";
     if (dir === "" || dir.includes("*")) {
@@ -114,7 +140,7 @@ describe("清单里的 generated 条目：写的检查确实在 CI 里跑", () =
     expect(pairs).toContainEqual([`${DESIGN}/**`, "pnpm design:check"]);
   });
 
-  it("每个条目的检查命令都是 verify 里单独的一步、不带条件；背后的根脚本先重新生成，再对该目录 git diff --exit-code", () => {
+  it("每个条目的检查命令都是某个必过任务里单独的一步、不带条件；背后的根脚本先重新生成，再对该目录 git diff --exit-code", () => {
     expect(generated.length).toBeGreaterThan(0);
     expect(generatedEntryProblems(registry.files, ci, rootScripts)).toEqual([]);
   });
@@ -136,7 +162,14 @@ describe("清单里的 generated 条目：写的检查确实在 CI 里跑", () =
       return ci.replace(from, to);
     };
     const contractOnly = [`条目 ${CONTRACT}/**`];
-    const NOT_A_STEP = "：检查命令 pnpm contract:check 不是 ci.yml 的 verify 里单独的一步";
+    const NOT_A_STEP = "：检查命令 pnpm contract:check 不是 ci.yml 的必过任务里单独的一步";
+    /** 把那一步从 verify 拿掉，接到另一个已有任务的末尾（那个任务的最后一步之后、下一个任务之前） */
+    const movedTo = (id: string) => {
+      const without = withCi(CONTRACT_STEP, "");
+      const next = without.indexOf("\n\n", without.indexOf(`\n  ${id}:\n`));
+      if (next < 0) throw new Error(`ci.yml 里找不到任务 ${id} 的末尾`);
+      return `${without.slice(0, next + 1)}${CONTRACT_STEP}${without.slice(next + 1)}`;
+    };
 
     it("夹具本身没有问题：把样例条目写的那一步加进 verify，就没有问题", () => {
       const withStep = withCi(
@@ -148,15 +181,20 @@ describe("清单里的 generated 条目：写的检查确实在 CI 里跑", () =
 
     it("登记了 generated，而它写的检查命令不在 CI 里：查得出", () => {
       expect(generatedEntryProblems([SNAPSHOT], ci, SNAPSHOT_SCRIPTS)).toEqual([
-        "条目 packages/db/snapshot/**：检查命令 pnpm db:snapshot-check 不是 ci.yml 的 verify 里单独的一步",
+        "条目 packages/db/snapshot/**：检查命令 pnpm db:snapshot-check 不是 ci.yml 的必过任务里单独的一步",
       ]);
     });
 
     const workflows: Array<[string, string, string]> = [
       ["verify 里的那一步被拿掉", withCi(CONTRACT_STEP, ""), NOT_A_STEP],
       [
-        "那一步挪到了别的任务里（verify 里没有了）",
+        "那一步挪到了不在 required 的 needs 里的任务",
         `${withCi(CONTRACT_STEP, "")}\n  extra:\n    name: extra\n    runs-on: *runner\n    steps:\n${CONTRACT_STEP}`,
+        NOT_A_STEP,
+      ],
+      [
+        "那一步挪到了在 needs 里、自己却带条件的任务（只在 PR 上跑）",
+        movedTo("gate-classify"),
         NOT_A_STEP,
       ],
       [
@@ -202,6 +240,25 @@ describe("清单里的 generated 条目：写的检查确实在 CI 里跑", () =
         "：verify 里跑 pnpm contract:check 的那一步带了条件，不是每次都跑",
       ],
     ];
+
+    it("那一步挪到了另一个必过任务里：不算问题（要连库的检查在 test，不在 verify）", () => {
+      const moved = movedTo("test");
+      expect(jobSteps(moved, "verify").flat()).not.toContain("        run: pnpm contract:check");
+      expect(jobSteps(moved, "test").flat()).toContain("        run: pnpm contract:check");
+      expect(generatedEntryProblems(registry.files, moved, rootScripts)).toEqual([]);
+    });
+
+    it("必过任务认的是 required 的 needs：现在的工作流里有 verify 与 test，没有带条件的 gate-classify", () => {
+      const jobs = requiredJobs(ci);
+      expect(jobs).toContain("verify");
+      expect(jobs).toContain("test");
+      expect(jobs).not.toContain("gate-classify");
+      expect(jobs).not.toContain("required");
+      // 上面“挪到带条件的任务”那一例确实把那一步放进了 gate-classify
+      expect(jobSteps(movedTo("gate-classify"), "gate-classify").flat()).toContain(
+        "        run: pnpm contract:check",
+      );
+    });
 
     it.each(workflows)("工作流里%s：查得出", (_label, workflow, problem) => {
       expect(generatedEntryProblems(registry.files, workflow, rootScripts)).toEqual(
