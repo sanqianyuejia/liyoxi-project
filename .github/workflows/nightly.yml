@@ -42,7 +42,27 @@ jobs:
           cache: pnpm
       - name: 冻结安装
         run: pnpm install --frozen-lockfile
+      # 数据库客户端是生成物，不入库（W0-05）：类型检查与测试之前先生成。这一步不连库
+      - name: 生成数据库客户端
+        run: pnpm db:generate
       - name: 类型
         run: pnpm typecheck
+      # 以下三步给“测试”备库（W0-05 起 pnpm test 要连库）。往已有的任务里加 services、env 算放松类改动，所以都写成步骤：
+      # 库用 compose 文件起，与 ci.yml 的“起 MinIO”同一种写法；镜像、端口、账号只写在 infra/compose/local.yml 一处，
+      # 与 ci.yml 的服务容器是同一组值
+      - name: 起 PostgreSQL 与 Redis
+        run: docker compose -f infra/compose/local.yml up -d --wait postgres redis
+      # 写进 GITHUB_ENV，后面的步骤（含“测试”）都读得到。取值与 ci.yml 的 verify 相同：本地开发的固定值，不是密钥
+      - name: 连接参数
+        run: printf "%s\n" "APP_ENV=test" "DATABASE_URL=postgresql://liyoxi:lyx-local-dev@localhost:5442/liyoxi" "REDIS_URL=redis://localhost:6389/0" >> "$GITHUB_ENV"
+      # packages/db 的用例要连迁移库 lyx_migrate_check。写法同 ci.yml 的同名步骤
+      - name: 空库跑全部迁移
+        env:
+          PGHOST: localhost
+          PGPORT: "5442"
+          PGUSER: liyoxi
+          PGPASSWORD: lyx-local-dev
+          DATABASE_URL: postgresql://liyoxi:lyx-local-dev@localhost:5442/lyx_migrate_check
+        run: psql -X -w -d postgres -c "CREATE DATABASE lyx_migrate_check" && pnpm db:deploy
       - name: 测试
         run: pnpm test

@@ -411,7 +411,17 @@ describe("nightly.yml", () => {
     expect(nightly).toMatch(/^ {10}node-version: 26$/m);
     expect(nightly).toContain('NPM_CONFIG_ENGINE_STRICT: "false"');
     const commands = [...nightly.matchAll(/^ {8}run: (.+)$/gm)].map((match) => match[1]);
-    expect(commands).toEqual(["pnpm install --frozen-lockfile", "pnpm typecheck", "pnpm test"]);
+    expect(commands).toEqual([
+      "pnpm install --frozen-lockfile",
+      // W0-05：数据库客户端不入库，类型检查之前先生成
+      "pnpm db:generate",
+      "pnpm typecheck",
+      // W0-05 起 pnpm test 要连库：起库、给连接参数、建迁移库并跑迁移。往每晚任务加一步时，在这张清单的同一位置加一行
+      "docker compose -f infra/compose/local.yml up -d --wait postgres redis",
+      'printf "%s\\n" "APP_ENV=test" "DATABASE_URL=postgresql://liyoxi:lyx-local-dev@localhost:5442/liyoxi" "REDIS_URL=redis://localhost:6389/0" >> "$GITHUB_ENV"',
+      'psql -X -w -d postgres -c "CREATE DATABASE lyx_migrate_check" && pnpm db:deploy',
+      "pnpm test",
+    ]);
   });
 
   it("不在必过检查里：ci.yml 的任务清单里没有它", () => {
