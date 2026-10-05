@@ -191,7 +191,7 @@ describe("超限返回 429", () => {
       const perThing = await testApi.start({
         handlers: [thingGetHandler],
         rateLimitQuotas: {
-          "m.global": [{ by: "param", param: "thingId", limit: 1, windowSec: 3 }],
+          "m.global": [{ by: "param", param: "thingId", limit: 1, windowSec: 60 }],
         },
       });
       const same = thing();
