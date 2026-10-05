@@ -35,3 +35,6 @@ import type {} from "./global-setup.js";
 
 // W0-25：测试数据支撑——工厂、带种子的干净库、表快照比较器、假 Provider 支架。用法见 ./data/README.md
 export * from "./data/index.js";
+
+// W0-30：M0 的样例链路（写用例 → 状态迁移 → 审计与出站事件 → 订阅者 → 定时器 → 全量不变量），用例与 pnpm demo:m0 共用
+export * from "./m0-chain.js";
