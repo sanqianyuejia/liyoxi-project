@@ -52,7 +52,7 @@ body {
 /*
  * Ant Design 的控件键盘聚焦时缺省是一圈 3px 的浅色描边（主色的浅色，对白底的对比度约 1.8），换成同一个主色环。
  * 盖到的是本包用到的与规范 第 5.3、5.4 节点名的控件：按钮（各种类型与三档大小）、弹窗与抽屉的关闭键、通知与提示条的关闭键、
- * 输入框与下拉的清除键、复选框、单选框、开关、分段控件；侧栏菜单在下面“外壳”一段。
+ * 输入框与下拉的清除键、复选框、单选框、开关、分段控件（容器与里面的项两站）；侧栏菜单在下面“外壳”一段。
  * 规范 第 12 节点名的是“按钮、链接、可点的行”，复选框、单选框、开关、分段控件没有点名，按可点的控件同样处理（状态文件偏差 16）。
  * 前面加 :root 是为了不靠样式表的先后顺序压过 antd 自己的规则。
  */
@@ -69,12 +69,15 @@ body {
     .ant-picker-clear
   ):focus-visible,
 :root :is(.ant-checkbox, .ant-radio-wrapper .ant-radio):has(input:focus-visible),
-:root .ant-segmented:has(input:focus-visible) {
+:root .ant-segmented:is(:focus-visible, :has(input:focus-visible)) {
   outline: none;
   box-shadow: var(--lyx-shadow-focus-ring);
 }
 
-/* 分段控件的环画在整条轨道上（当前项由白底的滑块标出）；项自己的浅色描边去掉 */
+/*
+ * 分段控件用 Tab 走有两站：先落在整条轨道上（容器自己带 tabindex），再按一下进到里面的项（之后用方向键换项）。
+ * 两站的环都画在整条轨道上（当前项由白底的滑块标出）；项自己的浅色描边去掉。
+ */
 :root .ant-segmented .ant-segmented-item-focused {
   outline: none;
 }
@@ -1113,6 +1116,14 @@ h3.lyx-section-title {
 
 .ant-drawer .ant-drawer-close:hover {
   background: var(--lyx-color-fill-neutral);
+}
+
+/*
+ * 抽屉用键盘打开时，焦点先落在整个抽屉这一层上（根节点铺满视口，是容器不是控件）：不画环，
+ * 浏览器缺省的那条描边（沿视口边缘的一条细线）也去掉。再按 Tab 走到关闭键，是主色环。弹窗的容器 antd 自己已经去掉了。
+ */
+.ant-drawer:focus-visible {
+  outline: none;
 }
 
 /*
