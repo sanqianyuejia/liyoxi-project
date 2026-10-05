@@ -15,7 +15,8 @@
 | `src/recurring.ts` | 周期任务的汇总入口：把本环境生效的汇成一张表。任务登记在各模块的 `register.ts` |
 | `src/log.ts` | 一行一条 JSON 的日志口 |
 | `src/cli/redis-compat.ts` | 托管 Redis 与队列库的兼容脚本（验证项 V1） |
-| `scripts/build.mjs` | 构建：esbuild 把工作区的包与第三方依赖打成 `dist/index.js`、`dist/redis-compat.js`，只留 `bullmq`、`ioredis` 在外 |
+| `src/cli/seed.ts`、`seed-command.ts` | 播种的镜像内入口（W1-22）：与 `pnpm db:seed` 做同一件事、同一组退出码，只是不靠 `tsx`，server 镜像里跑得了 |
+| `scripts/build.mjs` | 构建：esbuild 把工作区的包与第三方依赖打成 `dist/index.js`、`dist/redis-compat.js`、`dist/seed.js`，只留 `bullmq`、`ioredis` 在外 |
 
 ## 2. 怎么跑
 
@@ -23,6 +24,7 @@
 pnpm --filter @liyoxi/worker build
 node apps/worker/dist/index.js --check   # 只做装配与自检，通过即 0 退出；缺必填变量非 0 退出
 node apps/worker/dist/index.js           # 起任务进程
+node apps/worker/dist/seed.js            # 播种：库要先跑完迁移；可反复跑。整套本地环境与预发的节点步骤用它
 ```
 
 环境变量只经 `loadEnv` 读（`APP_ENV`、`DATABASE_URL`、`REDIS_URL`、`LOG_LEVEL`，取值见 `CLAUDE.md` 第 9 节）。自检要连一个跑过迁移的库：本地用 `lyx_migrate_check`（只读它的系统目录）。
@@ -58,6 +60,7 @@ pnpm --filter @liyoxi/worker exec vitest run test/fault/redis-flush.test.ts   # 
 | `test/fault/redis-down.test.ts` | Redis 不可用时的三条出路 |
 | `test/lease.test.ts` | 抢租约、接任、自行降级、让出；看门狗的三条规则 |
 | `test/recurring.test.ts` | 补登记循环；只在预发登记的任务在生产配置下不存在 |
+| `test/seed-cli.test.ts` | 播种命令：退出码、可重复跑、不打印连接串 |
 
 ## 4. 兼容脚本
 

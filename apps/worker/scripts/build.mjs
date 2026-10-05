@@ -1,4 +1,5 @@
-// 任务进程的构建（W0-23）：node scripts/build.mjs。产物在 dist/：index.js（任务进程）、redis-compat.js（兼容脚本）。
+// 任务进程的构建（W0-23）：node scripts/build.mjs。产物在 dist/：index.js（任务进程）、redis-compat.js（兼容脚本）、
+// seed.js（播种的镜像内入口，W1-22）。
 // 工作区的包都是源码包，连同第三方依赖一起打进产物；只留下面两个包在外面：它们运行时要读自己包里的文件，
 // 不能打进去，所以也写在本包的 dependencies 里，产物从 apps/worker/node_modules 解析得到。
 // 02 第 3.3 节定的构建工具是 tsup，它就是包了一层 esbuild；tsup 8.5.1 的依赖 chokidar@4.0.3 过不了
@@ -24,7 +25,11 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 rmSync(`${root}dist/index.js`, { force: true });
 const result = await build({
   absWorkingDir: root,
-  entryPoints: { index: "src/index.ts", "redis-compat": "src/cli/redis-compat.ts" },
+  entryPoints: {
+    index: "src/index.ts",
+    "redis-compat": "src/cli/redis-compat.ts",
+    seed: "src/cli/seed.ts",
+  },
   outdir: "dist",
   bundle: true,
   platform: "node",
