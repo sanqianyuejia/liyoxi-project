@@ -128,6 +128,12 @@
       "pattern": "packages/services/src/kernel/lock-order.ts",
       "kind": "append",
       "note": "加锁顺序常量与锁序断言（06 第 5 节）：新增一张表是只增；改、删已有的行（次序号、表名、断言）是放松"
+    },
+    {
+      "pattern": "packages/db/snapshot/**",
+      "kind": "generated",
+      "check": "pnpm db:snapshot:check",
+      "note": "结构快照（表、列、约束、索引、触发器、函数；不含分区子表）：只由 pnpm db:snapshot 在空库上跑完全部迁移后写出；与迁移一致由 db:snapshot:check 核对"
     }
   ]
 }

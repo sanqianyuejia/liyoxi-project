@@ -49,7 +49,11 @@
     "db:verify-grants": "node infra/ci/db-verify-grants.mjs",
     "postdb:verify-managed": "node infra/ci/db-verify-grants.mjs",
     "api-registries:check": "pnpm --filter @liyoxi/contract api-registries:check",
-    "check:type-hoist": "node infra/ci/check-type-hoist.mjs"
+    "check:type-hoist": "node infra/ci/check-type-hoist.mjs",
+    "db:snapshot": "node infra/ci/db-snapshot.mjs",
+    "db:snapshot:check": "pnpm db:snapshot && git diff --exit-code -- packages/db/snapshot && node infra/ci/check-untracked.mjs packages/db/snapshot",
+    "db:constraints:check": "node infra/ci/db-constraints.mjs",
+    "db:partitions:assert": "node infra/ci/db-partition-assert.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.3",
