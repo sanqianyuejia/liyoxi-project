@@ -73,7 +73,7 @@ export async function createHarness(db: TestDatabase, redis: TestRedis) {
     /** 起一个实例（等它的入队连接就绪）；用例结束时自动收尾 */
     async instance(options: Partial<InstanceOptions> = {}): Promise<Instance> {
       const one = createInstance({ databaseUrl, redisPrefix: redis.prefix, ...options });
-      onTestFinished(() => one.close());
+      onTestFinished(() => one.close(), SLOW);
       await until("入队连接就绪", () => one.channel.ping());
       return one;
     },

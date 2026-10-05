@@ -125,20 +125,33 @@ export function createQueueChannel(options: QueueChannelOptions): QueueChannel {
       // 消费连接：BullMQ 要求 maxRetriesPerRequest 为 null；Redis 不通时它自己等着重连
       const connection = new Redis(redisUrl, { maxRetriesPerRequest: null });
       connection.on("error", (error) => report(`queue.${queue}.consumer`, error));
-      const worker = new Worker<T>(queue, (job) => handler(job.data), {
-        connection,
-        prefix,
-        concurrency,
-        autorun: false,
-      });
+      let active = 0;
+      const worker = new Worker<T>(
+        queue,
+        async (job) => {
+          active += 1;
+          try {
+            await handler(job.data);
+          } finally {
+            active -= 1;
+          }
+        },
+        { connection, prefix, concurrency, autorun: false },
+      );
       worker.on("error", (error) => report(`queue.${queue}.consumer`, error));
       let running = false;
-      // BullMQ 的 close 只认第一次调用的参数：到点还没等完就不再等，直接断开连接
+      /**
+       * 等在途任务自己数着等，然后强行关：不用 BullMQ 的“等任务跑完再关”。它要先断开那条阻塞连接并等断开的事件，
+       * 而连接正在重连（Redis 刚抖过）时这个事件不会来，会一直等下去。强行关时已跑完、还没来得及向 Redis 报完成的
+       * 任务会被当成失联再送一次：消费时按派发序号认，不落结果。
+       */
       const close = async (timeoutMs: number): Promise<void> => {
-        const force = timeoutMs <= 0;
-        await withTimeout(worker.close(force), force ? 1000 : timeoutMs, "等在途任务").catch(
-          () => undefined,
-        );
+        await worker.pause(true).catch(() => undefined);
+        const deadline = Date.now() + timeoutMs;
+        while (active > 0 && Date.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        await withTimeout(worker.close(true), 1000, "关消费者").catch(() => undefined);
         connection.disconnect();
       };
       closers.push(() => close(0));

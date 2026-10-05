@@ -29,7 +29,7 @@ describe("Redis 不可用（验收 5）", () => {
     "关键类进程内执行；非关键类放回去、不计次数；满 60 秒后非关键类也在进程内执行；恢复后照常走队列",
     async () => {
       const outage = await createRedisOutage();
-      onTestFinished(() => outage.close());
+      onTestFinished(() => outage.close(), SLOW);
       let now = 1_000;
       const worker = await h.instance({ redisUrl: outage.url, monotonic: () => now });
       const { outbox_relay, outbox_dispatch, timer_scan } = worker.runtime.loops;

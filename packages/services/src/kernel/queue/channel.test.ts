@@ -21,7 +21,7 @@ beforeAll(async () => {
 }, SLOW);
 afterEach(async () => {
   await Promise.all(opened.splice(0).map((channel) => channel.close()));
-});
+}, SLOW);
 
 async function until(what: string, check: () => boolean | Promise<boolean>): Promise<void> {
   const deadline = Date.now() + PATIENCE_MS;
