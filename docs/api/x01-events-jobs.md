@@ -533,7 +533,7 @@
 
 ### 4.2 周期任务（无主体）
 
-登记在 `apps/worker/src/recurring.ts`；定时器行 `subject_type`、`subject_id` 为空（M45），`dedupe_key = {kind}:{本期的栅格时刻}`，`payload.scheduledFor` 为本期计划时刻，运行摘要写 `result`（01:318、681-682）。“模式”取 d7:1572：`tx` 在一个事务里做完，`job` 认领后在事务外执行、按租期续租。“漏跑级别”是 ops 告警规则“周期任务漏跑”的级别（01:383）。
+登记在各模块的 `register.ts`（计划 第 5.1、9.3 节；`apps/worker/src/recurring.ts` 只是汇总入口，把本环境生效的汇成一张表，自己不登记任务）；定时器行 `subject_type`、`subject_id` 为空（M45），`dedupe_key = {kind}:{本期的栅格时刻}`，`payload.scheduledFor` 为本期计划时刻，运行摘要写 `result`（01:318、681-682）。“模式”取 d7:1572：`tx` 在一个事务里做完，`job` 认领后在事务外执行、按租期续租。“漏跑级别”是 ops 告警规则“周期任务漏跑”的级别（01:383）。
 
 | kind | 节奏（Asia/Shanghai） | 模式 | 漏跑级别 | 归属 | 做什么 | 出处 |
 | --- | --- | --- | --- | --- | --- | --- |

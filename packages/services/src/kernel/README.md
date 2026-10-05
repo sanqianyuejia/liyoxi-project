@@ -90,3 +90,20 @@ LYX_FC_RUNS=5000 LYX_FC_SEED=42 pnpm --filter @liyoxi/services exec vitest run s
 - “在事务中”的标记跟着异步调用链走。事务里把活儿交给事务外早就建好的队列或定时器回调，标记带不过去。
 - `stg`、`prod` 下两个断言只上报、不拦：靠本地与 CI 的用例把违规拦在合并之前。
 - `Tx` 的品牌只在类型上；运行时靠“是不是 `run` 给出的那个对象”认，`txState` 认不出即抛错。
+
+## 9. 队列（W0-23）
+
+`queue/` 是全仓唯一引 BullMQ 的地方（兼容脚本除外）。BullMQ 只是执行通道：任务一律 `attempts: 1`，重试、到期、租约都在数据库行上。
+
+```ts
+const channel = createQueueChannel({ redisUrl: env.REDIS_URL, prefix: bullPrefix(env.APP_ENV) }); // 键前缀 lyx:{env}:bull
+await channel.enqueue("outbox_delivery", jobId, { eventId, subscriber, dispatchNo }); // 提交之后调；事务里调即违规
+const consumer = channel.consume<DeliveryRef>("outbox_delivery", 4, (ref) => consume(ref));
+consumer.start();
+```
+
+- 队列名取契约的登记（`@liyoxi/contract/registry` 的 `QUEUES`）。
+- 入队快速失败：连接没就绪、命令超过 500 毫秒、总共超过 2 秒，都立刻抛错，不排队等。入队报错不等于任务没进去，所以消费的一方必须按派发序号认（`events`、`timers` 都是）。
+- `channel.downForMs()`：Redis 已连续不可用多久。满 `REDIS_DOWN_FALLBACK_MS`（60 秒）后非关键类也在进程内执行。
+- 连接参数（重试次数、超时）写死在 `channel.ts`，是降级设计的一部分，不做成配置。
+- 用例：`pnpm --filter @liyoxi/services exec vitest run src/kernel/queue/`，要本地的 Redis 与 PostgreSQL。

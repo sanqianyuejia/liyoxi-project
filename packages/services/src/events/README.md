@@ -82,3 +82,23 @@ pnpm --filter @liyoxi/services exec vitest run src/events/
 - `events.I8` 拿事件的发生时间（应用时钟）与数据库时间比；两边的钟差得多时会误报或漏报。每一段至多报最老的 500 条。
 - `outbox_event` 的行不可改、不可删（触发器；应用角色连权限都没有），只有 `published_at` 能从空写一次。
 - 载荷 schema 管结构，不管 P5 的禁止内容。
+
+## 7. 派发、消费与死信（W0-23）
+
+`dispatch.ts`。循环在 `apps/worker`，这里是它调的用例函数；状态机见 01 分组 第 2.4 节。
+
+| 函数 | 做什么 |
+| --- | --- |
+| `dispatchDue(deps, { limit?, beat? })` | 派发一轮：认领到期的行（`pending`、`retry` 到点的，`leased` 租约过期的），逐行入队。入队失败时关键类订阅者、或 Redis 已连续不可用满 60 秒的，在进程内直接消费；其余放回 `pending`，不计次数 |
+| `consumeDelivery(deps, ref)` | 队列的处理器与进程内执行共用。行锁下比对派发序号，对不上返回 `stale`、不落结果；订阅者的业务写与“已消费”同事务 |
+| `claimDeliveries(tx, limit?)` | 只认领，在调用方的事务里 |
+
+- 租约 2 分钟。租约过期且上一次已入队（处理器失联）记一次失败，没入队的不记。
+- 失败退避 5 秒、15 秒、1 分、5 分、15 分、30 分，之后每小时；第 10 次进 `dead`，调一次 `alerts.raise`（规则 `outbox.exhausted`，维度 `{事件名}:{订阅者}`，P1），之后不再自动重试。
+- 订阅者不认识事件类型（当前装配里没有这个订阅者，或它没订阅这个事件）：延后 5 分钟、不计次数；持续 24 小时后按失败处理。
+- 订阅者自己不用做幂等以外的事：同一行被送达多少次，处理函数的写入只提交一次。处理函数里不要有事务外的副作用。
+- 任务号 `evt-{事件 id}-{订阅者}-{派发序号}`。
+
+```sh
+pnpm --filter @liyoxi/services exec vitest run src/events/dispatch.test.ts
+```

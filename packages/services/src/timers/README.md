@@ -63,3 +63,26 @@ LYX_FC_RUNS=200 LYX_FC_SEED=42 pnpm --filter @liyoxi/services exec vitest run sr
 - “调用方已持有主体业务行锁”这里查不了（主体表不都在加锁顺序表里，直接 `UPDATE` 拿到的行锁也看不到）：靠调用方守。没锁时并发的同键登记仍然只留一行（部分唯一索引兜底，有并发用例）。
 - 清理项按契约里的周期任务名删；样例 kind 的行不在其内。
 - `timers.I7`（未完成的时限都有对应的定时器）由登记定时器的各域提供检查项，不在本包。
+
+## 6. 扫描、执行与长任务（W0-23）
+
+循环在 `apps/worker`，这里是它调的用例函数；状态机见 01 分组 第 2.5 节。
+
+| 文件 | 内容 |
+| --- | --- |
+| `scan.ts` | `claimTimers(tx, registry, now, limit?)`：认领到期的行；另放执行那几份共用的类型、常量与读写一行的小函数 |
+| `dispatch.ts` | `scanDue(deps, { limit?, beat? })`：扫描一轮，认领后逐行入队；入队失败时关键类、或 Redis 已连续不可用满 60 秒的在进程内执行，其余放回 `scheduled`，不计次数 |
+| `run.ts` | `runTimer(deps, ref)`：队列的处理器与进程内执行共用。定时器处理器、`tx` 模式的周期任务走这里 |
+| `job-mode.ts` | `runJobTimer`：`mode: "job"` 的周期任务，认领确认后在事务外执行，按租期的三分之一续租 |
+
+- 认领租约 5 分钟；每次认领 `dispatch_no + 1`。`runTimer` 先做不加锁的预检，状态不是 `dispatched` 或序号对不上即结束。
+- **处理器要自己守住“只做一次”**：在主体业务行的锁下重新校验状态，或用事件去重键。`runTimer` 最后才更新定时器行，影响 0 行（并发被取消或被接管）时照常提交，所以同一次认领被重复触发时，挡住第二次的是处理器的守卫，不是定时器行。
+- 失败退避 1、2、5、15、30 分钟（写 `retry_at`）。非关键类第 6 次置 `failed` 并告警（规则 `timer.failed`，维度是 kind，P2）；关键类不进终态，每 30 分钟重试，从第 6 次起每次升级告警（`timer.critical_retrying`，P1）。两个规则键是本包定的。
+- 处理器声明了 `maxLateMinutes` 的：触发时已晚于上限即 `skipped`，不调处理器。“晚了多久”按注入的业务时钟算；到期、租约、重试时间按数据库时间。
+- 周期任务：认领本期时登记下一期，下一期是业务时钟“现在”之后的第一格，停机期间漏掉的格不逐个补跑。`tx` 模式的处理器从 `ctx.tx` 拿事务；`job` 模式拿到 `ctx.signal`（续租发现已被接管时中止）与 `ctx.runTx`（自己开小事务）。
+- 长任务抛错：行保持 `dispatched`，租约按 1、5、15、30、60 分钟后移，到点由扫描重新认领；失败达到登记的 `maxAttempts`（缺省 6）置 `failed`。
+- 任务号 `tmr-{id}-{认领序号}`。
+
+```sh
+pnpm --filter @liyoxi/services exec vitest run src/timers/run.test.ts src/timers/job-mode.test.ts
+```

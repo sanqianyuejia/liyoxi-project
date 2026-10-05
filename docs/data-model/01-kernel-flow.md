@@ -592,7 +592,7 @@ erDiagram
 
 ### 3.3 `timer.subject_type` 与 `kind`（已知取值）
 
-数据库只做格式校验（M52）；`kind` 的处理器登记在 `packages/services/timers`，周期任务登记在 `apps/worker/src/recurring.ts`，以代码登记为准，下表是已知取值。主体类型共 17 个；`subject_id` 存主体表的主键值。
+数据库只做格式校验（M52）；`kind` 的处理器与周期任务都登记在各模块的 `register.ts`（名字先进 `packages/contract` 的登记；`apps/worker/src/recurring.ts` 只是周期任务的汇总入口），以代码登记为准，下表是已知取值。主体类型共 17 个；`subject_id` 存主体表的主键值。
 
 | `subject_type` | 已知的 `kind` | 出处 |
 | --- | --- | --- |
