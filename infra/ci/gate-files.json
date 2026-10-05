@@ -123,6 +123,11 @@
       "except": ["docs/plan/x01-map.md"],
       "kind": "append",
       "note": "x01 条目归属表（生成物，只由 pnpm registry:generate 写）：算门禁路径、不逐行判；与登记数据一致由 pnpm registry:check 与契约自测核对。它是单个文件，generated 口径只认“目录/**”，用不了"
+    },
+    {
+      "pattern": "packages/services/src/kernel/lock-order.ts",
+      "kind": "append",
+      "note": "加锁顺序常量与锁序断言（06 第 5 节）：新增一张表是只增；改、删已有的行（次序号、表名、断言）是放松"
     }
   ]
 }
