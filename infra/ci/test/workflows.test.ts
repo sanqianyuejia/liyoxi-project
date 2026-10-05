@@ -370,6 +370,8 @@ describe("ci.yml", () => {
       // W0-09a：登记表对账（x01 名称登记与归属表）、枚举与库 CHECK 一致
       "pnpm registry:check",
       "pnpm enums:check",
+      // W0-09b：接口侧注册表对账（错误码、权限点、能力点、资源、场景、点位、埋点事件）
+      "pnpm api-registries:check",
       // W0-26：设计生成物无差异（它的下一步上传预览页，没有 run）
       "pnpm design:check",
       "pnpm -r --if-present build",
