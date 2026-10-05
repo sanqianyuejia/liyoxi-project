@@ -134,6 +134,23 @@ jobs:
       # 分区子表不进快照，单独断言：兜底分区在且为空，当月与未来 3 个月的分区都在。读的也是 lyx_migrate_check
       - name: 分区断言
         run: pnpm db:partitions:assert
+      # 四类语句（DROP、RENAME、ALTER … TYPE、不带默认值的 SET NOT NULL）要带 “-- lyx:allow <理由>”；已经合并的迁移不能改。
+      # 不连库。基线：PR 取目标分支，推到 main 取推之前的提交
+      - name: 迁移规范
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
+        run: pnpm db:migration-lint --base "$BASE"
+      # 草稿 docs/data-model/schema.prisma 与 constraints/ 已冻结：sha256 与登记值不同即失败。不连库
+      - name: 草稿冻结守卫
+        run: pnpm db:draft-freeze:check
+      # 15 份分组文档的字段表与 lyx_migrate_check 逐列比（列名、类型、可空），只读。schema-check 只认 PG* 环境变量
+      - name: 分组文档字段表与迁移后的库一致（schema-check）
+        env:
+          PGHOST: localhost
+          PGPORT: "5442"
+          PGUSER: liyoxi
+          PGPASSWORD: lyx-local-dev
+        run: python3 tools/schema-check/check.py --existing lyx_migrate_check
       # 本地存储驱动的用例要连 MinIO（W0-19）。镜像、端口、账号都取 infra/compose/local.yml，只起 minio 一个服务
       - name: 起 MinIO
         run: docker compose -f infra/compose/local.yml up -d --wait minio

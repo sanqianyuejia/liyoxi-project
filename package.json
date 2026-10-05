@@ -51,7 +51,9 @@
     "db:snapshot": "node infra/ci/db-snapshot.mjs",
     "db:snapshot:check": "pnpm db:snapshot && git diff --exit-code -- packages/db/snapshot && node infra/ci/check-untracked.mjs packages/db/snapshot",
     "db:constraints:check": "node infra/ci/db-constraints.mjs",
-    "db:partitions:assert": "node infra/ci/db-partition-assert.mjs"
+    "db:partitions:assert": "node infra/ci/db-partition-assert.mjs",
+    "db:migration-lint": "node infra/ci/migration-lint.mjs",
+    "db:draft-freeze:check": "node infra/ci/draft-freeze.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.3",
