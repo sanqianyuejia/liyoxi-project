@@ -6,6 +6,8 @@
 // 本文件不引依赖，不连库，自己不是命令。
 
 export const EXPECTED_FILE = "packages/db/src/grants.expected.json";
+/** 下限清单：受限的表上 lyx_app 最多能有什么权限。它是门禁文件（加行算只增，删行、改行算放松），期望数据不是 */
+export const FLOOR_FILE = "infra/ci/grants-floor.txt";
 export const ROLES = ["lyx_app", "lyx_readonly"];
 /** 最低的服务器版本：成员关系上的“继承、可切换”两列与 pg_has_role 的 SET 都是 PostgreSQL 16 才有的 */
 export const MIN_VERSION_NUM = 160000;
@@ -30,6 +32,77 @@ const FUTURE = { r: "表", S: "序列", f: "函数", T: "类型", n: "模式", L
 export function versionProblem(versionNum, versionText) {
   if (Number(versionNum) >= MIN_VERSION_NUM) return null;
   return `服务器是 PostgreSQL ${versionText}，本脚本要 16 及以上（用到 16 才有的系统目录列；托管库定的是 17）。在 16 以下的实例上跑不了，不是授权有问题`;
+}
+
+const PRIVILEGE = "(?:DELETE|INSERT|SELECT|UPDATE)";
+const NAME = "[a-z_][a-z0-9_]*";
+const FLOOR_LINE = new RegExp(`^(${NAME}) (${PRIVILEGE}(?:,${PRIVILEGE})*)((?: ${NAME})*)$`);
+
+/**
+ * 读下限清单。一行一张表：表名、表级权限的上限、另许列级 UPDATE 的列（可以没有），空格分隔；# 开头的是注释。
+ * 返回 { tables: 表名 → { max, columns }, problems: 写法不对的行、重复的表 }
+ */
+export function parseFloor(text) {
+  const tables = new Map();
+  const problems = [];
+  for (const [index, line] of text.split("\n").entries()) {
+    if (line === "" || line.startsWith("#")) continue;
+    const [, table, max = "", columns = ""] = FLOOR_LINE.exec(line) ?? [];
+    if (table === undefined) problems.push(`第 ${index + 1} 行写法不对`);
+    else if (tables.has(table)) problems.push(`第 ${index + 1} 行 ${table} 重复登记`);
+    else tables.set(table, { max: max.split(","), columns: columns.split(" ").filter(Boolean) });
+  }
+  return { tables, problems };
+}
+
+const columnsOf = (expected) =>
+  Object.entries(expected.columnUpdate).flatMap(([table, columns]) =>
+    columns.map((column) => `${table}.${column}`),
+  );
+
+/** 超过下限的。tables：表名 → 表级权限；columns：另有列级 UPDATE 的“表.列”；what 是“期望”或“实际” */
+function beyondFloor(floor, tables, columns, what) {
+  return [...floor.tables].flatMap(([table, { max, columns: allowed }]) => {
+    const set = tables[table] ?? "";
+    const over = set.split(",").some((privilege) => privilege !== "" && !max.includes(privilege));
+    const extra = max.includes("UPDATE")
+      ? []
+      : columns.filter(
+          (name) => name.startsWith(`${table}.`) && !allowed.includes(name.slice(table.length + 1)),
+        );
+    return [
+      ...(over ? [`${table}（${what} ${set}，下限只许 ${max.join(",")}）`] : []),
+      ...extra.map((name) => `${name}（${what}另有列级 UPDATE，下限没有许这一列）`),
+    ];
+  });
+}
+
+/**
+ * 下限清单对期望数据，不连库：清单的写法；期望有没有超过清单写的上限；期望里受限的表（不是全套读写的，
+ * 或列在只增清单里的）是不是都登记了；清单里有没有期望里没有的表（上限已经放到全套读写的不算，那是等清理的空行）。
+ * 返回各条问题；没有问题返回空数组。核对脚本与门禁用例 infra/ci/test/grants-floor.test.ts 都用它
+ */
+export function floorProblems(floor, expected) {
+  const want = expected.tables;
+  const restricted = new Set([
+    ...Object.keys(want).filter((table) => want[table] !== FULL),
+    ...expected.appendOnly,
+  ]);
+  return [
+    ["下限清单写得不对", floor.problems],
+    ["期望的授权超过下限清单", beyondFloor(floor, want, columnsOf(expected), "期望")],
+    ["受限的表没有登记进下限清单", [...restricted].filter((table) => !floor.tables.has(table))],
+    [
+      "下限清单里有而期望清单里没有的表",
+      [...floor.tables.keys()].filter(
+        (table) =>
+          !Object.hasOwn(want, table) &&
+          FULL.split(",").some((privilege) => !floor.tables.get(table).max.includes(privilege)),
+      ),
+    ],
+  ].flatMap(([what, bad]) =>
+    bad.length > 0 ? [`${what}（${FLOOR_FILE}）：${bad.join("、")}`] : [],
+  );
 }
 
 /** 一类对象的访问控制列表逐条展开：种类、对象名、被授权者（owned 表示就是属主自己）、权限、是否带转授权 */
@@ -119,11 +192,12 @@ select json_build_object(
 
 /**
  * 拿目录文档与期望的授权逐项比。
- * catalog 是 CATALOG_SQL 的结果；expected 是 packages/db/src/grants.expected.json 的内容。
+ * catalog 是 CATALOG_SQL 的结果；expected 是 packages/db/src/grants.expected.json 的内容；
+ * floor 是 parseFloor() 读出来的下限清单。
  * 返回 { notes, problems, review }：notes 是逐项的报告行；problems 不空即不通过；
  * review 是不判不通过、但要人看一眼的条目（写明哪个角色、哪个对象、什么权限）。
  */
-export function judge(catalog, expected) {
+export function judge(catalog, expected, floor) {
   const notes = [];
   const problems = [];
   const review = [];
@@ -277,9 +351,7 @@ export function judge(catalog, expected) {
     note(`分区子表与 _prisma_migrations（${others.length} 张）：lyx_app 没有任何权限`);
 
   // 列级授权：lyx_app 只有期望里写的那几列 UPDATE；lyx_readonly 与 PUBLIC 一列也没有（视图等上面的列也算）
-  const wantColumns = Object.entries(expected.columnUpdate).flatMap(([table, columns]) =>
-    columns.map((column) => `${table}.${column}`),
-  );
+  const wantColumns = columnsOf(expected);
   const columnsOk = [
     check(
       "lyx_app 少了列级 UPDATE 的列",
@@ -301,6 +373,28 @@ export function judge(catalog, expected) {
   if (appendOk && columnsOk)
     note(
       `只增表 ${expected.appendOnly.length} 张：改、删、清空都没有权限；列级 UPDATE 只有 ${wantColumns.length} 列（${wantColumns.join("、")}）`,
+    );
+  // 下限清单：期望数据不是门禁文件，迁移、期望、测试里的数一起改就能放开一张受限的表而门禁分类不报。
+  // 清单是门禁文件：期望与库里实际的授权都不得超过它写的上限，受限的表都得登记
+  const fromExpected = floorProblems(floor, expected);
+  problems.push(...fromExpected);
+  const withinFloor = check(
+    `库里的授权超过下限清单（${FLOOR_FILE}）`,
+    beyondFloor(
+      floor,
+      Object.fromEntries(logical.map((name) => [name, held("table", name, APP)])),
+      [...grants.values()]
+        .filter(
+          ({ kind, grantee, privileges }) =>
+            kind === "column" && grantee === APP && privileges.includes("UPDATE"),
+        )
+        .map(({ name }) => name),
+      "实际",
+    ),
+  );
+  if (fromExpected.length === 0 && withinFloor)
+    note(
+      `下限清单 ${floor.tables.size} 张表：期望与库里的授权都没有超过它写的上限，受限的表都登记了`,
     );
   const fileObject = held("table", "file_object", APP);
   if (logical.includes("file_object") && !fileObject.split(",").includes("DELETE"))

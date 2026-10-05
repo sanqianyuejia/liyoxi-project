@@ -13,6 +13,7 @@
 // 切不到别的角色（见本包的 ADR）。要用表的属主（跑迁移的账号）或超级用户跑；只读副本上那一处写入做不了，会报不通过。
 // 要 PostgreSQL 16 及以上（判定用到 16 才有的系统目录列）；更早的版本开头就停，退出码 2。
 // 期望的授权不写在本脚本里：读 packages/db/src/grants.expected.json，与权限测试 packages/db/src/grants.test.ts 共用一份。
+// 另读下限清单 infra/ci/grants-floor.txt（门禁文件）：受限的表上，期望与库里实际的授权都不得超过它写的上限。
 // 判定规则在 db-grants-rules.mjs：逻辑表逐张拿 lyx_app 的表级权限与期望比；序列、分区子表、lyx_readonly、PUBLIC、
 // 转授权、成员、属主、视图等按规则核对，库里有多少核多少。
 // 以后加表、加例外列、加以属主身份执行的函数：往那份数据里加一行，本脚本与它的用例都不用改（packages/db/README.md 第 9 节）。
@@ -21,7 +22,15 @@
 
 import { readFileSync } from "node:fs";
 
-import { CATALOG_SQL, EXPECTED_FILE, ROLES, judge, versionProblem } from "./db-grants-rules.mjs";
+import {
+  CATALOG_SQL,
+  EXPECTED_FILE,
+  FLOOR_FILE,
+  ROLES,
+  judge,
+  parseFloor,
+  versionProblem,
+} from "./db-grants-rules.mjs";
 import { pgEnv, psql } from "./db-lib.mjs";
 
 function stop(code, message) {
@@ -39,10 +48,13 @@ if (named !== null && !/^[A-Za-z0-9_-]{1,63}$/.test(named))
 
 /** 期望的授权：tables、appendOnly、columnUpdate、definerFunctions、views 五项，含义见那份文件开头的“说明” */
 let expected;
+/** 下限清单：受限的表上 lyx_app 最多能有什么权限（门禁文件；期望与库里的授权都不得超过它） */
+let floor;
 try {
   expected = JSON.parse(readFileSync(new URL(`../../${EXPECTED_FILE}`, import.meta.url), "utf8"));
+  floor = parseFloor(readFileSync(new URL(`../../${FLOOR_FILE}`, import.meta.url), "utf8"));
 } catch (error) {
-  stop(2, `读不了期望的授权 ${EXPECTED_FILE}：${error.message}`);
+  stop(2, `读不了期望的授权 ${EXPECTED_FILE} 或下限清单 ${FLOOR_FILE}：${error.message}`);
 }
 
 let env;
@@ -106,7 +118,7 @@ if (catalog.tables.length === 0) {
   console.log("- 表：库里一张表都没有\n\n结论：不通过。迁移还没有跑（先 pnpm db:deploy）");
   process.exit(1);
 }
-const { notes, problems, review } = judge(catalog, expected);
+const { notes, problems, review } = judge(catalog, expected, floor);
 for (const line of notes) console.log(`- ${line}`);
 
 // 分区表：以当前账号插一行、读回来、回滚
