@@ -1,9 +1,9 @@
-// 事务单元（W0-07）：开事务的唯一入口、带品牌的事务句柄、“在事务中”标记。
+// 事务单元（W0-07）：开事务的唯一入口、带品牌的事务句柄、保存点、“在事务中”标记。
 // 依据：01 第 5 节调用规则 2、3，第 7.1 节；ADR-005、ADR-012；D7 第 2.3 节第 4、5 条，第 8.3 节。
 //
 //   1. 全仓只有这里调 prisma.$transaction（lint 规则拦别处）。改库的服务函数第一个参数写 tx: Tx；
 //      Tx 带品牌，普通 Prisma 客户端传不进去。只有用例函数调 run；run 里再 run 即抛错。
-//   2. 提交前探一句 SELECT 1：数据库错误被接住又没回滚时，PostgreSQL 会把 COMMIT 悄悄当成 ROLLBACK，
+//   2. 提交前探一句 SELECT 1：数据库错误被接住又没回滚到保存点时，PostgreSQL 会把 COMMIT 悄悄当成 ROLLBACK，
 //      Prisma 照样报成功。探这一句让它在这里报错，不让用例以为写进去了。
 import { AsyncLocalStorage } from "node:async_hooks";
 
@@ -125,4 +125,30 @@ export function createTxRunner({ prisma, appEnv, report }: TxRunnerOptions): TxR
       );
     },
   };
+}
+
+/**
+ * 保存点：fn 抛错时只回滚 fn 里的写入，错误照样抛给调用方；之前的写入、已持有的行锁都还在，事务可以接着用。
+ * 发的是原生 SAVEPOINT、ROLLBACK TO SAVEPOINT、RELEASE SAVEPOINT，走事务的同一条连接（V4 的结论见 ADR）。
+ * 调用方接住错误时只接业务错误：死锁、锁等待超时这类要让它继续往外抛，由 run 整个重试。
+ * 同一个事务里的语句要一句一句发：保存点期间不要并发地用同一个 tx。
+ */
+export async function savepoint<T>(tx: Tx, fn: () => Promise<T>): Promise<T> {
+  const state = txState(tx);
+  state.savepoints += 1;
+  const name = `lyx_sp_${state.savepoints}`;
+  const heldBefore = state.held.length;
+  await tx.$executeRawUnsafe(`SAVEPOINT ${name}`);
+  let result: T;
+  try {
+    result = await fn();
+  } catch (error) {
+    await tx.$executeRawUnsafe(`ROLLBACK TO SAVEPOINT ${name}`);
+    await tx.$executeRawUnsafe(`RELEASE SAVEPOINT ${name}`);
+    // 保存点之后加的行锁随回滚释放，锁序断言的记录跟着退回去
+    state.held.length = heldBefore;
+    throw error;
+  }
+  await tx.$executeRawUnsafe(`RELEASE SAVEPOINT ${name}`);
+  return result;
 }

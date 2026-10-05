@@ -84,3 +84,21 @@ export function gate(): { opened: Promise<void>; open: () => void } {
   const opened = new Promise<void>((resolve) => (open = resolve));
   return { opened, open };
 }
+
+/**
+ * 从这条连接试着锁一行（FOR UPDATE NOWAIT）：拿到即放，返回 "free"；别的事务正持有它，返回 "held"。
+ * 证明“某个事务还持有这一行的锁”用它。
+ */
+export async function probeRowLock(client: PrismaClient, prefix: string): Promise<"free" | "held"> {
+  try {
+    await client.$queryRawUnsafe(
+      "SELECT 1 FROM biz_sequence WHERE prefix = $1 FOR UPDATE NOWAIT",
+      prefix,
+    );
+    return "free";
+  } catch (error) {
+    // 55P03 lock_not_available。别的错误照抛
+    if (String((error as Error).message).includes("55P03")) return "held";
+    throw error;
+  }
+}

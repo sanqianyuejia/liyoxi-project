@@ -14,6 +14,7 @@ export {
   createTxRunner,
   isInTransaction,
   KernelViolation,
+  savepoint,
   TX_MAX_WAIT_MS,
   TX_TIMEOUT_MAX_MS,
   TX_TIMEOUT_MS,
