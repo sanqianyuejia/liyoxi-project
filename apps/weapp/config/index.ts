@@ -13,6 +13,7 @@ const isH5 = process.env.TARO_ENV === "h5";
 const constants = {
   __LYX_API_BASE_URL__: JSON.stringify(process.env.WEAPP_API_BASE_URL ?? ""),
   __LYX_APP_VERSION__: JSON.stringify(process.env.WEAPP_VERSION ?? "0.1.0"),
+  __LYX_SENTRY_DSN__: JSON.stringify(process.env.WEAPP_SENTRY_DSN ?? ""),
 };
 
 export default defineConfig<"vite">(async (merge) => {

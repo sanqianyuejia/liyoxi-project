@@ -10,6 +10,7 @@
 //   WEAPP_APPID         小程序 AppID，写进 project.config.json；缺省是测试号占位 touristappid
 //   WEAPP_API_BASE_URL  接口基址（不含 /api/v1）；缺省为空，请求层与四个端上封装空转
 //   WEAPP_VERSION       小程序版本号，随请求头 X-Client-Version 带出；缺省 0.1.0
+//   WEAPP_SENTRY_DSN    错误上报的 DSN（公开部分，不是密钥）；缺省为空，错误上报不发请求
 // project.config.json 是生成物、不入库：仓库里只有模板 project.config.template.json，appid 不手改。
 import { spawnSync } from "node:child_process";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
