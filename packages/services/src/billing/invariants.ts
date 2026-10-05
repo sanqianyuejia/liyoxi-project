@@ -36,7 +36,11 @@ interface ViolationRow {
 }
 
 /** sql 给出四列：subject_type、subject_id、entity_id、detail（jsonb）。$1 是限定的主体，$2 是业务时间（用不到的检查不写它） */
-function check(code: string, severity: InvariantSeverity, sql: string): InvariantRegistration {
+export function check(
+  code: string,
+  severity: InvariantSeverity,
+  sql: string,
+): InvariantRegistration {
   return {
     code,
     severity,
