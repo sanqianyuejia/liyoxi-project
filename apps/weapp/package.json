@@ -10,13 +10,37 @@
     "build": "echo '占位：真实构建由 W0-27a 接'"
   },
   "dependencies": {
+    "@babel/runtime": "7.29.7",
     "@liyoxi/contract": "workspace:*",
     "@liyoxi/shared": "workspace:*",
+    "@nutui/nutui-react-taro": "3.0.20",
+    "@tarojs/react": "4.2.1",
+    "@tarojs/runtime": "4.2.1",
+    "@tarojs/shared": "4.2.1",
     "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react-dom": "18.3.1",
+    "zustand": "5.0.15"
   },
   "devDependencies": {
+    "@babel/core": "7.29.7",
+    "@babel/preset-react": "7.29.7",
+    "@playwright/test": "1.63.0",
+    "@tarojs/cli": "4.2.1",
+    "@tarojs/components": "4.2.1",
+    "@tarojs/helper": "4.2.1",
+    "@tarojs/plugin-framework-react": "4.2.1",
+    "@tarojs/plugin-html": "4.2.1",
+    "@tarojs/plugin-platform-h5": "4.2.1",
+    "@tarojs/plugin-platform-weapp": "4.2.1",
+    "@tarojs/taro": "4.2.1",
+    "@tarojs/vite-runner": "4.2.1",
     "@types/react": "18.3.31",
-    "@types/react-dom": "18.3.7"
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "4.7.0",
+    "babel-preset-taro": "4.2.1",
+    "postcss": "8.5.26",
+    "sass": "1.103.1",
+    "terser": "5.51.2",
+    "vite": "4.5.14"
   }
 }
