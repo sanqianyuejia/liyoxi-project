@@ -61,7 +61,11 @@
     "redis:compat": "pnpm --filter @liyoxi/worker redis:compat",
     "test:db:seeded": "pnpm --filter @liyoxi/services seeded-db",
     "weapp:build": "pnpm --filter @liyoxi/weapp build",
-    "weapp:shots": "pnpm --filter @liyoxi/weapp shots"
+    "weapp:shots": "pnpm --filter @liyoxi/weapp shots",
+    "stack:build": "node infra/stack/up.mjs build",
+    "stack:up": "node infra/stack/up.mjs up",
+    "stack:smoke": "node infra/stack/smoke.mjs",
+    "stack:down": "node infra/stack/up.mjs down"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.3",
