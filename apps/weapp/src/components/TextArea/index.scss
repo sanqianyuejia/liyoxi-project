@@ -18,8 +18,8 @@
     line-height: $lyx-line-height-body;
   }
 
-  // 只对 H5（截图用）起作用：浏览器的 textarea 缺省是等宽字体
-  textarea {
+  // 只对 H5（截图用）起作用：那里真正的输入框是里面的一层（类名 taro-textarea），浏览器给它的缺省是等宽字体
+  .taro-textarea {
     font-family: inherit;
     line-height: inherit;
   }

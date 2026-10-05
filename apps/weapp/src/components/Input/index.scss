@@ -25,12 +25,14 @@
   color: $lyx-color-text-primary;
   font-size: $lyx-font-size-body;
 
-  // 下面两条只对 H5（截图用）起作用：那里原生输入框外面还包着一层，占位符是伪元素
-  input {
+  // 下面两条只对 H5（截图用）起作用：那里真正的输入框是里面的一层（类名 weui-input），占位符是伪元素。
+  // 不能写标签选择器 input：构建会把标签选择器改写成类名
+  .weui-input {
     height: 100%;
+    font-family: inherit;
   }
 
-  input::placeholder {
+  .weui-input::placeholder {
     color: $lyx-color-text-secondary;
   }
 }

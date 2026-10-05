@@ -37,12 +37,13 @@
 .lyx-search-bar__native {
   height: 100%;
 
-  // 下面两条只对 H5（截图用）起作用：那里原生输入框外面还包着一层，占位符是伪元素
-  input {
+  // 下面两条只对 H5（截图用）起作用：那里真正的输入框是里面的一层（类名 weui-input），占位符是伪元素
+  .weui-input {
     height: 100%;
+    font-family: inherit;
   }
 
-  input::placeholder {
+  .weui-input::placeholder {
     color: $lyx-color-text-secondary;
   }
 }
