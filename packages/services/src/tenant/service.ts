@@ -4,7 +4,7 @@
 //   const tenant = createTenant({ tx, clock, flow, assembly });
 //   await tenant.createEntity(ctx, { idem });                           // 用例：自己开事务
 //   await tx.run((handle) => tenant.resolveMembership(handle, { merchantUserId, storeId }));   // 在调用方的事务里
-import type { MembershipResult, StoreList } from "@liyoxi/contract";
+import type { MembershipBrief, MembershipResult, StoreList } from "@liyoxi/contract";
 
 import type { Flow } from "../flow/index.js";
 import { isUniqueViolation, merchantFactsOf } from "../kernel/index.js";
@@ -31,6 +31,8 @@ import type { QuotaUsage } from "./quota.js";
 import { selectActiveMembership } from "./repo.js";
 import type { ActiveMembership, TenantReader } from "./repo.js";
 import { listStores, rememberCurrentStore } from "./stores.js";
+import { findActiveReferralCode, membershipBriefs } from "./briefs.js";
+import type { ReferralHit } from "./briefs.js";
 
 export interface TenantDeps {
   /** 开事务的入口：用例函数用它 */
@@ -88,6 +90,13 @@ export interface Tenant {
     ctx: IdentityContext,
     input: { storeId: string; staffId: string | null },
   ): Promise<{ storeId: string; previousStaffId: string | null; staffId: string | null }>;
+  /** 账号的有效成员关系概要（GET /m/me 的 memberships；W1-04）：没有即空数组 */
+  membershipBriefs(db: TenantReader, merchantUserId: string): Promise<MembershipBrief[]>;
+  /** 首触来源：按码查启用的登记行，邀请码优先；没命中即 null（W1-04） */
+  findActiveReferralCode(
+    db: Pick<Tx, "referralCode">,
+    codes: { inviteCode?: string | undefined; channelCode?: string | undefined },
+  ): Promise<ReferralHit | null>;
 }
 
 export function createTenant(deps: TenantDeps): Tenant {
@@ -124,5 +133,7 @@ export function createTenant(deps: TenantDeps): Tenant {
       setStoreQualification(tx, { flow }, now(), ctx, input),
     setStoreName: (tx, ctx, input) => setStoreName(tx, now(), ctx, input),
     setDeliveryManager: (tx, ctx, input) => setDeliveryManager(tx, now(), ctx, input),
+    membershipBriefs: (db, merchantUserId) => membershipBriefs(db, now(), merchantUserId),
+    findActiveReferralCode: (db, codes) => findActiveReferralCode(db, codes),
   };
 }

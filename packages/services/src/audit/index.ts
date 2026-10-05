@@ -8,3 +8,5 @@ export { AUDIT_JSON_MAX_BYTES, AUDIT_JSON_MAX_DEPTH, AUDIT_TEXT_LIMITS } from ".
 export { sensitiveRule } from "./sensitive.js";
 export { AUDIT_INVARIANTS, auditI2, auditI3, findUnknownAuditTargetTypes } from "./invariants.js";
 export type { AuditInvariantCheck, AuditReader, AuditViolation } from "./invariants.js";
+// 登录与安全事件 auth_event 的写函数，三个身份空间共用（W1-04 先建的最小实现；W1-01a 合并时以它的那份为准）
+export * from "./auth-event.js";
