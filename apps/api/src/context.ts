@@ -6,7 +6,24 @@
 //   c.var.identity   身份上下文：鉴权链放进来（M1）；公开路由上没有
 //   c.var.sessionId  会话行的 id（不是令牌）：鉴权链放进来；按会话限流的档位用它，没有就退到操作人
 //   c.var.idem       幂等上下文：写用例把它交给 runtime.tx.run(fn, { idem })
-import type { IdempotencyContext, IdentityContext, Logger, Runtime } from "@liyoxi/services";
+//   c.var.staff      后台请求的员工：会话校验的结果与判权用的上下文，后台的会话中间件放进来（W1-01a）；
+//                    处理器不直接读它，用 defineAdminHandler 的第二个入参
+import type {
+  IdempotencyContext,
+  IdentityContext,
+  Logger,
+  Runtime,
+  StaffContext,
+  StaffPrincipal,
+} from "@liyoxi/services";
+
+/** 后台请求的员工 */
+export interface RequestStaff {
+  /** 会话校验的结果：员工、角色行、分组、当前会话 */
+  readonly principal: StaffPrincipal;
+  /** 判权用的上下文：模块等级、生效的权限点、数据范围 */
+  readonly ctx: StaffContext;
+}
 
 export interface ApiVariables {
   runtime: Runtime;
@@ -16,6 +33,7 @@ export interface ApiVariables {
   identity?: IdentityContext;
   sessionId?: string;
   idem?: IdempotencyContext;
+  staff?: RequestStaff;
 }
 
 /** @hono/node-server 给的环境：只用到对端地址。用例里的 app.request() 可以照这个形状传 */

@@ -1,0 +1,7 @@
+# 后台权限矩阵的黄金文件（W1-01a；D4 第 11.3 节）。已挂载、要会话的后台路由一条一行，按 operationId 排。
+# 各栏：operationId | 模块要求（模块:view 或 edit；没有写 -）| 权限点（没有写 -）| 8 个角色各两格（非主管、主管）：1 放行，0 拒绝
+# 角色的先后：super_admin cs delivery_manager editor publisher content_ops channel_ops finance（按角色的代码默认配置算）
+# 不手改，用命令重写：LYX_UPDATE_GOLDEN=1 pnpm exec vitest run --project api test/admin-matrix.test.ts
+admin.auth.me.get | - | - | 11 11 11 11 11 11 11 11
+admin.auth.stepUp | - | - | 11 11 11 11 11 11 11 11
+admin.session.current.delete | - | - | 11 11 11 11 11 11 11 11

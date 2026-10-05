@@ -13,6 +13,9 @@
 // 入参校验由 app.openapi() 排在本表之后、处理器之前。
 import type { RouteGroup } from "@liyoxi/contract";
 
+import { adminAuthz, adminStepUp } from "../http/admin/authz.js";
+import { adminCsrf } from "../http/admin/csrf.js";
+import { adminSession } from "../http/admin/session.js";
 import { idempotency } from "../http/idempotency.js";
 import { rateLimit } from "../http/rate-limit.js";
 
@@ -64,4 +67,9 @@ export interface PipelineEntry {
 export const ROUTE_MIDDLEWARES: readonly PipelineEntry[] = [
   { slot: "rateLimit", factory: rateLimit() },
   { slot: "idempotency", factory: idempotency },
+  // W1-01a 后台鉴权链：会话、防跨站的请求头检查、模块等级与权限点、再验证
+  { slot: "auth", groups: ["admin"], factory: adminSession },
+  { slot: "csrf", groups: ["admin"], factory: adminCsrf },
+  { slot: "authz", groups: ["admin"], factory: adminAuthz },
+  { slot: "stepUp", groups: ["admin"], factory: adminStepUp },
 ];

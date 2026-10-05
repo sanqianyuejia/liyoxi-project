@@ -9,6 +9,7 @@
 import {
   ASSERT_IN_HANDLER,
   isThreePhaseRoute,
+  permissionByKey,
   RATE_LIMIT_TIERS,
   routeGroupOf,
 } from "@liyoxi/contract";
@@ -70,6 +71,21 @@ export const MIDDLEWARE_REQUIREMENTS: readonly MiddlewareRequirement[] = [
     slot: "idempotency",
     declared: "x-three-phase（约定 C51）",
     when: isThreePhaseRoute,
+  },
+  {
+    // W1-01a：后台的非 GET 请求都要过 X-LYX-Admin 与 Origin 的检查（约定 C4），登录前的公开接口也一样
+    slot: "csrf",
+    declared: "后台的非 GET 路由（约定 C4）",
+    when: (route) => routeGroupOf(route) === "admin" && route.method !== "get",
+  },
+  {
+    // W1-01a：再验证跟权限点注册表走（约定 C66）；声明了 x-step-up: skip 的不查（约定 C86）
+    slot: "stepUp",
+    declared: "x-permission 标了再验证（约定 C66）",
+    when: (route) =>
+      routeGroupOf(route) === "admin" &&
+      route["x-step-up"] !== "skip" &&
+      permissionByKey(route["x-permission"] ?? "")?.stepUp === true,
   },
 ];
 

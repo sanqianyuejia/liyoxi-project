@@ -49,6 +49,10 @@ export const orderHandlers = [
 | 设了能力点或权限点（不含 `assert-in-handler`） | `authz` | 没到（M1） |
 | 限流档位（每条路由都有，见 3.2） | `rateLimit` | 有 |
 | `x-idempotent`；三段式（`x-three-phase` 或约定 C51 的登记） | `idempotency` | 有 |
+| 后台的非 GET 路由（约定 C4） | `csrf` | 有（W1-01a） |
+| 后台路由的 `x-permission` 标了再验证、没有声明 `x-step-up: skip` | `stepUp` | 有（W1-01a） |
+
+后台这一组的 `auth`、`authz` 已随 W1-01a 到位（第 7 节）；上表这两行的“没到”指商家端、下载页与回调。
 
 新的声明（开关、再验证等）由交付它的包往规则表里加行。入参校验不在表里：它由 `app.openapi()` 按契约的 `request` 结构自带。
 
@@ -98,3 +102,73 @@ node apps/api/dist/server.js --port 3000 --trusted-proxy-hops 1 --trusted-proxy-
 - `fieldErrors` 的文案是 Zod 的原文（契约里没给中文文案的字段是英文）。
 - 限流的额度是代码里的初始值（`rate-limit-quotas.ts`），还没接成按环境可调的配置；手机号登录的“每 openid”一条、短信的号码限频、账号锁定不在中间件里，由各自的域按数据库计数。
 - 没有事件循环看门狗；排空时不等负载均衡摘节点，等待时长由发布编排定。
+
+## 7. 后台接口（W1-01a）
+
+后台的鉴权链登记在 `ROUTE_MIDDLEWARES`，文件在 `src/http/admin/`，先后照 D4 第 7.4 节：
+
+| 槽位 | 文件 | 做什么 | 不过时 |
+| --- | --- | --- | --- |
+| `auth` | `session.ts` | 校验会话 Cookie（未吊销、未过期、员工仍是启用），把 `identity`、`sessionId`、`staff` 放进上下文；`x-auth: public` 的不挂 | 401 `AUTH_REQUIRED`、`SESSION_INVALID` |
+| `csrf` | `csrf.ts` | 非 GET：`X-LYX-Admin: 1`，且 `Origin` 的主机名等于请求的 `Host` 的主机名、这个 Host 属于后台（端口不比：网关转来的 Host 不带端口）。登录前的公开接口也查 | 403 `ORIGIN_REJECTED` |
+| `authz` | `authz.ts` | 模块等级 × 权限点（“仅主管”已算在内） | 403 `PERMISSION_DENIED` |
+| `stepUp` | `authz.ts` | 权限点在注册表里标了再验证、会话的再验证超过 10 分钟；`x-step-up: skip` 的不挂 | 403 `STEP_UP_REQUIRED` |
+
+四件都排在限流与幂等上下文之前：再验证之后拿原幂等键重放即可。
+
+### 7.1 登记一条后台接口：`defineAdminHandler`
+
+```ts
+// src/routes/admin/<域>.ts；在 src/routes/index.ts 里加一行展开
+export const refundHandlers = [
+  defineAdminHandler(adminRefundExecute, { module: "finance", need: "view" }, async (c, staff) => {
+    const body = c.req.valid("json");
+    const refund = await executeRefund(c.var.runtime, c.var.identity, staff.scope, body, { idem: idemOf(c) });
+    return ok(c, refund);
+  }),
+];
+```
+
+签名（合并后不轻易改，全部后台接口包都用它）：
+
+```ts
+defineAdminHandler(route, requirement: { module: AdminModuleKey; need: "view" | "edit" } | null, handler: (c, staff: AdminStaff) => Response)
+```
+
+- 要会话的后台路由（`x-auth: staff`）一律用它登记；没用它登记的，建应用即失败。公开的后台路由仍用 `defineHandler`。
+- 第二个参数是模块等级的要求：`view` 要求等级不是 `n`，`edit` 要求 `e` 或 `o`；没有模块要求写 `null`。契约的路由元数据里没有“模块等级”这个键，所以在这里声明；权限点只取路由的 `x-permission`，这里不重复写。带权限点的路由通常只要求 `view`。
+- 处理器不自己写判定。第二个入参 `staff`：
+
+| 字段 | 用途 |
+| --- | --- |
+| `principal`、`ctx` | 会话校验的结果（员工、角色行、分组、当前会话）与判权用的上下文（`ctx.permissions`、`ctx.moduleLevels`） |
+| `scope` | 数据范围，交给带范围的仓储函数（`authz.storeScope(scope)` 等）：范围之外与不存在都是 404 |
+| `taskScope` | 声明的模块等级是“本人任务”（`o`）时只含本人、不带待分配池，否则同 `scope`。任务类资源的写操作（与约定 C58 的“本人任务”列表）一律用它取资源：`o` 级只能动分派给自己的任务，这一条只在这里定，处理器与仓储不另判 |
+| `assertPermission(key)` | `x-permission: assert-in-handler` 的路由取到对象后调：没有这个权限点 403 `PERMISSION_DENIED`，标了再验证且已过期 403 `STEP_UP_REQUIRED` |
+
+- 二次确认回显在事务里、锁住对象之后调 `authz.assertConfirm(body.confirm, { … })`，比哪几个字段由接口自己列。
+
+### 7.2 接口测试的登录态与权限矩阵
+
+```ts
+import { signInAsStaff } from "@liyoxi/services/testing";
+
+const testApi = useTestApi();
+const { request } = await testApi.start();
+const finance = await signInAsStaff(await testApi.db.prisma(), { roleKey: "finance", isLead: true });
+const response = await request("/api/v1/admin/…", { method: "POST", json: {…}, headers: { ...finance.headers, "Idempotency-Key": key } });
+```
+
+- `signInAsStaff(db, { roleKey?, isLead?, now?, staffGroupId?, staff?, origin? })`：直接建员工与会话行（库里没有那个角色就照种子补上），返回 `{ staff, sessionId, sessionToken, headers }`；`headers` 是会话 Cookie、`X-LYX-Admin`、`Origin`，原样带上即可。会话从可拨时钟的缺省起点算起，时钟拨过 60 分钟不活动或 12 小时照常过期，要别的时刻传 `now`。
+- 测试支架的运行时带现造的假密钥（`fakeKeyEnv`）：`runtime.staffAuth` 装得起来；字段加密那两份与测试数据工厂的密钥环同一组字节。要真走一遍登录（引导、激活、绑定）的照 `test/admin-auth.test.ts`，库要先播种（`runSeed`）。
+- 权限矩阵回放 `test/admin-matrix.test.ts`：生产清单里全部要会话的后台路由 × 8 个角色 × 主管与否，期望由上面两处声明与角色的代码默认配置算出，先对黄金文件 `golden/admin-permission-matrix.txt`（一条路由一行），再逐格请求比“是不是 403 `PERMISSION_DENIED`”（回放时处理器换成空壳，不执行业务）。加了后台接口后重写黄金文件，只应多出自己路由的行，不手改：
+
+```sh
+LYX_UPDATE_GOLDEN=1 pnpm exec vitest run --project api test/admin-matrix.test.ts
+```
+
+### 7.3 已知的限度
+
+- 密钥没配（本地默认）：进程起得来，`/api/v1/admin/auth/*` 与要会话的后台接口回 500；启动自检在 `local`、`test` 下只记一条告警，`stg`、`prod` 下不过。
+- 后台来源 IP 白名单（槽位 `surface`、`IP_NOT_ALLOWED`）默认不启用，没有做；`X-Admin-Build` 响应头（约定 C18）没有加。
+- 再验证失败不单独计数，穷举靠 `admin.login` 档按会话的限流。

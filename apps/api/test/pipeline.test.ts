@@ -93,9 +93,11 @@ describe("按组登记", () => {
   });
 
   it("同一个槽位同一组登记了两件、槽位不在顺序表里：建应用即失败", TIMEOUT, async () => {
+    // 生产的登记表里各组的鉴权链陆续到位（后台的 W1-01a 已到）：先摘掉生产的 auth，只看这里登记的两件
+    const withoutAuth = ROUTE_MIDDLEWARES.filter((entry) => entry.slot !== "auth");
     const twice = await testApi
       .start({
-        pipeline: [...ROUTE_MIDDLEWARES, tracer("auth", ["m", "admin"]), tracer("auth", ["m"])],
+        pipeline: [...withoutAuth, tracer("auth", ["m", "admin"]), tracer("auth", ["m"])],
       })
       .catch((error: unknown) => error);
     expect(twice).toBeInstanceOf(MountError);

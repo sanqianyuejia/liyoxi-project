@@ -14,12 +14,16 @@
 // - 限流照常生效。每个建出来的应用缺省有一个自己的来源 IP（各算各的，互不挤占额度）；
 //   要验限流就传 rateLimitQuotas 换成小额度，request 的 peer 可以换来源。
 // - 用例里以字符串字面量写出被测接口的 operationId：“已落地”的判定按它认“有接口层测试”。
+// - 后台接口（W1-01a）：生产的后台鉴权链照常生效，登录态用 @liyoxi/services/testing 的 signInAsStaff(await db.prisma(), { roleKey, isLead })，
+//   请求时带上它给的 headers（会话 Cookie、X-LYX-Admin、Origin）。运行时的三份密钥是现造的假密钥（fakeKeyEnv）：
+//   与测试数据工厂的密钥环同一组字节，工厂造的手机号运行时解得开。
 // 只给测试用，不进构建产物。
 import { createLogger, createIdentityContext, createRuntime, loadEnv } from "@liyoxi/services";
 import type { IdentityContextInput, Runtime } from "@liyoxi/services";
 import {
   assertTestDatabaseUrl,
   createClock,
+  fakeKeyEnv,
   useTestDatabase,
   useTestRedis,
 } from "@liyoxi/services/testing";
@@ -95,6 +99,8 @@ export function useTestApi(): TestApiHandle {
       assertTestDatabaseUrl(databaseUrl);
       const env = {
         ...loadEnv(),
+        // 三份密钥用现造的假密钥：后台登录、敏感字段的用例才跑得起来
+        ...fakeKeyEnv(),
         DATABASE_URL: databaseUrl,
         ...(options.redisUrl === undefined ? {} : { REDIS_URL: options.redisUrl }),
       };
