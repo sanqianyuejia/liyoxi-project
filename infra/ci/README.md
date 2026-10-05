@@ -43,6 +43,7 @@
 | `infra/stack/up.mjs`、`smoke.mjs`（不在本目录） | 本地整套环境（W1-22）：构建三个镜像、起停、冒烟。不是门禁；用法见 [infra/stack/README.md](../stack/README.md) | `pnpm stack:build`、`stack:up`、`stack:smoke`、`stack:down`；`stack-smoke.yml`；用例 `test/stack.test.ts`（`docker` 桩掉，在 `test-infra` 里） |
 | `plan-summaries.mjs`、`plan-ledger-lib.mjs` | 台账三张汇总（W0-30）：读 `docs/plan/stubs/`、`changes/`、`external-verification/` 下的单项文件，核对合不合规（模板里的键、状态取值、回补里程碑），各生成一份 `SUMMARY.md`（不入库，要看时现生成）。后一份是单项文件的读法，与四个计数共用，自己不是命令 | CI 用 `--check` 只核对单项文件；`pnpm plan:summaries` 在本地现生成（第 6 节） |
 | `four-counts.mjs` | 四个计数的报表（W0-30；计划 第 5.7、10.2 节）：已落地接口数、待落地数（取 `landed.mjs --report`）、留桩数、未实现页面数（取页面清单），另出 x01 归属的未落地清单（取 x01 归属表，按名字在源码与用例里出现与否判）；`--require <里程碑>` 时那几个里程碑有一样没清零即失败 | `pnpm counts:report`；CI 的“四个计数”一步（`--require M0`）；`pnpm demo:m0` 的末尾 |
+| `infra/deploy/`、`infra/bootstrap/`（不在本目录） | 预发节点（W2-25）：节点步骤、密钥齐备检查、节点与库的初始化、本机演练。不是门禁；上服务器的步骤见 [infra/bootstrap/README.md](../bootstrap/README.md) | `pnpm stg:rehearse`；`stack-smoke.yml` 里冒烟之后的一步；用例 `test/stg-node.test.ts`（系统命令桩掉，在 `test-infra` 里） |
 
 工作流在 `.github/workflows/`：`ci.yml`（每个 PR 与推到 main）、`nightly.yml`（每晚，Node 26，失败只告警）。
 

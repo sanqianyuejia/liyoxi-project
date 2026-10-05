@@ -10,11 +10,13 @@
 | 谁来做 | G2-D 节点初始化包 |
 | 最晚关闭点 | 预发启用时 |
 | 不通过的退路 | 调整 systemd 单元（D7 第 10.6 节第 17 项） |
-| 状态 | 未开始 |
+| 状态 | 进行中 |
 | 结论 |  |
 | 证据 |  |
 | 关闭日期 |  |
 
 备注：预发不建凭据管理服务，“取密钥”改为检查节点上的密钥文件齐备（[ADR-041](../../adr/0041-预发先行-单机预发-共用AppID.md)，会话建议）。通过标准不变：密钥不得出现在容器信息里。
+
+脚本已交付，待业主执行（W2-25 的第一步）：六个 systemd 单元 `infra/deploy/systemd/`、齐备检查 `infra/deploy/check-secrets.sh`。本机演练（`pnpm stg:rehearse`）已核对“docker inspect 的输出里搜不到任何密钥的值”与密钥按清单分挂；systemd 的三种情形本机演练不到。在节点上的验法：`infra/bootstrap/README.md` 第 7 节第 2、3、4 项（查容器信息、杀进程、整机重启），结果回填本文件。
 
 业主事项的状态见 [业主清单](../owner-checklist.md)。填写规则见 [README](README.md)。

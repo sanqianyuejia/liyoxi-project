@@ -113,9 +113,9 @@ E18 没到位时告警只落库（开发计划 第 4.1 节）。上线首月哪�
 | 1 | JWT 密钥 | “当前 + 上一把”（D7 第 7.5 节） | 待填 | 待填 | 待填 | 待填 |
 | 2 | 微信支付验签身份 | 同时接受平台证书与微信支付公钥，按回调头里的序列号选（D7 第 7.5 节） | 待填 | 待填 | 待填 | 待填 |
 | 3 | 微信支付商户私钥与 APIv3 密钥 | 待填 | 待填 | 待填 | 待填 | 待填 |
-| 4 | `lyx_app` 的数据库口令 | 待填 | 待填 | 待填 | 待填 | 待填 |
-| 5 | `lyx_migrator` 的数据库口令 | 待填 | 待填 | 待填 | 待填 | 待填 |
-| 6 | `lyx_readonly` 的口令 | 待填 | 待填 | 待填 | 待填 | 待填 |
+| 4 | `lyx_app` 的数据库口令 | 预发：应用连库用的是登录账号（`lyx_app` 的成员），口令在节点的密钥文件 `database-url` 里。不并存：改口令到容器重启之间新建的连接会失败，预发可接受 | 预发，节点上以 root：① 把旧文件另存到密钥目录之外的安全处，删掉 `database-url`，跑 `infra/bootstrap/gen-secrets.sh` 生成新的（或自己改文件里的口令，改完权限 0400）；② `infra/bootstrap/db-init.sh`（按文件重设口令）；③ `systemctl restart lyx-worker lyx-api` | `node-step.sh status` 通过；`node-step.sh verify-db <标签>` 通过 | 把另存的旧文件放回去，重跑 ②、③ | 已填（预发；生产随生产） |
+| 5 | `lyx_migrator` 的数据库口令 | 预发：密钥文件 `migrator-database-url`，只挂给迁移与库核对两个一次性容器，常驻的容器都没有。不用并存 | 预发：同第 4 项的 ①、②，文件换成 `migrator-database-url`；不用重启任何容器 | `node-step.sh verify-db <标签>` 通过（它用迁移账号连库） | 把另存的旧文件放回去，重跑 `db-init.sh` | 已填（预发；生产随生产） |
+| 6 | `lyx_readonly` 的口令 | 预发：备份登录账号（`lyx_readonly` 的成员），密钥文件 `backup-database-url`；现在还没有挂给任何容器（等每日备份的包） | 预发：同第 4 项的 ①、②，文件换成 `backup-database-url`；挂给 worker 之后另加一步重启 worker | 待填（等每日备份的包） | 把另存的旧文件放回去，重跑 `db-init.sh` | 已填（预发；生产随生产） |
 | 7 | 各 Provider 密钥 | 待填 | 待填 | 待填 | 待填 | 待填 |
 | 8 | COS 的 `signer`、`sts-issuer`、`worker` 三把子账号密钥 | 待填 | 待填 | 待填 | 待填 | 待填 |
 | 9 | 备份桶的写入密钥 | 待填 | 待填 | 待填 | 待填 | 待填 |
@@ -135,9 +135,9 @@ E18 没到位时告警只落库（开发计划 第 4.1 节）。上线首月哪�
 | 5.2 | 数据库按时间点恢复：克隆新实例、核对、切换 | 待填 | 待填（实测值记 platform-config.md 第 2.5 节） | 全量不变量校验（D7 第 9.6 节） | 待填 |
 | 5.3 | 从异地逻辑备份恢复：取离线私钥、解密、导入空实例 | 待填 | 待填 | `prisma migrate status` 与不变量校验 | 待填 |
 | 5.4 | 按时间点恢复后的单号流水处理 | 待填（D2 第 9.5 节的手册） | 待填 | 待填 | 待填 |
-| 5.5 | Redis 清空后的自愈 | 待填（D7 第 7.3 节） | 待填 | 待填 | 待填 |
+| 5.5 | Redis 清空后的自愈 | 预发：认准容器名 `lyx-redis`（同机留着参考工程已停的 Redis 容器，不要碰）。清空用容器里的 `redis-cli`，口令在只挂给它的 `/run/secrets/redis-auth.conf`；清空后不用重启，队列、限流、缓存由 worker 与 api 按 PostgreSQL 重建（D7 第 7.3 节）。连数据卷一起重来：`systemctl stop lyx-redis` → `docker rm lyx-redis` → `docker volume rm lyx-node-redisdata` → `systemctl start lyx-redis` | 待填（演练时量） | `node-step.sh status` 通过；自愈的判据见外部验证 `d6-09-redis-flush-self-heal.md` | 已填（预发的操作；自愈本身未演练） |
 | 5.6 | 发布回滚 | 待填（D7 第 8.4 节） | 待填 | 待填 | 待填 |
-| 5.7 | 节点与桶重建 | 待填（`infra/bootstrap/`；D7 第 10.6 节第 18 项） | 待填 | 重建后的预发通过冒烟；桶配置无差异 | 待填 |
+| 5.7 | 节点与桶重建 | 节点：照 `infra/bootstrap/README.md` 从第 1 步重走，脚本都可以重复执行；数据卷 `lyx-node-pgdata` 还在则库不丢，密钥目录还在则不用重新生成。桶：待填（W2-25 的第二步交桶配置脚本）。D7 第 10.6 节第 18 项 | 待填 | 重建后的预发通过冒烟；桶配置无差异 | 待填 |
 
 ## 6. 演练记录
 
