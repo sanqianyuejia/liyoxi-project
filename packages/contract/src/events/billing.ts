@@ -3,7 +3,7 @@
 // 这里交的是账本内核发的九个：七个 billing.points.*，两个由 advance 发的 billing.subscription.*。
 // 其余 billing 事件（开通、续费预约、升级、退款、付款单等）由发它们的包来交。
 import { IdSchema, InstantSchema, orNull, PointsSchema } from "../common/scalars.js";
-import { POINT_HOLD_PURPOSE } from "../enums/index.js";
+import { BILLING_ORDER_TYPE, POINT_HOLD_PURPOSE } from "../enums/index.js";
 import { zodEnum } from "../enums/zod.js";
 import { z } from "../zod.js";
 
@@ -91,6 +91,35 @@ export const subscriptionExpiredPayload = z.strictObject({
   endedAt: InstantSchema,
 });
 
+/** billing.subscription.activated：无生效订阅时付清套餐，周期当场生效（W1-11a）。去重键按周期 */
+export const subscriptionActivatedPayload = z.strictObject({
+  v: z.literal(1),
+  termId: IdSchema,
+  entityId: IdSchema,
+  planId: IdSchema,
+  startsAt: InstantSchema,
+  endsAt: InstantSchema,
+  sourceBillingOrderId: IdSchema,
+});
+
+/** billing.subscription.renewal_scheduled：生效期间付清套餐，多排一个预约周期（W1-11a） */
+export const subscriptionRenewalScheduledPayload = z.strictObject({
+  v: z.literal(1),
+  termId: IdSchema,
+  entityId: IdSchema,
+  startsAt: InstantSchema,
+  endsAt: InstantSchema,
+});
+
+/** billing.order_fulfilled：fulfill() 返回 done（W1-11a）。加购没有周期，termId 为空 */
+export const orderFulfilledPayload = z.strictObject({
+  v: z.literal(1),
+  billingOrderId: IdSchema,
+  entityId: IdSchema,
+  contentType: zodEnum(BILLING_ORDER_TYPE),
+  termId: orNull(IdSchema),
+});
+
 export const payloads = {
   "billing.points.granted": pointsGrantedPayload,
   "billing.points.purchased": pointsPurchasedPayload,
@@ -101,4 +130,7 @@ export const payloads = {
   "billing.points.adjusted": pointsAdjustedPayload,
   "billing.subscription.rolled_over": subscriptionRolledOverPayload,
   "billing.subscription.expired": subscriptionExpiredPayload,
+  "billing.subscription.activated": subscriptionActivatedPayload,
+  "billing.subscription.renewal_scheduled": subscriptionRenewalScheduledPayload,
+  "billing.order_fulfilled": orderFulfilledPayload,
 } as const;
