@@ -1,0 +1,12 @@
+# 狸有戏 · 整套环境的局域网开关（W1-22 任务书 第 10 节第 7 项）。不单独用：pnpm stack:up --lan 时叠在
+# infra/compose/stack.yml 上（路径相对那个文件所在的目录）。gateway 改绑全部网卡由 up.mjs 经 LYX_STACK_BIND 给。
+# 这里另加两样：把只给本地用的站点模板挂进 gateway（按 IP 进来的请求全部转 api；对象存储原样透传），
+# 再多发布一个端口给对象存储。口令是公开的开发值：只在可信的局域网里开，用完 pnpm stack:up（不带 --lan）收回。
+services:
+  gateway:
+    environment:
+      MINIO_UPSTREAM: lyx-minio:9000
+    volumes:
+      - ../docker/nginx/lan.conf.template:/etc/nginx/lyx-templates/lan.conf.template:ro
+    ports:
+      - "${LYX_STACK_BIND:-0.0.0.0}:${LYX_STACK_MINIO_PORT:-9110}:9000"

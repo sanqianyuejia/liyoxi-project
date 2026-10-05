@@ -6,7 +6,7 @@
 # 端口只绑在本机回环地址上：口令是公开的开发值，不对局域网开放。
 # 下面的账号与口令是固定的开发值，只在本机这套容器上有效，不是密钥；CI 的服务容器用同一组值。
 # 会话与测试经环境变量把连接串传给 loadEnv，不建、不读 .env。写法见 CLAUDE.md 第 9 节。
-# 不设 TZ：库内一律 UTC。不建桶（W0-19）；不起 server、gateway、mediatool（W1-22）。
+# 不设 TZ：库内一律 UTC。不建桶（W0-19）；不起 server、gateway、mediatool：那是整套环境 infra/compose/stack.yml（pnpm stack:up，W1-22），它接在本项目的网络上，用的就是这里的三个依赖。
 name: liyoxi
 
 services:
