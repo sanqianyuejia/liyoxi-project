@@ -1,0 +1,24 @@
+.lyx-icon-demo__primary {
+  color: $lyx-color-primary;
+}
+
+.lyx-icon-demo__success {
+  color: $lyx-color-success;
+}
+
+.lyx-icon-demo__danger {
+  color: $lyx-color-danger;
+}
+
+.lyx-icon-demo__muted {
+  color: $lyx-color-text-secondary;
+}
+
+.lyx-icon-demo__cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  color: $lyx-color-text-regular;
+}

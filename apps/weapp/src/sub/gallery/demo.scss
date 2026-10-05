@@ -1,0 +1,77 @@
+// 陈列页自己的版式：只在开发用的分包里
+.lyx-gallery {
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 4px $lyx-space-page 20px;
+  background: $lyx-color-bg-page;
+}
+
+.lyx-demo {
+  margin-bottom: $lyx-space-16;
+}
+
+.lyx-demo__title {
+  margin-bottom: $lyx-space-8;
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-tag;
+}
+
+.lyx-demo__body {
+  display: flex;
+  flex-direction: column;
+  gap: $lyx-space-12;
+  padding: $lyx-space-card-padding;
+  border-radius: $lyx-radius-card;
+  background: $lyx-color-bg-card;
+}
+
+.lyx-demo__body--row {
+  flex-flow: row wrap;
+  align-items: center;
+}
+
+// 组件自带底色（卡片、深色卡）或要贴着页面底色看的，不再套白底
+.lyx-demo__body--bare {
+  padding: 0;
+  background: none;
+}
+
+.lyx-demo__note {
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-tag;
+  line-height: $lyx-line-height-body;
+}
+
+.lyx-gallery-index__group {
+  margin: $lyx-space-16 0 $lyx-space-8;
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-caption;
+}
+
+.lyx-gallery-index__list {
+  padding: $lyx-space-4 $lyx-space-16;
+  border-radius: $lyx-radius-card;
+  background: $lyx-color-bg-card;
+}
+
+.lyx-gallery-index__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: $lyx-size-list-row;
+  border-bottom: $lyx-border-width-default solid $lyx-color-divider;
+  font-size: $lyx-font-size-body;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.lyx-gallery-index__row--pressed {
+  opacity: 0.7;
+}
+
+.lyx-gallery-index__name {
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-caption;
+}

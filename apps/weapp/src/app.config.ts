@@ -2,9 +2,14 @@
 // 颜色只能写十六进制字符串的地方，从设计变量取（页面不写色值，CLAUDE.md 硬性规则 24）。
 import { sharedTokens } from "@liyoxi/shared/design/tokens";
 
+import { GALLERY_PAGES, GALLERY_ROOT, galleryEnabled } from "./gallery";
 import { buildRoutes } from "./pages";
 
-const { pages, subPackages, preloadRule } = buildRoutes();
+const { pages, subPackages: pageSubPackages, preloadRule } = buildRoutes();
+// 组件陈列（开发用）另成一个分包，不在页面清单里；进不进构建见 src/gallery.ts 的 galleryEnabled
+const subPackages = galleryEnabled(process.env)
+  ? [...pageSubPackages, { root: GALLERY_ROOT, pages: [...GALLERY_PAGES] }]
+  : pageSubPackages;
 const color = sharedTokens.color;
 
 export default defineAppConfig({

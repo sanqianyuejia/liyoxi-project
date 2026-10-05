@@ -1,0 +1,27 @@
+// 图标的形状来自 @liyoxi/shared 的生成物（$lyx-icon-masks：图标名 → data URI），这里只出类名。
+// 只写带前缀的 -webkit-mask-*：微信的两个渲染内核都认它，不带前缀的写法旧版本不认；各写一遍体积翻倍。
+@import "@liyoxi/shared/design/icons-mask.scss";
+
+.lyx-icon {
+  display: inline-block;
+  flex: none;
+  width: $lyx-size-icon;
+  height: $lyx-size-icon;
+  background-color: currentColor;
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+}
+
+@each $name, $uri in $lyx-icon-masks {
+  .lyx-icon--#{$name} {
+    -webkit-mask-image: url("#{$uri}");
+  }
+}
+
+@each $size in (14, 16, 18, 20, 24) {
+  .lyx-icon--#{$size} {
+    width: #{$size}px;
+    height: #{$size}px;
+  }
+}

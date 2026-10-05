@@ -22,5 +22,7 @@ declare namespace NodeJS {
     NODE_ENV: "development" | "production";
     /** 当前构建平台：本仓库只用 weapp；h5 只给截图命令用 */
     TARO_ENV: "weapp" | "h5";
+    /** 组件陈列分包进不进构建："1" 带，"0" 不带；不给时 H5 与开发构建带，生产的小程序包不带 */
+    WEAPP_GALLERY?: string;
   }
 }

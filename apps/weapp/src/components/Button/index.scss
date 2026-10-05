@@ -1,0 +1,114 @@
+// NutUI 的 Button 按规范覆盖（规范 第 4.3 节“按钮”）。组件里只给它 default 类型，NutUI 自己的配色都是
+// 单类名的规则，下面两个类名叠起来的选择器不看先后都能盖住。
+// 带尺寸的规则，选择器里不要出现 nut-：构建配置对含 nut- 的选择器不做单位转换（px 不会变成 rpx），
+// 那样按钮在宽屏上就不跟着别的组件等比放大了。所以底样式挂在“lyx-button 加变体类”上（每个按钮都带这两个）。
+.lyx-button.lyx-button--primary,
+.lyx-button.lyx-button--secondary,
+.lyx-button.lyx-button--outline,
+.lyx-button.lyx-button--danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  height: $lyx-size-button-lg;
+  padding: 0 16px;
+  border: $lyx-border-width-default solid transparent;
+  border-radius: $lyx-radius-pill;
+  background: $lyx-color-primary;
+  color: $lyx-color-text-inverse;
+  font-size: $lyx-font-size-body;
+  font-weight: $lyx-font-weight-semibold;
+  line-height: 1;
+  white-space: nowrap;
+
+  // NutUI 的按下遮罩不用，按下态是不透明度（规范 第 12 节）
+  &::before {
+    display: none;
+  }
+
+  .nut-button-wrap {
+    height: 100%;
+  }
+
+  // NutUI 把禁用的配色类也挂在文字那一层上，会给文字垫一块底色
+  .nut-button-children {
+    border: none;
+    background: none;
+    color: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+  }
+
+  .nut-button-text {
+    margin-left: 6px;
+  }
+}
+
+.lyx-button.lyx-button--block {
+  display: flex;
+  width: 100%;
+}
+
+// 四种变体
+.lyx-button.lyx-button--secondary {
+  border-color: $lyx-color-border-strong;
+  background: $lyx-color-bg-card;
+  color: $lyx-color-text-primary;
+}
+
+.lyx-button.lyx-button--outline {
+  border-color: $lyx-color-primary;
+  background: $lyx-color-bg-card;
+  color: $lyx-color-primary-text;
+}
+
+.lyx-button.lyx-button--danger {
+  border-color: $lyx-color-danger-border;
+  background: $lyx-color-bg-card;
+  color: $lyx-color-danger;
+}
+
+// 四档尺寸
+.lyx-button.lyx-button--xl {
+  height: $lyx-size-button-xl;
+  font-size: 16px;
+}
+
+.lyx-button.lyx-button--md {
+  height: $lyx-size-button-md;
+  font-size: $lyx-font-size-body-sm;
+}
+
+.lyx-button.lyx-button--sm {
+  height: $lyx-size-button-sm;
+  padding: 0 14px;
+  font-size: $lyx-font-size-caption;
+}
+
+// 禁用：四种变体同一个样子。写在变体后面，类名个数相同，靠先后盖住
+.lyx-button.lyx-button--disabled {
+  border-color: transparent;
+  background: $lyx-color-fill-disabled;
+  color: $lyx-color-text-regular;
+}
+
+.lyx-button.lyx-button--pressed {
+  opacity: 0.7;
+}
+
+// 提交中的加载图标：颜色跟随按钮文字
+.lyx-button__spinner {
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  border: $lyx-border-width-strong solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: lyx-button-spin 0.8s linear infinite;
+}
+
+@keyframes lyx-button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

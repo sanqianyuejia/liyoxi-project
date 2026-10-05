@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 // 小程序页面截图。根脚本是 pnpm weapp:shots（= pnpm --filter @liyoxi/weapp shots）。
 //
-// 用法：pnpm weapp:shots [-- --page <路由> …] [--no-build]
-//   不带参数      页面清单（src/pages.ts）里已建的页各出一张
-//   --page <路由> 只出这一页，可给多次。路由照页面清单的写法，如 pages/home/index
-//   --no-build    不重新构建，直接用上一次的 H5 产物
+// 用法：pnpm weapp:shots [-- --page <路由> …] [--component <组件名> …] [--no-build]
+//   不带参数           页面清单（src/pages.ts）里已建的页各出一张；组件陈列（src/gallery.ts）的目录页一张、
+//                      每个组件的预览各一张
+//   --page <路由>      只出这一页，可给多次。路由照页面清单的写法，如 pages/home/index
+//   --component <名字> 只出这个组件的预览，可给多次。名字是 src/components/ 下的目录名，如 Button
+//   --no-build         不重新构建，直接用上一次的 H5 产物
+// 组件预览的图（W0-27b）：文件名 gallery__<组件名>.png，截整页（预览比一屏长），其余的页只截一屏。
 // 做法（任务书 W0-27a 第 11 节第 1 项）：先出一份 Taro 的 H5 构建（shots/dist/h5/），本机起一个只服务这个目录的
 // 静态服务，用 Playwright 的 Chromium 按 375 × 812、1 倍像素打开每一页截图。产物在 shots/dist/png/，
 // 文件名是路由把 / 换成 __，宽 375；不入库，CI 把这个目录作为产物 weapp-shots 上传。
@@ -42,6 +45,7 @@ function fail(message, code = 2) {
 
 const args = process.argv.slice(2).filter((arg) => arg !== "--");
 const wanted = [];
+const wantedComponents = [];
 let build = true;
 for (let index = 0; index < args.length; index += 1) {
   if (args[index] === "--no-build") build = false;
@@ -49,6 +53,10 @@ for (let index = 0; index < args.length; index += 1) {
     const route = args[(index += 1)];
     if (!route) fail("--page 后面要跟一个路由，如 pages/home/index");
     wanted.push(route.replace(/^\//, ""));
+  } else if (args[index] === "--component") {
+    const name = args[(index += 1)];
+    if (!name) fail("--component 后面要跟一个组件名，如 Button");
+    wantedComponents.push(name);
   } else fail(`不认识的参数 ${args[index]}`);
 }
 
@@ -56,12 +64,36 @@ for (let index = 0; index < args.length; index += 1) {
 const { WEAPP_PAGES, isBuilt } = await import(
   pathToFileURL(path.join(appRoot, "src/pages.ts")).href
 );
-const builtRoutes = WEAPP_PAGES.filter(isBuilt).map((item) => item.route);
+// 组件陈列（开发用的分包，H5 构建一律带）：目录页照普通页面出，每个组件的预览另出一张整页的
+const { GALLERY_ITEMS, GALLERY_INDEX_ROUTE, GALLERY_PREVIEW_ROUTE } = await import(
+  pathToFileURL(path.join(appRoot, "src/gallery.ts")).href
+);
+const builtRoutes = [...WEAPP_PAGES.filter(isBuilt).map((item) => item.route), GALLERY_INDEX_ROUTE];
 const unknown = wanted.filter((route) => !builtRoutes.includes(route));
 if (unknown.length > 0) {
   fail(`这些路由不在已建的页里：${unknown.join("、")}。已建的页：${builtRoutes.join("、")}`, 1);
 }
-const routes = wanted.length > 0 ? wanted : builtRoutes;
+const componentNames = GALLERY_ITEMS.map((item) => item.name);
+const unknownComponents = wantedComponents.filter((name) => !componentNames.includes(name));
+if (unknownComponents.length > 0) {
+  fail(`这些组件不在陈列的登记（src/gallery.ts）里：${unknownComponents.join("、")}`, 1);
+}
+const all = wanted.length === 0 && wantedComponents.length === 0;
+/** 要出的图：url 是 # 后面的部分，file 是不带扩展名的文件名，fullPage 为真截整页 */
+const targets = [
+  ...(all ? builtRoutes : wanted).map((route) => ({
+    label: route,
+    url: route,
+    file: route.replaceAll("/", "__"),
+    fullPage: false,
+  })),
+  ...(all ? componentNames : wantedComponents).map((name) => ({
+    label: `组件 ${name}`,
+    url: `${GALLERY_PREVIEW_ROUTE}?name=${name}`,
+    file: `gallery__${name}`,
+    fullPage: true,
+  })),
+];
 
 if (build) {
   const result = spawnSync(process.execPath, [path.join(appRoot, "scripts/build.mjs"), "h5"], {
@@ -104,23 +136,31 @@ const context = await browser.newContext({
   timezoneId: "Asia/Shanghai",
 });
 const failed = [];
-for (const route of routes) {
+for (const target of targets) {
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   try {
-    await page.goto(`${origin}/#/${route}`, { waitUntil: "networkidle" });
-    await page.locator(".taro_page").first().waitFor({ state: "visible", timeout: 15_000 });
+    await page.goto(`${origin}/#/${target.url}`, { waitUntil: "networkidle" });
+    const taroPage = page.locator(".taro_page").first();
+    await taroPage.waitFor({ state: "visible", timeout: 15_000 });
     if (errors.length > 0) throw new Error(`页面报错：${errors[0]}`);
-    const file = path.join(outDir, `${route.replaceAll("/", "__")}.png`);
+    if (target.fullPage) {
+      // Taro 的 H5 页面在自己的容器里滚动，整页截图要先把视口撑到内容那么高
+      const height = await taroPage.evaluate((node) => Math.ceil(node.scrollHeight));
+      await page.setViewportSize({ width: VIEWPORT.width, height: Math.max(height, 200) });
+    }
+    const file = path.join(outDir, `${target.file}.png`);
     await page.screenshot({ path: file });
     console.log(`已出图 ${path.relative(appRoot, file)}`);
   } catch (error) {
-    failed.push(`${route}：${String(error.message).split("\n")[0]}`);
+    failed.push(`${target.label}：${String(error.message).split("\n")[0]}`);
   }
   await page.close();
 }
 await browser.close();
 server.close();
 if (failed.length > 0) fail(`有页面没出图。\n  ${failed.join("\n  ")}`, 1);
-console.log(`小程序截图：${routes.length} 页，宽 ${VIEWPORT.width}，在 apps/weapp/shots/dist/png/`);
+console.log(
+  `小程序截图：${targets.length} 张，宽 ${VIEWPORT.width}，在 apps/weapp/shots/dist/png/`,
+);
