@@ -565,8 +565,9 @@ describe("本地 Compose 与 CI 的服务容器", () => {
       expect(block.image).toBe(imageOf(compose, "redis"));
       expect(block.text).toContain('ports: ["6389:6379"]');
     }
-    // 别的写法的服务容器（缩进不同、镜像不在下一行）读不到：image 一共就这么几行
-    expect(ci.match(/^ +image: /gm)).toHaveLength(postgres.length + redis.length);
+    // 换一种写法的（缩进不同、镜像不在下一行）上面读不到：叫这两个名字的键有几处，就得读到几处
+    expect(ci.match(/^ +postgres:$/gm)).toHaveLength(postgres.length);
+    expect(ci.match(/^ +redis:$/gm)).toHaveLength(redis.length);
     // 连接参数只写在工作流顶层一处，全部任务相同
     expect(ci).toMatch(
       new RegExp(
