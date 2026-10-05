@@ -1,0 +1,16 @@
+.lyx-progress-bar {
+  height: 4px;
+  overflow: hidden;
+  border-radius: $lyx-radius-xs;
+  background: $lyx-color-fill-track;
+}
+
+.lyx-progress-bar__fill {
+  height: 100%;
+  border-radius: $lyx-radius-xs;
+  background: $lyx-color-primary;
+}
+
+.lyx-progress-bar--done .lyx-progress-bar__fill {
+  background: $lyx-color-success;
+}

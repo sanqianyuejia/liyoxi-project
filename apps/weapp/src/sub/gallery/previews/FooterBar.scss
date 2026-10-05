@@ -1,0 +1,18 @@
+.lyx-footer-demo__total {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: $lyx-space-6;
+}
+
+.lyx-footer-demo__label {
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-caption;
+}
+
+.lyx-footer-demo__amount {
+  color: $lyx-color-primary-text;
+  font-size: $lyx-font-size-number-sm;
+  font-weight: $lyx-font-weight-bold;
+  font-variant-numeric: tabular-nums;
+}

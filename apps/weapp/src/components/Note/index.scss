@@ -1,0 +1,32 @@
+.lyx-note {
+  padding: 10px 12px;
+  border-radius: $lyx-radius-lg;
+  font-size: $lyx-font-size-caption;
+  line-height: $lyx-line-height-body;
+}
+
+// 中性款的底比状态标签的中性灰更浅
+.lyx-note--neutral {
+  background: $lyx-color-bg-subtle;
+  color: $lyx-color-text-regular;
+}
+
+.lyx-note--success {
+  background: $lyx-color-success-bg;
+  color: $lyx-color-success;
+}
+
+.lyx-note--info {
+  background: $lyx-color-info-bg;
+  color: $lyx-color-info;
+}
+
+.lyx-note--warning {
+  background: $lyx-color-warning-bg;
+  color: $lyx-color-warning;
+}
+
+.lyx-note--danger {
+  background: $lyx-color-danger-bg;
+  color: $lyx-color-danger;
+}

@@ -1,0 +1,42 @@
+@import "../../styles/mixins";
+
+.lyx-chip {
+  @include lyx-hit-area(5px);
+
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: $lyx-size-chip;
+  padding: 0 12px;
+  border: $lyx-border-width-default solid $lyx-color-border;
+  border-radius: $lyx-radius-pill;
+  background: $lyx-color-bg-card;
+  color: $lyx-color-text-primary;
+  font-size: $lyx-font-size-caption;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.lyx-chip--lg {
+  height: $lyx-size-chip-lg;
+  padding: 0 16px;
+  font-size: $lyx-font-size-body-sm;
+}
+
+.lyx-chip--selected {
+  border-color: $lyx-color-primary;
+  background: $lyx-color-primary-bg-subtle;
+  color: $lyx-color-primary-text;
+}
+
+.lyx-chip--disabled {
+  border-color: $lyx-color-border;
+  background: $lyx-color-bg-page;
+  color: $lyx-color-text-disabled;
+}
+
+.lyx-chip--pressed {
+  opacity: 0.7;
+}

@@ -1,0 +1,53 @@
+.lyx-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: $lyx-space-8;
+  min-height: $lyx-size-touch-min;
+}
+
+.lyx-checkbox--pressed {
+  opacity: 0.7;
+}
+
+.lyx-checkbox__box {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: $lyx-size-checkbox;
+  height: $lyx-size-checkbox;
+  border: $lyx-border-width-default solid $lyx-color-border-strong;
+  border-radius: $lyx-radius-sm;
+  background: $lyx-color-bg-card;
+  color: $lyx-color-text-inverse;
+}
+
+.lyx-checkbox--round .lyx-checkbox__box {
+  border-radius: 50%;
+}
+
+.lyx-checkbox--checked .lyx-checkbox__box {
+  border-color: $lyx-color-primary;
+  background: $lyx-color-primary;
+}
+
+.lyx-checkbox--disabled .lyx-checkbox__box {
+  border-color: $lyx-color-border;
+  background: $lyx-color-fill-neutral;
+}
+
+.lyx-checkbox--disabled.lyx-checkbox--checked .lyx-checkbox__box {
+  border-color: $lyx-color-fill-disabled;
+  background: $lyx-color-fill-disabled;
+}
+
+.lyx-checkbox__label {
+  color: $lyx-color-text-primary;
+  font-size: $lyx-font-size-body-sm;
+  line-height: 1.5;
+}
+
+.lyx-checkbox--disabled .lyx-checkbox__label {
+  color: $lyx-color-text-disabled;
+}

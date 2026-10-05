@@ -1,0 +1,43 @@
+// NutUI 的 TextArea 按规范覆盖。字号、字色、占位符色经 NutUI 的变量传进去（变量设在不含 nut- 的选择器上，
+// 单位照常转换）；输入区的高度 NutUI 没有给变量，只能写在含 nut- 的选择器上，那一条不做单位转换。
+.lyx-textarea {
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: $lyx-border-width-default solid $lyx-color-border;
+  border-radius: $lyx-radius-input;
+  background: $lyx-color-bg-card;
+
+  --nutui-font-size-base: #{$lyx-font-size-body-sm};
+  --nutui-textarea-text-color: #{$lyx-color-text-primary};
+  --nutui-color-text-help: #{$lyx-color-text-secondary};
+  --nutui-color-text-disabled: #{$lyx-color-text-disabled};
+  --nutui-textarea-text-curror-color: #{$lyx-color-primary};
+
+  .nut-textarea-textarea {
+    height: 84px;
+    line-height: $lyx-line-height-body;
+  }
+
+  // 只对 H5（截图用）起作用：浏览器的 textarea 缺省是等宽字体
+  textarea {
+    font-family: inherit;
+    line-height: inherit;
+  }
+}
+
+.lyx-textarea--error {
+  border-color: $lyx-color-danger;
+}
+
+.lyx-textarea--disabled {
+  background: $lyx-color-bg-page;
+}
+
+.lyx-textarea__count {
+  margin-top: $lyx-space-4;
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-tag;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  text-align: right;
+}

@@ -146,6 +146,8 @@ for (const target of targets) {
     await taroPage.waitFor({ state: "visible", timeout: 15_000 });
     if (errors.length > 0) throw new Error(`页面报错：${errors[0]}`);
     if (target.fullPage) {
+      // 等弹层这类进场动画走完
+      await page.waitForTimeout(500);
       // Taro 的 H5 页面在自己的容器里滚动，整页截图要先把视口撑到内容那么高
       const height = await taroPage.evaluate((node) => Math.ceil(node.scrollHeight));
       await page.setViewportSize({ width: VIEWPORT.width, height: Math.max(height, 200) });

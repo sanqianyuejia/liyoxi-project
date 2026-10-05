@@ -1,0 +1,51 @@
+.lyx-tabs {
+  display: flex;
+  border-bottom: $lyx-border-width-default solid $lyx-color-border-light;
+  background: $lyx-color-bg-card;
+}
+
+// 副栏吸顶：底色必须不透明（规范 第 4.2 节）
+.lyx-tabs--sticky {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.lyx-tabs__item {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+  height: $lyx-size-tab;
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-body-sm;
+  font-weight: $lyx-font-weight-regular;
+}
+
+.lyx-tabs__item--pressed {
+  opacity: 0.7;
+}
+
+// 下划线跟文字一样宽：画在文字这一层的底边上
+.lyx-tabs__label {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 100%;
+  border-top: $lyx-border-width-strong solid transparent;
+  border-bottom: $lyx-border-width-strong solid transparent;
+  white-space: nowrap;
+}
+
+.lyx-tabs__item--active {
+  color: $lyx-color-text-primary;
+  font-weight: $lyx-font-weight-semibold;
+}
+
+.lyx-tabs__item--active .lyx-tabs__label {
+  border-bottom-color: $lyx-color-primary;
+}
+
+.lyx-tabs__badge {
+  margin-left: $lyx-space-4;
+}

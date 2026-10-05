@@ -1,0 +1,50 @@
+.lyx-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: $lyx-space-section;
+}
+
+.lyx-skeleton__card {
+  display: flex;
+  gap: $lyx-space-12;
+  padding: $lyx-space-card-padding;
+  border-radius: $lyx-radius-card;
+  background: $lyx-color-bg-card;
+}
+
+.lyx-skeleton__media {
+  flex: none;
+  width: 60px;
+  height: 80px;
+  border-radius: $lyx-radius-thumb;
+  background: $lyx-color-fill-neutral;
+}
+
+.lyx-skeleton__lines {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: $lyx-space-10;
+  min-width: 0;
+}
+
+.lyx-skeleton__block {
+  height: 12px;
+  border-radius: $lyx-radius-sm;
+  background: $lyx-color-fill-neutral;
+
+  // 最后一行短一截，像一段话的结尾
+  &:last-child {
+    width: 60%;
+  }
+}
+
+.lyx-skeleton__block--title {
+  width: 40%;
+  height: 16px;
+  margin-bottom: $lyx-space-2;
+
+  &:last-child {
+    width: 40%;
+  }
+}

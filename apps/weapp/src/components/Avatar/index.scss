@@ -1,0 +1,50 @@
+.lyx-avatar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: $lyx-radius-tile;
+  background: $lyx-color-primary-bg;
+  color: $lyx-color-primary-text;
+  font-family: $lyx-font-family-serif;
+  font-size: 18px;
+  font-weight: $lyx-font-weight-black;
+  line-height: 1;
+}
+
+.lyx-avatar--solid {
+  background: $lyx-color-primary;
+  color: $lyx-color-text-inverse;
+}
+
+.lyx-avatar--56 {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  font-size: 26px;
+}
+
+.lyx-avatar--44 {
+  width: 44px;
+  height: 44px;
+  font-size: 20px;
+}
+
+.lyx-avatar--36 {
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+}
+
+.lyx-avatar--32 {
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
+}
+
+// 写在各档尺寸后面：人物头像一律圆形
+.lyx-avatar--round {
+  border-radius: 50%;
+}

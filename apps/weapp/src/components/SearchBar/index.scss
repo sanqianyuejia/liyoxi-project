@@ -1,0 +1,59 @@
+@import "../../styles/mixins";
+
+.lyx-search-bar {
+  display: flex;
+  align-items: center;
+  gap: $lyx-space-8;
+  box-sizing: border-box;
+  height: $lyx-size-search;
+  padding: 0 14px;
+  border: $lyx-border-width-default solid $lyx-color-border;
+  border-radius: $lyx-radius-pill;
+  background: $lyx-color-bg-card;
+}
+
+.lyx-search-bar--focused {
+  border-color: $lyx-color-primary;
+}
+
+.lyx-search-bar--pressed {
+  opacity: 0.7;
+}
+
+.lyx-search-bar__icon {
+  display: flex;
+  flex: none;
+  color: $lyx-color-text-secondary;
+}
+
+.lyx-search-bar__native,
+.lyx-search-bar__entry {
+  flex: 1;
+  min-width: 0;
+  color: $lyx-color-text-primary;
+  font-size: $lyx-font-size-body-sm;
+}
+
+.lyx-search-bar__native {
+  height: 100%;
+
+  // 下面两条只对 H5（截图用）起作用：那里原生输入框外面还包着一层，占位符是伪元素
+  input {
+    height: 100%;
+  }
+
+  input::placeholder {
+    color: $lyx-color-text-secondary;
+  }
+}
+
+// 入口款里显示的是占位文案，用辅助色
+.lyx-search-bar__entry {
+  @include lyx-ellipsis;
+
+  color: $lyx-color-text-secondary;
+}
+
+.lyx-search-bar-placeholder {
+  color: $lyx-color-text-secondary;
+}

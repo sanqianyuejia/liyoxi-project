@@ -1,0 +1,158 @@
+.lyx-timeline {
+  display: flex;
+  flex-direction: column;
+}
+
+.lyx-timeline__item {
+  display: flex;
+  gap: $lyx-space-12;
+  padding-bottom: $lyx-space-16;
+
+  &:last-child {
+    padding-bottom: 0;
+  }
+
+  // 末项没有往下的连线
+  &:last-child .lyx-timeline__line {
+    display: none;
+  }
+}
+
+// 左侧的轨：节点在上，连线从节点下沿一直连到下一项
+.lyx-timeline__rail {
+  position: relative;
+  display: flex;
+  flex: none;
+  justify-content: center;
+  width: 20px;
+}
+
+.lyx-timeline__node {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  border: $lyx-border-width-strong solid $lyx-color-fill-disabled;
+  border-radius: 50%;
+  background: $lyx-color-bg-card;
+  color: $lyx-color-text-inverse;
+}
+
+.lyx-timeline__line {
+  position: absolute;
+  top: 20px;
+  bottom: -$lyx-space-16;
+  left: 9px;
+  width: 2px;
+  background: $lyx-color-border;
+}
+
+.lyx-timeline__content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: $lyx-space-2;
+  min-width: 0;
+}
+
+.lyx-timeline__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: $lyx-space-8;
+}
+
+.lyx-timeline__title {
+  color: $lyx-color-text-primary;
+  font-size: $lyx-font-size-body-sm;
+  font-weight: $lyx-font-weight-semibold;
+  line-height: 20px;
+}
+
+.lyx-timeline__time {
+  flex: none;
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-tag;
+  font-variant-numeric: tabular-nums;
+}
+
+.lyx-timeline__description {
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-tag;
+  line-height: $lyx-line-height-body;
+}
+
+// ---- 进度时间轴：完成是实心加对勾，当前是主色环加 8px 内点，未到是空环
+.lyx-timeline__item--done {
+  .lyx-timeline__node {
+    border-color: $lyx-color-success;
+    background: $lyx-color-success;
+  }
+
+  // 走过的连线
+  .lyx-timeline__line {
+    background: $lyx-color-success;
+  }
+}
+
+.lyx-timeline__item--current .lyx-timeline__node {
+  border-color: $lyx-color-primary;
+
+  &::after {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: $lyx-color-primary;
+  }
+}
+
+.lyx-timeline__item--todo .lyx-timeline__title {
+  color: $lyx-color-text-secondary;
+  font-weight: $lyx-font-weight-regular;
+}
+
+// ---- 记录时间轴：10 的圆点；历史记录灰，最新一条按状态取色
+.lyx-timeline--record {
+  .lyx-timeline__rail {
+    width: 10px;
+  }
+
+  .lyx-timeline__node {
+    width: 10px;
+    height: 10px;
+    margin-top: 5px;
+    border: none;
+    background: $lyx-color-border-strong;
+  }
+
+  .lyx-timeline__line {
+    top: 15px;
+    left: 4px;
+  }
+}
+
+.lyx-timeline--record .lyx-timeline__item--success .lyx-timeline__node {
+  background: $lyx-color-success;
+}
+
+.lyx-timeline--record .lyx-timeline__item--info .lyx-timeline__node {
+  background: $lyx-color-info;
+}
+
+.lyx-timeline--record .lyx-timeline__item--warning .lyx-timeline__node {
+  background: $lyx-color-warning;
+}
+
+.lyx-timeline--record .lyx-timeline__item--danger .lyx-timeline__node {
+  background: $lyx-color-danger;
+}
+
+.lyx-timeline--record .lyx-timeline__item--neutral .lyx-timeline__node {
+  background: $lyx-color-neutral;
+}

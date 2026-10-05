@@ -1,0 +1,53 @@
+.lyx-input {
+  display: flex;
+  align-items: center;
+  gap: $lyx-space-8;
+  box-sizing: border-box;
+  height: $lyx-size-input;
+  padding: 0 12px;
+  border: $lyx-border-width-default solid $lyx-color-border;
+  border-radius: $lyx-radius-input;
+  background: $lyx-color-bg-card;
+}
+
+.lyx-input--error {
+  border-color: $lyx-color-danger;
+}
+
+.lyx-input--disabled {
+  background: $lyx-color-bg-page;
+}
+
+.lyx-input__native {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  color: $lyx-color-text-primary;
+  font-size: $lyx-font-size-body;
+
+  // 下面两条只对 H5（截图用）起作用：那里原生输入框外面还包着一层，占位符是伪元素
+  input {
+    height: 100%;
+  }
+
+  input::placeholder {
+    color: $lyx-color-text-secondary;
+  }
+}
+
+.lyx-input--disabled .lyx-input__native {
+  color: $lyx-color-text-disabled;
+}
+
+.lyx-input__suffix {
+  display: flex;
+  flex: none;
+  align-items: center;
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-caption;
+}
+
+// 原生 input 的占位符靠类名着色（传给 placeholderClass）。规范 第 4.3 节：占位符用辅助色
+.lyx-input-placeholder {
+  color: $lyx-color-text-secondary;
+}

@@ -1,0 +1,11 @@
+// 用页面底色的框把内容区圈出来，看得见它的边距
+.lyx-page-body-demo {
+  overflow: hidden;
+  border: $lyx-border-width-default dashed $lyx-color-border-strong;
+  border-radius: $lyx-radius-lg;
+  background: $lyx-color-bg-page;
+}
+
+.lyx-page-body-demo__gap {
+  height: $lyx-space-12;
+}

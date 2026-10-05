@@ -1,0 +1,44 @@
+.lyx-field {
+  display: flex;
+  flex-direction: column;
+  gap: $lyx-space-field-gap;
+}
+
+.lyx-field__label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $lyx-space-8;
+}
+
+.lyx-field__label {
+  color: $lyx-color-text-primary;
+  font-size: $lyx-font-size-body-sm;
+  font-weight: $lyx-font-weight-semibold;
+  line-height: 1.5;
+}
+
+.lyx-field__required {
+  margin-left: $lyx-space-2;
+  color: $lyx-color-danger;
+}
+
+.lyx-field__optional {
+  flex: none;
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-tag;
+}
+
+.lyx-field__hint,
+.lyx-field__error {
+  font-size: $lyx-font-size-tag;
+  line-height: $lyx-line-height-body;
+}
+
+.lyx-field__hint {
+  color: $lyx-color-text-secondary;
+}
+
+.lyx-field__error {
+  color: $lyx-color-danger;
+}

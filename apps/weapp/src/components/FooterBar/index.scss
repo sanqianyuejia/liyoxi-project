@@ -1,0 +1,37 @@
+.lyx-footer-bar {
+  display: flex;
+  align-items: center;
+  gap: $lyx-space-12;
+  box-sizing: content-box;
+  height: $lyx-size-footer-bar;
+  padding: 0 16px 8px;
+  border-top: $lyx-border-width-default solid $lyx-color-border-light;
+  background: $lyx-color-bg-card;
+}
+
+.lyx-footer-bar--fixed {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 10;
+}
+
+// 下内边距为 8px 加底部安全区
+.lyx-footer-bar--safe {
+  padding-bottom: calc(8px + env(safe-area-inset-bottom));
+}
+
+.lyx-footer-bar--equal > .lyx-button {
+  flex: 1;
+  min-width: 0;
+}
+
+// 垫在内容区底部的空白：与操作栏等高（内容 64 + 下内边距 8 + 顶边 1）
+.lyx-footer-bar-spacer {
+  height: 73px;
+}
+
+.lyx-footer-bar-spacer--safe {
+  height: calc(73px + env(safe-area-inset-bottom));
+}

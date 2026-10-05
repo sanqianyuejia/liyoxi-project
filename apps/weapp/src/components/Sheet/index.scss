@@ -1,0 +1,77 @@
+// NutUI 的 Popup 按规范覆盖。圆角经它的变量给；最小高度、最大高度没有带单位的数值，写在含 nut- 的选择器上不受影响。
+.lyx-sheet-popup {
+  --nutui-popup-border-radius: #{$lyx-radius-sheet};
+  --nutui-overlay-content-bg-color: #{$lyx-color-bg-card};
+}
+
+.lyx-sheet-popup.nut-popup {
+  min-height: 0;
+  max-height: 90vh;
+}
+
+.lyx-sheet-overlay.nut-overlay {
+  background-color: $lyx-color-mask;
+}
+
+.lyx-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: $lyx-space-16;
+  box-sizing: border-box;
+  max-height: 90vh;
+  padding: 16px 16px 24px;
+  // 底部另加安全区
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  color: $lyx-color-text-primary;
+}
+
+.lyx-sheet__header {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  gap: $lyx-space-8;
+}
+
+.lyx-sheet__titles {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: $lyx-space-4;
+  min-width: 0;
+}
+
+.lyx-sheet__title {
+  font-size: $lyx-font-size-title;
+  font-weight: $lyx-font-weight-semibold;
+  line-height: 1.4;
+}
+
+.lyx-sheet__description {
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-caption;
+  line-height: $lyx-line-height-body;
+}
+
+// 关闭按钮的点击区 44 × 44：往右上顶出去，让图标与内容的右边对齐
+.lyx-sheet__close {
+  margin: -10px -11px -10px 0;
+}
+
+.lyx-sheet__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.lyx-sheet__footer {
+  display: flex;
+  flex: none;
+  gap: $lyx-space-12;
+}
+
+// 一个按钮通栏，两个等分
+.lyx-sheet__footer > .lyx-button {
+  flex: 1;
+  min-width: 0;
+}

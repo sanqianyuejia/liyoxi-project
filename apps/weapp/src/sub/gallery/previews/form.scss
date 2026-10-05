@@ -1,0 +1,18 @@
+// 表单类预览共用的排版
+.lyx-form-demo {
+  display: flex;
+  flex-direction: column;
+  gap: $lyx-space-form-gap;
+}
+
+.lyx-form-demo__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $lyx-space-8;
+}
+
+.lyx-form-demo__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: $lyx-space-10;
+}

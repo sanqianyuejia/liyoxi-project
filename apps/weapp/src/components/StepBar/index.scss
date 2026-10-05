@@ -1,0 +1,42 @@
+@import "../../styles/mixins";
+
+.lyx-step-bar {
+  display: flex;
+  gap: $lyx-space-6;
+}
+
+.lyx-step-bar__item {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: $lyx-space-6;
+  min-width: 0;
+}
+
+// 色条：已到达（已完成与当前）主色，未到灰
+.lyx-step-bar__bar {
+  height: 4px;
+  border-radius: $lyx-radius-xs;
+  background: $lyx-color-primary;
+}
+
+.lyx-step-bar__item--todo .lyx-step-bar__bar {
+  background: $lyx-color-fill-disabled;
+}
+
+.lyx-step-bar__label {
+  @include lyx-ellipsis;
+
+  color: $lyx-color-text-regular;
+  font-size: $lyx-font-size-tag;
+  line-height: 1.5;
+}
+
+.lyx-step-bar__item--current .lyx-step-bar__label {
+  color: $lyx-color-primary-text;
+  font-weight: $lyx-font-weight-semibold;
+}
+
+.lyx-step-bar__item--todo .lyx-step-bar__label {
+  color: $lyx-color-text-secondary;
+}

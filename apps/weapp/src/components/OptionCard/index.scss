@@ -1,0 +1,69 @@
+.lyx-option-card {
+  display: flex;
+  flex-direction: column;
+  gap: $lyx-space-8;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: $lyx-border-width-default solid $lyx-color-border;
+  border-radius: $lyx-radius-tile;
+  background: $lyx-color-bg-card;
+}
+
+.lyx-option-card--selected {
+  border-color: $lyx-color-primary;
+  background: $lyx-color-primary-bg-subtle;
+}
+
+.lyx-option-card--disabled {
+  background: $lyx-color-bg-page;
+}
+
+.lyx-option-card--pressed {
+  opacity: 0.7;
+}
+
+.lyx-option-card__row {
+  display: flex;
+  align-items: center;
+  gap: $lyx-space-12;
+}
+
+.lyx-option-card__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: $lyx-space-2;
+  min-width: 0;
+}
+
+.lyx-option-card__title {
+  color: $lyx-color-text-primary;
+  font-size: $lyx-font-size-body;
+  font-weight: $lyx-font-weight-semibold;
+  line-height: 1.4;
+}
+
+.lyx-option-card__description {
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-tag;
+  line-height: $lyx-line-height-body;
+}
+
+.lyx-option-card__extra {
+  flex: none;
+  color: $lyx-color-text-primary;
+  font-size: $lyx-font-size-body-sm;
+  font-variant-numeric: tabular-nums;
+}
+
+.lyx-option-card--selected .lyx-option-card__extra {
+  color: $lyx-color-primary-text;
+}
+
+.lyx-option-card--disabled {
+  .lyx-option-card__title,
+  .lyx-option-card__description,
+  .lyx-option-card__extra {
+    color: $lyx-color-text-disabled;
+  }
+}

@@ -1,0 +1,140 @@
+// 短剧封面。规范 第 9.2 节里两处带透明度的白（细框 0.28、左下角文字 0.9）没有进样式变量：
+// 这里用“白色加整层不透明度”来做，不现算颜色。
+.lyx-cover {
+  position: relative;
+  flex: none;
+  overflow: hidden;
+  border-radius: $lyx-radius-cover;
+  // 数据没给底色时的兜底
+  background: $lyx-color-text-regular;
+}
+
+// 3:4：宽度由外层定，高度用上内边距撑出来
+.lyx-cover--grid,
+.lyx-cover--scroll {
+  width: 100%;
+  height: 0;
+  padding-top: 133.3333%;
+}
+
+.lyx-cover--scroll {
+  border-radius: $lyx-radius-lg;
+}
+
+.lyx-cover--thumb {
+  width: 60px;
+  height: 80px;
+  border-radius: $lyx-radius-thumb;
+}
+
+.lyx-cover--thumb-sm {
+  width: 42px;
+  height: 56px;
+  border-radius: $lyx-radius-thumb;
+}
+
+.lyx-cover--invalid {
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+
+// 占位样式：内缩 7 的白色细框
+.lyx-cover__frame {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  bottom: 7px;
+  left: 7px;
+  border: $lyx-border-width-default solid $lyx-color-text-inverse;
+  border-radius: 5px;
+  opacity: 0.28;
+}
+
+// 占位样式：右上角竖排衬线剧名
+.lyx-cover__title {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  bottom: 14px;
+  overflow: hidden;
+  color: $lyx-color-text-inverse;
+  font-family: $lyx-font-family-serif;
+  font-size: 22px;
+  font-weight: $lyx-font-weight-black;
+  letter-spacing: 4px;
+  line-height: 1.1;
+  writing-mode: vertical-rl;
+}
+
+// 缩略图上放不下细框，剧名缩小
+.lyx-cover--thumb .lyx-cover__frame,
+.lyx-cover--thumb-sm .lyx-cover__frame {
+  display: none;
+}
+
+.lyx-cover--thumb .lyx-cover__title {
+  top: 6px;
+  right: 6px;
+  bottom: 6px;
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+
+.lyx-cover--thumb-sm .lyx-cover__title {
+  top: 4px;
+  right: 4px;
+  bottom: 4px;
+  font-size: $lyx-font-size-mini;
+  letter-spacing: 0;
+}
+
+// 有封面图时盖住细框与剧名
+.lyx-cover__image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+// 真实封面上，左下角文字下面垫一层自下而上的暗色渐变
+.lyx-cover__shade {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 40%;
+  background: linear-gradient(to top, $lyx-color-mask, transparent);
+}
+
+.lyx-cover__badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 2px 6px;
+  border-radius: $lyx-radius-tag;
+  background: $lyx-color-bg-card;
+  color: $lyx-color-text-primary;
+  font-size: $lyx-font-size-tag;
+  font-weight: $lyx-font-weight-semibold;
+  line-height: 1.5;
+}
+
+.lyx-cover__badge--warning {
+  color: $lyx-color-primary-text;
+}
+
+.lyx-cover__badge--info {
+  color: $lyx-color-info;
+}
+
+// 左下角文字：落在细框里面
+.lyx-cover__caption {
+  position: absolute;
+  bottom: 12px;
+  left: 14px;
+  color: $lyx-color-text-inverse;
+  font-size: $lyx-font-size-tag;
+  line-height: 1.5;
+  opacity: 0.9;
+}

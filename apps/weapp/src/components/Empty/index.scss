@@ -1,0 +1,26 @@
+.lyx-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 72px 24px;
+  text-align: center;
+}
+
+.lyx-empty__title {
+  color: $lyx-color-text-primary;
+  font-size: $lyx-font-size-body;
+  font-weight: $lyx-font-weight-semibold;
+  line-height: 1.4;
+}
+
+.lyx-empty__description {
+  margin-top: $lyx-space-6;
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-caption;
+  line-height: $lyx-line-height-body;
+}
+
+.lyx-empty__action {
+  margin-top: $lyx-space-16;
+}

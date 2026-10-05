@@ -1,0 +1,11 @@
+.lyx-page-body {
+  display: flex;
+  flex-direction: column;
+  gap: $lyx-space-section;
+  box-sizing: border-box;
+  padding: 4px $lyx-space-page 20px;
+}
+
+.lyx-page-body--flush {
+  padding-top: 0;
+}

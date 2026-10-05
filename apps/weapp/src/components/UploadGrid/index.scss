@@ -1,0 +1,119 @@
+.lyx-upload-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: $lyx-space-8;
+}
+
+// 正方形：高度用上内边距撑出来，内容绝对定位铺满
+.lyx-upload-grid__cell {
+  position: relative;
+  height: 0;
+  padding-top: 100%;
+}
+
+.lyx-upload-grid__inner {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  border-radius: $lyx-radius-lg;
+  background: $lyx-color-bg-subtle;
+}
+
+.lyx-upload-grid__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.lyx-upload-grid__blank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: $lyx-color-text-disabled;
+}
+
+// 上传中、上传失败：盖一层半透明深色
+.lyx-upload-grid__overlay {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: $lyx-space-6;
+  background: $lyx-color-mask;
+  color: $lyx-color-text-inverse;
+}
+
+.lyx-upload-grid__percent {
+  font-size: $lyx-font-size-body;
+  font-weight: $lyx-font-weight-semibold;
+  font-variant-numeric: tabular-nums;
+}
+
+.lyx-upload-grid__failed {
+  font-size: $lyx-font-size-tag;
+}
+
+.lyx-upload-grid__retry {
+  padding: 2px 12px;
+  border: $lyx-border-width-default solid $lyx-color-text-inverse;
+  border-radius: $lyx-radius-pill;
+  font-size: $lyx-font-size-tag;
+  line-height: 1.5;
+}
+
+.lyx-upload-grid__retry--pressed,
+.lyx-upload-grid__remove--pressed,
+.lyx-upload-grid__add--pressed {
+  opacity: 0.7;
+}
+
+// 删除钮：看上去 28 × 28，点击区 44 × 44
+.lyx-upload-grid__remove {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  width: $lyx-size-touch-min;
+  height: $lyx-size-touch-min;
+  padding: 4px;
+}
+
+.lyx-upload-grid__remove-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: $lyx-color-mask;
+  color: $lyx-color-text-inverse;
+}
+
+// 添加格：虚线框、浅底，加号 20 加 12px 文字
+.lyx-upload-grid__add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: $lyx-space-4;
+  box-sizing: border-box;
+  border: $lyx-border-width-default dashed $lyx-color-border-strong;
+  color: $lyx-color-text-regular;
+}
+
+.lyx-upload-grid__add-text {
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-tag;
+}

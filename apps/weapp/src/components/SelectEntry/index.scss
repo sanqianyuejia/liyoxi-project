@@ -1,0 +1,48 @@
+@import "../../styles/mixins";
+
+.lyx-select-entry {
+  display: flex;
+  align-items: center;
+  gap: $lyx-space-8;
+  box-sizing: border-box;
+  height: $lyx-size-input;
+  padding: 0 12px;
+  border: $lyx-border-width-default solid $lyx-color-border;
+  border-radius: $lyx-radius-input;
+  background: $lyx-color-bg-card;
+}
+
+.lyx-select-entry--error {
+  border-color: $lyx-color-danger;
+}
+
+.lyx-select-entry--disabled {
+  background: $lyx-color-bg-page;
+}
+
+.lyx-select-entry--pressed {
+  opacity: 0.7;
+}
+
+.lyx-select-entry__value {
+  @include lyx-ellipsis;
+
+  flex: 1;
+  min-width: 0;
+  color: $lyx-color-text-primary;
+  font-size: $lyx-font-size-body;
+}
+
+.lyx-select-entry__value--placeholder {
+  color: $lyx-color-text-secondary;
+}
+
+.lyx-select-entry--disabled .lyx-select-entry__value {
+  color: $lyx-color-text-disabled;
+}
+
+.lyx-select-entry__arrow {
+  display: flex;
+  flex: none;
+  color: $lyx-color-text-secondary;
+}

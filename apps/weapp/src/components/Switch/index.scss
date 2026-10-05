@@ -1,0 +1,26 @@
+// NutUI 的 Switch 的尺寸与配色都有变量：设在不含 nut- 的选择器上，单位照常转换。
+// 滑块边长 = 高 − 2 × 边距 = 20 − 4 = 16。
+.lyx-switch {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+
+  --nutui-switch-width: #{$lyx-size-switch-width};
+  --nutui-switch-height: 20px;
+  --nutui-switch-line-height: 20px;
+  --nutui-switch-border-width: 2px;
+  --nutui-switch-active-background-color: #{$lyx-color-switch-on};
+  --nutui-switch-inactive-background-color: #{$lyx-color-fill-disabled};
+  --nutui-switch-active-disabled-background-color: #{$lyx-color-fill-disabled};
+  --nutui-switch-inactive-disabled-background-color: #{$lyx-color-fill-neutral};
+  --nutui-switch-inside-box-shadow: none;
+
+  // 关着时 NutUI 在滑块里画一道短横线，规范里没有
+  .nut-switch-close-line {
+    display: none;
+  }
+}
+
+.lyx-switch--disabled {
+  opacity: 0.6;
+}
