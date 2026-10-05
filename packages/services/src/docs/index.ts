@@ -32,3 +32,11 @@ export type { DocsReader, VersionRow } from "./versions.js";
 export { DOCS_INVARIANT_LIMIT, findN13Violations, findN4Violations } from "./invariants.js";
 export type { DocsInvariantOptions } from "./invariants.js";
 export { registration } from "./register.js";
+// W1-03 演示种子：六份协议的占位版本（只进本地、测试与预发；由演示种子的运行器调，接线在 W1-07）
+export {
+  PLACEHOLDER_SHORT_NOTICE_REASON,
+  PLACEHOLDER_SUMMARY,
+  placeholderHtml,
+  seedPlaceholderAgreementVersions,
+} from "./demo-seed.js";
+export type { PlaceholderFile, PlaceholderSeedDeps, PlaceholderSeedInput } from "./demo-seed.js";

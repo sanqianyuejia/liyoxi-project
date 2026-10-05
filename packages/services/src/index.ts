@@ -121,3 +121,6 @@ export type {
 } from "./tenant/index.js";
 export { createNotices } from "./config/index.js";
 export type { Notices, NoticesDeps } from "./config/index.js";
+// W1-03 演示种子：协议的占位版本（运行器 demo-seed.ts 由 W1-01a 起头，W1-07 在里面加这一步）
+export { seedPlaceholderAgreementVersions } from "./docs/index.js";
+export type { PlaceholderFile, PlaceholderSeedInput } from "./docs/index.js";
