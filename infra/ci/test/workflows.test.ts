@@ -436,7 +436,7 @@ describe("ci.yml", () => {
     ],
   };
   const commandsOf = (id: string) =>
-    [...jobBody(ci, id).matchAll(/^ {8}run: (.+)$/gm)].map((match) => match[1]);
+    [...jobBody(ci, id).matchAll(/^ {8}run: (.+)$/gm)].map((match) => match[1] ?? "");
 
   it("跑检查的任务都列在这里：分类与汇总以外的每个任务各有一张命令清单", () => {
     const others = jobIds(ci).filter((id) => id !== "gate-classify" && id !== "required");
