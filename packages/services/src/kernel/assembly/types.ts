@@ -36,6 +36,8 @@ export interface SubscriberRegistration extends EnvScoped {
   readonly name: string;
   /** 订阅的事件名 */
   readonly events: readonly string[];
+  /** 关键类（x01 第 2.4 节 E7）。可以不写：以契约的订阅者登记为准；写了与契约不一致，events 在装配后报错（W0-15） */
+  readonly critical?: boolean;
   /** 与投递行的“已消费”同事务；要幂等（x01 第 2.4 节 E4） */
   readonly handle: (tx: Tx, event: DeliveredEvent) => Promise<void>;
 }

@@ -12,3 +12,6 @@ export * from "./redis.js";
 
 // W0-07b：测试装配（真实模块的登记之外追加样例登记）
 export * from "./assembly.js";
+
+// W0-15：出站事件的样例事件、样例订阅者，与测试装配之上的 events
+export * from "./events.js";
