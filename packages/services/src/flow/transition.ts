@@ -64,7 +64,10 @@ export type TransitionInput<N extends string = string> = ChainRef & {
   readonly to?: string;
   /** 文档行（分组:行号）：同一组“当前状态、事件码、新状态”来自几行文档时必须给，守卫与副作用按它取 */
   readonly ref?: string;
-  /** 对象新建：业务行已由用例按初始状态插入，这里只校验初始状态合法，写历史、审计、事件 */
+  /**
+   * 对象新建：业务行已由用例按初始状态插入，这里只校验初始状态合法，写历史、审计、事件。
+   * 只用于本事务刚插入的行：它不加锁，只查“这条链还没有历史”，对早已提交的行并发地传它会写出两行“第一行”
+   */
   readonly created?: boolean;
   /** 随迁列 → 值，与状态在同一条 UPDATE 里写。列要先在状态机登记的 companions 里 */
   readonly set?: Readonly<Record<string, unknown>>;

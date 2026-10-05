@@ -3,7 +3,12 @@ import { chainOf } from "@liyoxi/shared/machines";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { uuidv7 } from "../kernel/index.js";
-import { createSampleFlow, sampleGuards, useTestDatabase } from "../testing/index.js";
+import {
+  createSampleFlow,
+  sampleActivity,
+  sampleGuards,
+  useTestDatabase,
+} from "../testing/index.js";
 import type { SampleFlow } from "../testing/index.js";
 import {
   changed,
@@ -145,6 +150,41 @@ describe("transition：审计恰一行（验收 4）", () => {
       );
       const rows = await auditOf(id);
       expect(rows.map((row) => [row.stream, row.category])).toEqual([["ops", "staff_authz"]]);
+    },
+    SLOW,
+  );
+
+  // 复审的变异：去掉“staff 没传审计即拒绝”的前置判断，上一条照样绿（样例登记里 staff 没有默认描述，被后面的兜底拒掉）。
+  // 这里给 staff 登记上默认描述：它没有主体与门店，仍然不补 activity 行（03 分组 第 2.10 节第 4 条）
+  it(
+    "staff 登记了默认描述、没传审计：照样是内部错误，不补 activity 行，四处都没有写入",
+    async () => {
+      const id = await insertStaff(prisma);
+      const described = createSampleFlow(prisma, {
+        bindings: {
+          [chainKey("staff", "status")]: {
+            companions: ["disabled_at", "disabled_reason"],
+            activity: sampleActivity,
+            guards: sampleGuards(chainOf("staff", "status")),
+          },
+        },
+      });
+      const before = await tally(prisma);
+      const error = await described.tx
+        .run((tx) =>
+          described.flow.transition(tx, ctx, {
+            machine: "staff",
+            stateField: "status",
+            id,
+            event: "staff.disable",
+            emit: changed,
+            set: companionsFor("staff.status", "disabled", described.clock.now()),
+          }),
+        )
+        .catch((reason: unknown) => reason);
+      expect(error).toMatchObject({ name: "FlowError", reason: "audit_required" });
+      expect(await tally(prisma)).toEqual(before);
+      expect(await auditOf(id)).toHaveLength(0);
     },
     SLOW,
   );
