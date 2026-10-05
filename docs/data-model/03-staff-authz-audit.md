@@ -468,6 +468,8 @@ Cookie 会话（`__Host-lyx_admin`），一次登录一行。空闲 60 分钟滑
 | `trg_assignment_history_guard` | 行级 `BEFORE UPDATE OR DELETE`，函数 `lyx_03_assignment_history_guard()`：不可删；只允许改 `contact_due_at`、`sla_snapshot`、`contacted_at`、`contacted_by_staff_id`、`contact_voided_at`、`updated_at`；`contacted_at` 或 `contact_voided_at` 一旦写入，联系相关的五列冻结；截止时间可以重算（日历修正），不能事后补上或抹掉 |
 | `trg_assignment_history_no_truncate` | 语句级 `BEFORE TRUNCATE`，函数 `lyx_forbid_mutation()` |
 
+授权（在授权迁移里，不在本分组 SQL）：应用角色 `lyx_app` 对本表只有 `INSERT`、`SELECT`，另对触发器放行的六列（`contact_due_at`、`sla_snapshot`、`contacted_at`、`contacted_by_staff_id`、`contact_voided_at`、`updated_at`）授列级 `UPDATE`，不多给（W0-06a）。
+
 联系时限的超时提醒是 `timer` 里 `kind = 'sla.breach'`、`subject_type = 'assignment_history'` 的一行。标记“已联系”或写 `contact_voided_at` 时，同一事务取消它（d3:2974）。门店再次改派的事务按“先作废旧行并取消旧定时器、再写新行并登记新定时器”的顺序做；作废与改派都由 staff 模块的 `reassign` 完成，业务模块不直接写本表。
 
 日历修正后的重算（01 分组 2.6、2.7）：staff 订阅 `calendar.imported`，对未联系、未作废、按工作日计且计算窗口覆盖变化日期的行，用 `sla_snapshot` 里的策略与新日历重算 `contact_due_at`、更新快照并重设定时器。本表不是状态机表，重算只写一条 `audit_log`（`target_type = 'assignment_history'`，`before`、`after` 记新旧截止时间），不写 `status_transition`。
