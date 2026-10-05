@@ -367,6 +367,10 @@ describe("ci.yml", () => {
       "pnpm db:snapshot:check",
       "pnpm db:constraints:check",
       "pnpm db:partitions:assert",
+      // W0-06b：迁移规范、草稿冻结守卫、分组文档字段表与迁移后的库一致
+      'pnpm db:migration-lint --base "$BASE"',
+      "pnpm db:draft-freeze:check",
+      "python3 tools/schema-check/check.py --existing lyx_migrate_check",
       "docker compose -f infra/compose/local.yml up -d --wait minio",
       "pnpm exec vitest run packages/services/src/providers/storage/minio.test.ts",
       "pnpm test",
