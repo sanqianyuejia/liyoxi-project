@@ -26,7 +26,9 @@ import {
 
 import {
   clickableRowProps,
+  isRowOwnEvent,
   QueryTablePage,
+  ROW_INNER_CONTROLS,
   type QueryColumn,
   type QueryState,
 } from "./QueryTablePage";
@@ -304,5 +306,96 @@ describe("可点的行", () => {
     props.onClick?.({} as never);
     expect(hits).toEqual(["go", "go"]);
     expect(props.tabIndex).toBe(0);
+  });
+
+  // 没有 DOM 环境（任务书 第 11 节第 2 项），这里搭一棵只有 closest、contains 的小树，核对“事件落在哪算这一行的”这条判断；
+  // 浏览器里真实冒泡的点击与回车由冒烟核对（test/e2e/smoke.spec.ts 的“整行可点的表格”一步，样例页 /dev/rows）。
+  interface FakeNode {
+    name: string;
+    parent: FakeNode | null;
+    control: boolean;
+    closest: (selector: string) => FakeNode | null;
+    contains: (other: unknown) => boolean;
+  }
+  const selectorsSeen: string[] = [];
+  const node = (name: string, parent: FakeNode | null, control = false): FakeNode => {
+    const self: FakeNode = {
+      name,
+      parent,
+      control,
+      // 行内控件的那张单子原样交给 closest；这棵小树里“是不是控件”由 control 标出
+      closest: (selector) => {
+        selectorsSeen.push(selector);
+        for (let at: FakeNode | null = self; at; at = at.parent) if (at.control) return at;
+        return null;
+      },
+      contains: (other) => {
+        for (let at = other as FakeNode | null; at; at = at.parent) if (at === self) return true;
+        return false;
+      },
+    };
+    return self;
+  };
+  // tbody > tr（可点的行，自己带 tabindex）> td > 文字、文字链（里面还有一层 span）、按钮；另有一个画在行外的浮层
+  const body = node("tbody", null);
+  const tr = node("tr", body, true);
+  const cell = node("td", tr);
+  const text = node("span", cell);
+  const link = node("a", cell, true);
+  const linkText = node("span", link);
+  const button = node("button", cell, true);
+  const popup = node("div.popup", null);
+  const popupButton = node("button", popup, true);
+
+  it("事件落在哪算这一行的：行自己、行里的空白与文字算；行里的链接、按钮（连同它们里面的字）不算；画在行外的浮层不算", () => {
+    const own = (target: unknown): boolean => isRowOwnEvent({ target, currentTarget: tr });
+    expect(own(tr)).toBe(true);
+    expect(own(cell)).toBe(true);
+    expect(own(text)).toBe(true);
+    expect(own(link)).toBe(false);
+    expect(own(linkText)).toBe(false);
+    expect(own(button)).toBe(false);
+    expect(own(popup)).toBe(false);
+    expect(own(popupButton)).toBe(false);
+    // 不是元素的落点（文字节点之类）不算
+    expect(own(null)).toBe(false);
+    expect(own("x")).toBe(false);
+    // 找行内控件用的是同一张单子：链接、按钮、输入类控件、带 role 或 tabindex 的、antd 的几种外框
+    expect(new Set(selectorsSeen)).toEqual(new Set([ROW_INNER_CONTROLS]));
+    for (const part of [
+      "a[href]",
+      "button",
+      "input",
+      "select",
+      "textarea",
+      "label",
+      "[role='button']",
+      "[role='combobox']",
+      "[tabindex]:not([tabindex='-1'])",
+      ".ant-select",
+    ]) {
+      expect(ROW_INNER_CONTROLS.split(", ")).toContain(part);
+    }
+  });
+
+  it("点击：点行里的空白触发；点行里的链接、按钮不触发（各管各的）；回车被行里的链接、按钮拿走时补发的点击也不触发", () => {
+    const hits: string[] = [];
+    const props = clickableRowProps(() => hits.push("row"));
+    const click = (target: unknown) => props.onClick?.({ target, currentTarget: tr } as never);
+    click(cell);
+    click(text);
+    expect(hits).toEqual(["row", "row"]);
+    click(link);
+    click(linkText);
+    click(button);
+    click(popupButton);
+    expect(hits).toEqual(["row", "row"]);
+    // 焦点在行里的链接上按回车：行收到的 keydown 落点是链接（不算），随后浏览器补发的 click 落点也是链接（不算）
+    props.onKeyDown?.({ key: "Enter", target: link, currentTarget: tr } as never);
+    click(link);
+    expect(hits).toEqual(["row", "row"]);
+    // 焦点在行自己上按回车：算
+    props.onKeyDown?.({ key: "Enter", target: tr, currentTarget: tr } as never);
+    expect(hits).toEqual(["row", "row", "row"]);
   });
 });

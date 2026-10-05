@@ -6,7 +6,7 @@
 //   - 自带三态：首次加载 5 行骨架、空状态、出错重试。
 // 导出按钮在 M7（ExportButton），本构件先留 toolbar 位置。
 import { Button, Select, Table, type TableColumnsType } from "antd";
-import type { HTMLAttributes, KeyboardEvent, ReactNode } from "react";
+import type { HTMLAttributes, KeyboardEvent, MouseEvent, ReactNode } from "react";
 
 import {
   hasActiveFilters,
@@ -90,13 +90,78 @@ export interface QueryTablePageProps<Row> {
 const SKELETON_ROWS = 5;
 
 /**
+ * 行里自己能点、能聚焦的东西：链接、按钮、输入类控件、标签（点它等于点它带的控件），用 role 或 tabindex 标出来的控件，
+ * 以及 antd 里“可点的范围比里面那个原生控件大”的几种外框（下拉、日期、带前后缀的输入框、数值输入、分段控件）。
+ * 点在它们上面、或焦点在它们上面按键，是它们自己的事，不算这一行的。
+ * 自己写的可点元素照规范 第 10 节用 button 或 a，就在这张单子里；tabindex="-1" 的不算（那只是让脚本能把焦点放上去）。
+ */
+export const ROW_INNER_CONTROLS = [
+  "a[href]",
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "label",
+  "summary",
+  "[contenteditable='true']",
+  "[role='button']",
+  "[role='link']",
+  "[role='checkbox']",
+  "[role='radio']",
+  "[role='switch']",
+  "[role='combobox']",
+  "[role='option']",
+  "[role='menuitem']",
+  "[role='tab']",
+  "[tabindex]:not([tabindex='-1'])",
+  ".ant-select",
+  ".ant-picker",
+  ".ant-input-affix-wrapper",
+  ".ant-input-number",
+  ".ant-segmented",
+].join(", ");
+
+/** 事件里用到的两样：落在谁身上、挂在哪一行上。只取 closest 与 contains，单测里用不着整个 DOM */
+interface RowEventLike {
+  target: unknown;
+  currentTarget: unknown;
+}
+
+interface ElementLike {
+  closest: (selector: string) => unknown;
+  contains: (other: unknown) => boolean;
+}
+
+const isElementLike = (value: unknown): value is ElementLike =>
+  typeof value === "object" &&
+  value !== null &&
+  typeof (value as Partial<ElementLike>).closest === "function" &&
+  typeof (value as Partial<ElementLike>).contains === "function";
+
+/**
+ * 这次点击或按键是不是这一行自己的：落在行内的链接、按钮、输入控件上的不算；
+ * 落在行外的也不算（从行里弹出去的浮层、弹窗画在别处，事件却会顺着组件树冒泡回这一行）。
+ */
+export function isRowOwnEvent(event: RowEventLike): boolean {
+  const { target, currentTarget } = event;
+  if (target === currentTarget) return true;
+  if (!isElementLike(target) || !isElementLike(currentTarget)) return false;
+  if (!currentTarget.contains(target)) return false;
+  // 行自己带 tabindex：从落点往上找，先找到的若是这一行，说明中间没有别的控件
+  return target.closest(ROW_INNER_CONTROLS) === currentTarget;
+}
+
+/**
  * 可点的行交给表格行的属性：除了点击，键盘也要走得到（规范 第 10 节“所有操作可用键盘完成”、第 12 节“可点的行”有聚焦环）。
- * Tab 能停在行上，回车触发；行里的链接、按钮自己拿到的回车不算这一行的。聚焦环在 global.css 的 .lyx-row--clickable。
+ * Tab 能停在行上，回车触发。行里另有链接、按钮时各管各的：点它们、或焦点在它们上面按回车（浏览器会补发一次点击），
+ * 都不触发这一行的动作。聚焦环在 global.css 的 .lyx-row--clickable。
  */
 export function clickableRowProps(onActivate: () => void): HTMLAttributes<HTMLElement> {
   return {
     tabIndex: 0,
-    onClick: onActivate,
+    onClick: (event: MouseEvent<HTMLElement>) => {
+      if (isRowOwnEvent(event)) onActivate();
+    },
     onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
       if (event.key === "Enter" && event.target === event.currentTarget) onActivate();
     },
