@@ -1851,7 +1851,7 @@ flowchart LR
 | worker 租约连接 | 1（不进池）| 3 秒 | — | — | 只跑续约（7.6）|
 
 - `kernel.tx.run()` **显式设置** Prisma 交互式事务的 `timeout`（默认 10 秒）与 `maxWait`（3 秒）；批处理用例（批量发放、推送 80 集成片包）在声明里写明自己的上限（至多 60 秒，只允许在 worker 里用）。Prisma 的默认值是 `maxWait` 2 秒、`timeout` 5 秒，原稿的 `lock_timeout = 5s` 与它相等，等锁 5 秒时哪一个先触发不确定；现在 `lock_timeout`（3 秒）明显小于事务超时（10 秒）。
-- 错误映射：锁等待超时（PostgreSQL 55P03）与 Prisma 的事务超时（P2028）都映射为 `BUSY`（端上自动重试一次）；死锁与序列化失败（40P01、40001）由 `tx.run` 自动重试一次，仍失败再报 `BUSY`；语句超时（57014）映射为 `UPSTREAM_TIMEOUT`，记 error，不自动重试。
+- 错误映射：锁等待超时（PostgreSQL 55P03）与 Prisma 的事务超时（P2028）都映射为 `BUSY`（端上自动重试一次）；死锁与序列化失败（40P01、40001）由 `tx.run` 自动重试一次，仍失败再报 `BUSY`；语句超时（57014）映射为 `UPSTREAM_TIMEOUT`，记 error，不自动重试。 **勘误（W0-07，随事务单元）**：锁等待超时（55P03）也由 `tx.run` 自动重试一次，仍失败再报 `BUSY`，与死锁、序列化失败同样处理；事务超时（P2028）与语句超时（57014）照上文，不重试。依据：[01](../../01-architecture.md) 第 7.1 节与 ADR-012 写的是“死锁与锁超时由事务包装统一有限次重试”，主文档与本草案不一致时以主文档为准（[开发计划](../../08-development-plan.md) 第 4.2 节 Q4）。实现与用例在 `packages/services/src/kernel/tx.ts`、`tx.retry.concurrency.test.ts`。
 - 两台节点合计约 54 个连接，在 2 核 4GB 实例的连接上限之内；V1.1 加只读实例时，两个“读侧池”改连只读实例，只改配置。
 
 ### 8.4 回滚
