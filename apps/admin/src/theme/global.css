@@ -1007,6 +1007,34 @@ a.lyx-link--danger:hover {
   line-height: var(--lyx-line-height-body);
 }
 
+/*
+ * 提示条的字色取色调的文字色（规范 第 5.3 节“色调取 1.4”：每种色调是“文字 + 浅底”一对；原型 Review 的处理结果条同）。
+ * antd 只按类型换底色，标题与说明一律是正文色，也没有按类型的字色变量，这里按类型覆盖。
+ */
+.ant-alert.ant-alert-success,
+.ant-alert.ant-alert-success .ant-alert-title,
+.ant-alert.ant-alert-success .ant-alert-description {
+  color: var(--lyx-color-success);
+}
+
+.ant-alert.ant-alert-info,
+.ant-alert.ant-alert-info .ant-alert-title,
+.ant-alert.ant-alert-info .ant-alert-description {
+  color: var(--lyx-color-info);
+}
+
+.ant-alert.ant-alert-warning,
+.ant-alert.ant-alert-warning .ant-alert-title,
+.ant-alert.ant-alert-warning .ant-alert-description {
+  color: var(--lyx-color-warning);
+}
+
+.ant-alert.ant-alert-error,
+.ant-alert.ant-alert-error .ant-alert-title,
+.ant-alert.ant-alert-error .ant-alert-description {
+  color: var(--lyx-color-danger);
+}
+
 /* 通知的关闭键 28 × 28；图标 16（对勾用浅绿，失败用红色感叹号，图标由 app/feedback.ts 给） */
 .ant-notification .ant-notification-notice .ant-notification-notice-close {
   width: 28px;

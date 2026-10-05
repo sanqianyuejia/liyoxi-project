@@ -393,6 +393,11 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     await queue.getByRole("tab", { name: /今日已审核/ }).click();
     await expect(page).toHaveURL(/[?&]tab=done(&|$)/);
     await expect(page.getByTestId("queue-result")).toContainText("审核已通过");
+    // 提示条的字色取色调的文字色，不是正文色（规范 第 5.3 节“提示条”：色调取 1.4 的“文字 + 浅底”）
+    const settledText = page.getByTestId("queue-result").getByText("审核已通过，已通知商家");
+    expect(await settledText.evaluate((element) => getComputedStyle(element).color)).toBe(
+      await tokenColor(page, "--lyx-color-success"),
+    );
     await expect(detail.getByRole("button", { name: "审核通过" })).toHaveCount(0);
     await expect(detail.getByRole("button", { name: "驳回" })).toHaveCount(0);
     // 通知（规范 第 8 节）：成功的 4 秒后自己消失；失败的不自动消失，要手动关
