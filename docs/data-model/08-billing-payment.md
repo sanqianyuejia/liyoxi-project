@@ -1267,10 +1267,8 @@ stateDiagram-v2
 | `ck_finance_config_revision_account_no` | CHECK | 只有收款账户配置带账号密文；密文与脱敏串同空同非空 |
 | `ck_finance_config_revision_change_note` | CHECK | 变更说明不得为空白 |
 | `ix_finance_config_revision_effective` | 部分索引 | `(config_key, effective_at DESC) WHERE effective_at IS NOT NULL`：取某个键当前生效的版本（`effective_at <= now()` 的最新一行） |
-| `trg_finance_config_revision_write_once` | 触发器 | 行级 BEFORE UPDATE OR DELETE：只允许把 `effective_at` 从空写一次，其余列不可改，不可删（`lyx_write_once`） |
+| `trg_finance_config_revision_write_once` | 触发器 | 行级 BEFORE UPDATE OR DELETE：只允许把 `effective_at` 从空写一次，其余列不可改，不可删（`lyx_write_once`）。授权（在授权迁移里，不在本分组 SQL）：应用角色 `lyx_app` 对本表只有 `INSERT`、`SELECT`，另对 `effective_at` 一列授列级 `UPDATE`，供批准时写入（W0-06a） |
 | `trg_finance_config_revision_no_truncate` | 触发器 | 语句级 BEFORE TRUNCATE：禁止清空（`lyx_forbid_mutation`） |
-
-授权（在授权迁移里，不在本分组 SQL）：应用角色 `lyx_app` 对本表只有 `INSERT`、`SELECT`，另对 `effective_at` 一列授列级 `UPDATE`，供批准时写入（W0-06a）。
 
 **状态列（不写状态历史）**
 
