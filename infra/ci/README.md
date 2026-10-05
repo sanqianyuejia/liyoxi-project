@@ -20,7 +20,7 @@
 | `selftest/run.mjs`、`selftest/cases/` | 门禁自测：一个反例一个文件 | `pnpm gates:selftest`；CI |
 | `db-catalog-diff.mjs`、`db-lib.mjs` | 系统目录比对（W0-05）：由底稿建的参照库与首版迁移建的库逐项 0 差异，数量两组口径对得上；出报告。`db-lib.mjs` 是连库、读系统目录、计数的共用部分 | `pnpm db:catalog-diff`；CI |
 | `db-verify-managed.mjs` | 托管库验证（W0-05）：两个扩展可建、迁移跑通、数量对得上；不打印连接串 | `pnpm db:verify-managed`；业主在托管库上跑 |
-| `db-verify-grants.mjs` | 角色与授权的核对（W0-06a）：两个角色在、授权生效、分区表可写可查；只读系统目录，不打印连接串。没有改 `db-verify-managed.mjs`（改已有的检查脚本是放松类改动），做成它的后置步骤 | `pnpm db:verify-grants`；根脚本 `postdb:verify-managed` 让 `pnpm db:verify-managed` 成功后自动接着跑 |
+| `db-verify-grants.mjs` | 角色与授权的核对（W0-06a）：两个角色在、授权生效、分区表可写可查；只读系统目录，不打印连接串。期望的授权不写在脚本里，读 `packages/db/src/grants.expected.json`（与权限测试共用，不是门禁文件）：加表、加函数的包往那里加行，本脚本与它的用例不用改，用例里的数量都是现查的（[packages/db/README.md](../../packages/db/README.md) 第 9 节）。没有改 `db-verify-managed.mjs`（改已有的检查脚本是放松类改动），做成它的后置步骤 | `pnpm db:verify-grants`；根脚本 `postdb:verify-managed` 让 `pnpm db:verify-managed` 成功后自动接着跑（要经 pnpm 跑才有这一步；`test/db-verify-managed-hook.test.ts` 把它钉住） |
 | `fixtures/` | tsconfig 预设的最小工程；依赖方向与分层的反例夹具 | `pnpm typecheck`；用例与门禁自测 |
 | `pages/generate.mjs`、`pages/sources/` | 页面清单：由后台菜单登记表与下载页页面清单生成 `docs/plan/pages.md`。一个端一个数据源文件，自动收集；小程序的由 W0-27a 往 `sources/` 里加 | `node infra/ci/pages/generate.mjs`；CI 用 `--check` 核对无差异 |
 | `apps/admin/scripts/check-build.mjs`（不在本目录） | 后台与下载页的构建产物检查：文件名带内容哈希、写入了构建号、是生产构建、不含夹具的标记 | 两个应用各自的 `build` 脚本，即 `pnpm admin:build`、`pnpm portal:build`；CI |

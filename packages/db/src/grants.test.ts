@@ -809,10 +809,11 @@ describe("lyx_readonly 与分区（任务书 第 11 节第 5、7 项）", () => 
     expect(
       await query(readonly, "select count(*)::int as n from analytics_event_y2031m03"),
     ).toEqual([{ n: 1 }]);
-    // 14 分组 第 2.9 节的周期任务要建分区：应用角色不是父表的属主，建不了（见本包的 ADR）
+    // 14 分组 第 2.9 节的周期任务要建分区：应用角色建不了（见本包的 ADR）。先卡在模式 public 上没有 CREATE；
+    // 就算有，它也不是父表的属主
     expect(
-      await sqlState(exec(app, "select lyx_14_analytics_event_ensure_partition('2031-04-01')")),
-    ).toBe(DENIED);
+      await dbError(exec(app, "select lyx_14_analytics_event_ensure_partition('2031-04-01')")),
+    ).toEqual({ code: DENIED, message: "permission denied for schema public" });
   });
 });
 

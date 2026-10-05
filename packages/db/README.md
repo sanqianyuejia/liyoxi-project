@@ -11,6 +11,7 @@
 | `prisma/migrations/20261005060000_grants/migration.sql` | 第二个迁移：角色与授权。手写的，不改结构（第 9 节） |
 | `prisma.config.ts` | Prisma 的配置。连接串只取环境变量 `DATABASE_URL`，不读 `.env`，没有默认值 |
 | `src/index.ts` | `createPrismaClient`：客户端的唯一构造入口（第 5 节） |
+| `src/grants.expected.json` | 期望的授权：逐表的权限、例外列、以属主身份执行的函数。权限测试与核对脚本共用一份，手写（第 9 节） |
 | `scripts/build-init-migration.mjs` | 拼首版迁移的脚本，可重跑核对 |
 | `dist/generated/` | 生成的客户端。不入库（根 `.gitignore` 的 `dist/`），由 `pnpm db:generate` 生成 |
 
@@ -32,6 +33,16 @@
 不用 `prisma migrate dev`、`migrate reset`、`db push`（`CLAUDE.md` 第 6 节规则 21）。
 
 `pnpm db:deploy` 遇到不存在的库，不报“库不存在”（2026-10-05 本机实测，Prisma 7.9.1）：连接串的主机写 `127.0.0.1` 时，Prisma 自己建出这个库再跑迁移，退出码 0；写 `localhost` 时报 P1001“Can't reach database server”，退出码 1。库名写错时两种表现都容易看走眼：跑之前核对库名，预发与生产上尤其如此。
+
+迁移中途失败（2026-10-05 本机实测，PostgreSQL 17.11，Prisma 7.9.1）：授权迁移是整个放在一个事务里执行的，中途出错整体回滚。试过两种：跑到最后一组授权时出错；跑迁移的账号不能建角色、实例上又没有那两个角色。两种都是库里不留一句授权、缺省授权、模式授权，这次新建的角色也不留。`pnpm db:deploy` 报 `P3018` 并给出数据库的报错；`_prisma_migrations` 里留一行未完成的记录。把原因修好之后直接再跑，报 `P3009`（库里有失败的迁移，不再往下跑）。处置：
+
+```sh
+# 只把那一行记录标成“已回滚”，不动库里别的东西；之后照常跑迁移
+DATABASE_URL=<那个库> pnpm --filter @liyoxi/db exec prisma migrate resolve --rolled-back 20261005060000_grants
+DATABASE_URL=<那个库> pnpm db:deploy
+```
+
+这是拿授权迁移试出来的。以后的迁移若带显式的事务语句，或带不能放进事务的语句，失败之后是不是整体回滚没有试过：先查库里实际留下了什么，再标记。
 
 ## 3. 本地准备
 
@@ -123,8 +134,9 @@ pnpm db:catalog-diff
 - 报告：两个扩展（`btree_gist`、`pg_trgm`）在实例上可装、迁移跑通后已建出；迁移全部完成；数量两组口径。
 - 不打印连接串：输出里只有库名与服务器版本。迁移工具的输出只在失败时给出，并先抹掉主机、账号、口令。
 - 只动 `DATABASE_URL` 指的那一个库：库名不是 `lyx_` 开头、或库里已经有表，一律拒绝。
-- 上面几项通过之后，报告末尾接着出“角色与授权”一段（W0-06a）：两个角色在不在、是不是不可登录；`lyx_app` 在各表上的权限集合，16 张只增表与它们的例外列、`file_object` 不给删除；序列与清理函数；`lyx_readonly` 全库只读与缺省授权；往埋点事件表插一行、读回来、回滚（分区表可写可查，库里不留数据）；另报当前账号是不是超级用户、能不能建角色、是不是表的属主、能不能切换到 `lyx_app`。这一段只读系统目录，不切换角色。
-- “角色与授权”一段由另一个脚本 `infra/ci/db-verify-grants.mjs` 出：根脚本 `postdb:verify-managed` 是 pnpm 的后置钩子，`pnpm db:verify-managed` 成功后自动执行，前面不通过就不跑。对一个已经跑完迁移的 `lyx_` 开头的库单独核对：`DATABASE_URL=<那个库> pnpm db:verify-grants`。直接用 `node infra/ci/db-verify-managed.mjs` 跑不经过钩子，没有这一段。
+- 上面几项通过之后，报告末尾接着出“角色与授权”一段（W0-06a）：两个角色在不在、是不是不可登录；两个角色进不进得了模式 `public`、有没有模式与库的 `CREATE`；`lyx_app` 在每张逻辑表上的表级权限逐张与期望相同（期望在 `src/grants.expected.json`，第 9 节），列级授权只有期望里的例外列，只增表恰好是 `INSERT`、`SELECT`，`file_object` 不给删除；序列；以属主身份执行的函数由谁执行；`lyx_readonly` 全库只读与缺省授权；有没有带转授权（`WITH GRANT OPTION`）的授权；只增表与不给改、删的表上别的角色有没有查询以外的权限（别的角色在其余表上的授权只列出来，请人过目）；往埋点事件表插一行、读回来、回滚（分区表可写可查，库里不留数据）；另报当前账号是不是超级用户、能不能建角色、是不是表的属主、能不能切换到 `lyx_app`。这一段只读系统目录，不切换角色。
+- “角色与授权”一段由另一个脚本 `infra/ci/db-verify-grants.mjs` 出：根脚本 `postdb:verify-managed` 是 pnpm 的后置钩子，`pnpm db:verify-managed` 成功后自动执行，前面不通过就不跑。对一个已经跑完迁移的 `lyx_` 开头的库单独核对：`DATABASE_URL=<那个库> pnpm db:verify-grants`（预发、生产上那个库以后也用它核对，不限于空库）。
+- 这一段要经 pnpm 跑才有，靠的是 pnpm 缺省会执行前后置脚本。两种跑法没有这一段，前面那段照样报“结论：通过”，也没有任何提示（2026-10-05 本机实测，pnpm 10.34.5）：直接 `node infra/ci/db-verify-managed.mjs`；关掉了前后置脚本（命令行带 `--config.enable-pre-post-scripts=false`，本仓库的配置里没有关）。回传的输出里要看得到“## 角色与授权”与它后面的“结论：通过”才算数。`infra/ci/test/db-verify-managed-hook.test.ts` 经 pnpm 把整条命令跑一遍，把这一段钉住。
 - 本地演练：
 
 ```sh
@@ -158,10 +170,20 @@ PGPASSWORD=lyx-local-dev psql -X -h localhost -p 5442 -U liyoxi -d postgres -c "
 | 函数 `EXECUTE` | `lyx_03_purge_auth_event`（已收回所有人的执行权，只授给它） |
 | 没有任何权限 | 分区子表（经父表 `analytics_event` 读写）、`_prisma_migrations` |
 
-- 两个角色不可登录、不带口令，实例上已有同名角色就不再建。口令、登录账号、把账号加进角色，由环境初始化做，不进迁移。
+- 两个角色不可登录、不带口令，实例上已有同名角色就不再建（也不改它的属性）。登录账号另建，加为这两个角色的成员（`GRANT lyx_app TO <应用的登录账号>`）；账号的名字、口令、怎么加，由环境初始化做，不进迁移。
+- 跑迁移的账号不能建角色时（没有 `CREATEROLE`），先由控制台或管理账号把两个角色建好，再跑迁移。预建的必须是不可登录、不带口令的角色（`CREATE ROLE lyx_app NOLOGIN`、`CREATE ROLE lyx_readonly NOLOGIN`），不要直接建成带口令的登录账号：那样迁移照样跑通，但 `pnpm db:verify-grants` 报“角色的属性不对”，改回 `NOLOGIN` 才通过（2026-10-05 本机实测）。
 - `auth_event` 的删除没有触发器拦：清理函数要删 12 个月以前的行。拦应用的是权限，清理函数自己卡 12 个月的下限。
-- 核对办法：`pnpm --filter @liyoxi/db exec vitest run src/grants.test.ts`（也在 `pnpm test` 里）。它把 166 张表逐张的期望权限写在用例里，与迁移各写各的；库里多一张表而清单里没有，即失败。系统目录比对（第 6 节）不比授权。
-- 加表、加自增列、加以属主身份执行的函数时：在建它的那个迁移里补授权，并把它写进 `src/grants.test.ts` 的清单。`lyx_readonly` 不用写。
+- 期望的授权只写在一处：`src/grants.expected.json`（手写，不是生成物；各项的含义见文件开头的“说明”）。它与迁移里的授权语句各写各的；库里多一张表而它里面没有、少授、多授，即失败。读它的有两处：
+  - 权限测试 `pnpm --filter @liyoxi/db exec vitest run src/grants.test.ts`（也在 `pnpm test` 里）：验“迁移在空库上建出来的”授权，并以各角色的身份实际去改、去删。
+  - 核对脚本 `pnpm db:verify-grants`（`infra/ci/db-verify-grants.mjs`）：只读系统目录，核对一个已经部署的库，逐表与同一份期望比。
+  - 系统目录比对（第 6 节）不比授权。
+- 以后怎么跟。在建它的那个迁移里写授权，同一个 PR 改 `src/grants.expected.json`：
+  - 加表：`tables` 里加一行（表名与 `lyx_app` 的表级权限，权限按字母序、逗号连接）。只增表另加进 `appendOnly`；触发器放行的例外列写进 `columnUpdate`。
+  - 加以属主身份执行的函数（`SECURITY DEFINER`）：先收回 PUBLIC 的执行权，`definerFunctions` 里加一行，写明由谁执行。
+  - 加自增列：迁移里给背后的序列授 `USAGE`。序列按规则核对（全部只给 `lyx_app` 的 `USAGE`），不用登记；`src/grants.test.ts` 里另有一张自增列的清单（`SERIAL_COLUMNS`）与几处写死的数量（166 张表、16 张只增表、15 个序列、11 列），跟着改。
+  - `lyx_readonly` 不用写：缺省授权自动带上。
+  - 不用改的：`infra/ci/db-verify-grants.mjs` 与它的两份用例（`infra/ci/test/db-verify-grants.test.ts`、`db-verify-managed-hook.test.ts`）。它们是门禁文件，改已有的行要走单独的门禁 PR；所以里面的数量都是现查的，期望都读上面那一份。`src/grants.expected.json` 与 `src/grants.test.ts` 不是门禁文件，随工作包 PR 改。
+  - 改一张已有表的授权也是这两处一起改：新迁移，加上期望里那一行。只改期望而没有对应的迁移，权限测试就红。
 - 以应用角色的身份连库（排查权限问题时用；要管理账号）：连接串后面加 `?options=-c%20role%3Dlyx_app`，等同于连上之后 `SET ROLE lyx_app`。
-- 权限测试插夹具行时靠 `session_replication_role = replica` 绕开外键，要超级用户；在不是超级用户的托管库上跑不了，那里用 `pnpm db:verify-grants`。
+- 权限测试插夹具行时靠 `session_replication_role = replica` 绕开外键，要超级用户；在不是超级用户的托管库上跑不了，那里用 `pnpm db:verify-grants`：它逐表核对的是同一份期望，只是不以应用角色的身份实际去改、去删。
 - Prisma 遇到手写的约束、索引、触发器、分区会怎样，之后出下一版迁移的固定做法，建分区的函数由谁执行：见 [ADR（待分配编号）](../../docs/adr/draft-W0-06a-迁移草稿由migrate-diff从库到schema出-手写对象与授权人工补.md)。
