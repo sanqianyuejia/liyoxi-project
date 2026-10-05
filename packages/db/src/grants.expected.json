@@ -6,6 +6,7 @@
     "appendOnly：06 第 4 节“只增”为“是”的表，表级权限必须恰好是 INSERT,SELECT。",
     "columnUpdate：另授列级 UPDATE 的列（触发器放行“写一次”的列）。此外不得有任何列级授权。",
     "definerFunctions：以属主身份执行（SECURITY DEFINER）的函数 → 可以执行它的角色。PUBLIC 一律不得执行。",
+    "views：lyx_app 可以查询的视图、物化视图、外部表（现在一张都没有）。表与序列之外的关系上，lyx_app 只许对这里列出的有 SELECT，lyx_readonly 最多 SELECT，PUBLIC 什么都不得有。",
     "不用写在这里的：序列（全部只给 lyx_app 的 USAGE）、lyx_readonly（全部表与序列只读）、分区子表与 _prisma_migrations（lyx_app 没有任何权限）。",
     "加表、加例外列、加以属主身份执行的函数：在建它的迁移里写授权，并在这里加一行。做法见 packages/db/README.md 第 9 节。"
   ],
@@ -211,5 +212,6 @@
   },
   "definerFunctions": {
     "lyx_03_purge_auth_event": ["lyx_app"]
-  }
+  },
+  "views": []
 }
