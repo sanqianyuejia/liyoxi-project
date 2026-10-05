@@ -23,6 +23,8 @@ import {
   type PermissionsJson,
 } from "../scripts/api-registries-check.js";
 
+import { CHECKED_FORMATS } from "../scripts/enums-check.js";
+
 import * as contract from "./index.js";
 
 const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -433,6 +435,16 @@ describe("改坏文档：同样报得出来", () => {
     expect(
       withText("d6", (text) => text.replace("| `cart_add` | 直记 |", "| `cart_add` | 手记 |")),
     ).toThrow(/来源不认识/);
+  });
+});
+
+describe("写法与库一致（验收 11）", () => {
+  it("通知场景键、埋点事件名两种写法在 pnpm enums:check 逐字比对的清单里", () => {
+    expect(CHECKED_FORMATS).toContain(contract.NOTIFY_SCENE_KEY_FORMAT);
+    expect(CHECKED_FORMATS).toContain(contract.ANALYTICS_EVENT_NAME_FORMAT);
+    expect(new Set(CHECKED_FORMATS.map((format) => format.column)).size).toBe(
+      CHECKED_FORMATS.length,
+    );
   });
 });
 
