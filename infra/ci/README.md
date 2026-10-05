@@ -20,6 +20,7 @@
 | `selftest/run.mjs`、`selftest/cases/` | 门禁自测：一个反例一个文件 | `pnpm gates:selftest`；CI |
 | `db-catalog-diff.mjs`、`db-lib.mjs` | 系统目录比对（W0-05）：由底稿建的参照库与首版迁移建的库逐项 0 差异，数量两组口径对得上；出报告。`db-lib.mjs` 是连库、读系统目录、计数的共用部分 | `pnpm db:catalog-diff`；CI |
 | `db-verify-managed.mjs` | 托管库验证（W0-05）：两个扩展可建、迁移跑通、数量对得上；不打印连接串 | `pnpm db:verify-managed`；业主在托管库上跑 |
+| `db-verify-grants.mjs` | 角色与授权的核对（W0-06a）：两个角色在、授权生效、分区表可写可查；只读系统目录，不打印连接串。没有改 `db-verify-managed.mjs`（改已有的检查脚本是放松类改动），做成它的后置步骤 | `pnpm db:verify-grants`；根脚本 `postdb:verify-managed` 让 `pnpm db:verify-managed` 成功后自动接着跑 |
 | `fixtures/` | tsconfig 预设的最小工程；依赖方向与分层的反例夹具 | `pnpm typecheck`；用例与门禁自测 |
 
 工作流在 `.github/workflows/`：`ci.yml`（每个 PR 与推到 main）、`nightly.yml`（每晚，Node 26，失败只告警）。
@@ -77,6 +78,7 @@ export default {
 - 本地跑单个反例：`node infra/ci/selftest/run.mjs --only <文件名里的一段>`。
 - 有几例要用到外部条件：名字以 `secret-scan-` 开头的要本机 Docker 在运行，`audit-vulnerable-dep` 要能连 `registry.npmjs.org`。条件不具备时这几例会红，不会被悄悄跳过。
 - `db-catalog-diff-dropped-check`（W0-05）要本地那套 PostgreSQL 在运行（`pnpm infra:up`），并给出 `DATABASE_URL` 或 `PG*` 环境变量（`CLAUDE.md` 第 9 节）。它自己建两个 `lyx_selftest_` 开头的库，用完删掉；连不上时这一例会红。
+- `db-verify-grants-extra-delete`（W0-06a）同样要本地那套 PostgreSQL 与连接参数。它自己建一个 `lyx_selftest_` 开头的库，把全部迁移跑一遍，用完删掉；迁移会在实例上建 `lyx_app`、`lyx_readonly` 两个角色（不可登录，已有就不建）。
 - `contract-check-stale-generated` 在仓库外的副本里跑真的 `pnpm contract:check`：要 pnpm 在 PATH 上、本仓库的依赖已安装（副本的依赖用符号链接指回 `packages/contract/node_modules`）。它改的是 `DictRef`：提交的生成物里只有 `DictRef`、`ErrorBody`、`SentryEnvelope` 三个组件，改别的结构生成物不变。
 
 ## 5. 门禁改动分类
