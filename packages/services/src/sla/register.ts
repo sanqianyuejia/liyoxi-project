@@ -1,8 +1,11 @@
 // sla 模块的登记（W0-17）：不变量 sla.N8。调度在 invariant.full（W0-24），这里只登记。
+// 另登记 flow 的“工作分钟”端口的实现（W0-30a）：flow 定义端口，这里实现；实现在 work-minutes.ts。
 // 依据：01 分组 第 2.7 节“不变量”：已铺满的年份内日期连续、无缺口；severity P2，modes full，heal none；
 // 每个缺口日期一条违规，对象是自然键（subject_type = work_calendar_day，subject_key = 缺失的日期），不带 entityId。
-import { defineRegistration } from "../kernel/index.js";
+import { workMinutesPort } from "../flow/index.js";
+import { defineRegistration, implement } from "../kernel/index.js";
 import type { InvariantViolation, Tx } from "../kernel/index.js";
+import { calendarWorkMinutes } from "./work-minutes.js";
 
 /** 从库里最早那一年的 1 月 1 日到最晚那一年的 12 月 31 日，缺行的每一天各报一条；表为空时不报 */
 export async function findCalendarGaps(tx: Tx): Promise<InvariantViolation[]> {
@@ -24,6 +27,7 @@ export async function findCalendarGaps(tx: Tx): Promise<InvariantViolation[]> {
 }
 
 export const registration = defineRegistration("sla", {
+  portImplementations: [implement(workMinutesPort, calendarWorkMinutes)],
   invariants: [
     { code: "sla.N8", severity: "P2", modes: ["full"], heal: "none", run: findCalendarGaps },
   ],

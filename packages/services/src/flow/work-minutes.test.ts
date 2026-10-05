@@ -18,7 +18,9 @@ import {
 import type { TransitionInput } from "./transition.js";
 
 // 验收第 9 条：elapsed_work_min 只有交付工单、审批单、客服工单写，经“工作分钟”端口按写入时的日历算好固化。
-// 端口未注册时这三张表的迁移抛内部错误，不写空值；其余表该列为空。真实实现由 W0-30 接上。
+// 端口未注册时这三张表的迁移抛内部错误，不写空值；其余表该列为空。
+// 真实实现由 sla 登记（W0-30a），测试装配缺省带着它：这里要“没有实现”就写 workMinutes: null，
+// 要固定日历就传样例实现顶掉它。真实实现的用例在 work-minutes.calendar.test.ts。
 
 const db = useTestDatabase("services");
 let prisma: PrismaClient;
@@ -27,7 +29,7 @@ let timed: SampleFlow;
 
 beforeAll(async () => {
   prisma = await db.prisma();
-  bare = createSampleFlow(prisma);
+  bare = createSampleFlow(prisma, { workMinutes: null });
   timed = createSampleFlow(prisma, { workMinutes: fixedWorkMinutes });
   await seedStaffRole(prisma);
 }, SLOW);

@@ -65,7 +65,7 @@ export interface SlaDeps {
 export interface Sla {
   /** 按策略算截止时刻，并给出要存进单据的时限快照 */
   dueAt(tx: Tx, input: DueInput): Promise<DueResult>;
-  /** from 到 to 之间落在工作时段内的分钟数（W0-30 接 flow 的“工作分钟”端口时用） */
+  /** from 到 to 之间落在工作时段内的分钟数；日历缺行时告警。flow 的“工作分钟”端口另有实现，见 work-minutes.ts */
   workMinutesBetween(tx: Tx, input: WorkMinutesInput): Promise<number>;
 }
 

@@ -1,5 +1,6 @@
 // 状态迁移的样例（W0-16）：样例守卫、活动流默认描述、固定日历的工作分钟实现，与“测试装配 + events + flow”的入口。
-// 只给测试用。真实的守卫、描述、工作分钟由各域与 W0-30 登记；名字带 lyxtest 前缀，不进契约的正式目录。
+// 只给测试用。真实的守卫、描述由各域登记；真实的工作分钟由 sla 登记（W0-30a），测试装配缺省带着它。
+// 名字带 lyxtest 前缀，不进契约的正式目录。
 import type { PrismaClient } from "@liyoxi/db";
 import { chainOf } from "@liyoxi/shared/machines";
 import type { Chain } from "@liyoxi/shared/machines";
@@ -102,8 +103,11 @@ export const SAMPLE_FLOW_BINDINGS: Readonly<Record<string, MachineBinding>> = {
 export interface SampleFlowOptions {
   /** 替换状态机的登记（键用 chainKey）；不给即 SAMPLE_FLOW_BINDINGS */
   readonly bindings?: Readonly<Record<string, MachineBinding>>;
-  /** 工作分钟端口的实现；不给即不注册（三张表迁移时抛错） */
-  readonly workMinutes?: WorkMinutes;
+  /**
+   * 工作分钟端口的实现。不给即真实的那一个（sla 登记的：读库里的工作日历与工作时段，日历没铺的日期
+   * 按周一至周五算）；给了就顶掉真实的；null 即没有实现（三张表迁移时抛错）
+   */
+  readonly workMinutes?: WorkMinutes | null;
 }
 
 /** 样例登记：把状态机的登记与工作分钟的实现按端口登记进去 */
@@ -132,7 +136,11 @@ export function createSampleFlow(
   prisma: PrismaClient,
   options: SampleFlowOptions = {},
 ): SampleFlow {
-  const assembly = assembleForTest({ entry: "api", extra: [sampleFlowRegistration(options)] });
+  const assembly = assembleForTest({
+    entry: "api",
+    extra: [sampleFlowRegistration(options)],
+    ...(options.workMinutes === undefined ? {} : { withoutRealPorts: [workMinutesPort] }),
+  });
   const tx = createTxRunner({ prisma, appEnv: "test" });
   const clock = createClock();
   const events = createEvents({ assembly, clock, tx, testEvents: SAMPLE_FLOW_EVENTS });

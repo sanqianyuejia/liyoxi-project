@@ -16,6 +16,7 @@ import { assertParamDefs, createParams } from "./params.js";
 import type { Params } from "./params.js";
 import { createSiteConfig } from "./site-config.js";
 import type { SiteConfig } from "./site-config.js";
+import { reportToConsole } from "./types.js";
 import type { ConfigDb, ConfigProblem, ConfigReport } from "./types.js";
 
 export interface ConfigOptions {
@@ -50,11 +51,7 @@ export interface Config {
 export function createConfig(options: ConfigOptions): Config {
   assertParamDefs(undefined, options.paramDefs);
   const { db, clock } = options;
-  const report: ConfigReport =
-    options.report ??
-    ((problem) => {
-      console.error(`配置读取：${problem.kind} ${problem.subject}：${problem.detail}`);
-    });
+  const report: ConfigReport = options.report ?? reportToConsole;
   const cache = createConfigCache({
     clock,
     redis: options.redis,
@@ -103,8 +100,8 @@ export { createDicts } from "./dicts.js";
 export type { DictItemView, DictListOptions, Dicts, DictTypeItems } from "./dicts.js";
 export { createFlags, matchesRule } from "./flags.js";
 export type { FlagContext, Flags } from "./flags.js";
-export { assertParamDefs, createParams, ParamDefsError } from "./params.js";
-export type { ParamCurrent, Params, ParamSnapshot } from "./params.js";
+export { assertParamDefs, createParams, ParamDefsError, paramsAt } from "./params.js";
+export type { ParamCurrent, Params, ParamsAtOptions, ParamSnapshot } from "./params.js";
 export { createSiteConfig } from "./site-config.js";
 export type { PublishedSiteConfig, SiteConfig, SiteConfigKey } from "./site-config.js";
 export type { ConfigDb, ConfigProblem, ConfigProblemKind, ConfigReport } from "./types.js";

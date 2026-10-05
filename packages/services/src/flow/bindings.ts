@@ -81,7 +81,7 @@ export const chainKey = <M extends StateMachineName>(
 /** 状态机的登记：按链多实现。没有登记的链照样能迁移，只是没有守卫、随迁列与默认描述 */
 export const machinePort = defineKeyedPort<MachineBinding>("flow.machine");
 
-/** “工作分钟”端口：两个时刻之间的工作分钟数。真实实现要读工作日历与工作时段，不在本模块 */
+/** “工作分钟”端口：两个时刻之间的工作分钟数。真实实现要读工作日历与工作时段，不在本模块：由 sla 登记（W0-30a） */
 export interface WorkMinutes {
   between(tx: Tx, span: { machine: StateMachineName; from: Date; to: Date }): Promise<number>;
 }

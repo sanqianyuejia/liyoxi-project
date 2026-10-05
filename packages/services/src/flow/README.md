@@ -61,7 +61,7 @@ await tx.run(async (handle) => {
 | 当前状态下这个事件不能发生；守卫返回 `false` | `AppError("STATE_NOT_ALLOWED")`（409），`details` 带状态机、当前状态、事件码 |
 | 守卫抛了更具体的领域码 | 原样抛出 |
 | 对象不存在 | `AppError("NOT_FOUND")` |
-| 代码缺陷：事件码不在这条链上、用它发 `admin.force`、几个候选没给目标、行标了守卫没登记、随迁列没登记、没给审计或事件、工作分钟端口没注册 | `FlowError`，`reason` 说明是哪一种 |
+| 代码缺陷：事件码不在这条链上、用它发 `admin.force`、几个候选没给目标、行标了守卫没登记、随迁列没登记、没给审计或事件、工作分钟端口没有实现 | `FlowError`，`reason` 说明是哪一种 |
 
 任何一步抛错，调用方的事务回滚，状态列、历史、审计、事件四处都不留痕。
 
@@ -106,7 +106,9 @@ export const registration = defineRegistration("staff", {
 
 ## 7. 工作分钟
 
-`delivery_ticket`、`approval_request`、`service_ticket` 三张表的迁移要写 `elapsed_work_min`，经 `workMinutesPort` 算。真实实现要读工作日历与工作时段，由 W0-30 注册；在那之前这三张表迁移即抛 `FlowError`（不写空值：只增表事后改不了）。测试里用 `@liyoxi/services/testing` 的 `fixedWorkMinutes`。
+`delivery_ticket`、`approval_request`、`service_ticket` 三张表的迁移要写 `elapsed_work_min`，经 `workMinutesPort` 算。真实实现由 sla 登记（W0-30a，[`sla/work-minutes.ts`](../sla/work-minutes.ts)）：在迁移的事务里读工作日历（`work_calendar_day`）与写入那一刻生效的工作时段（参数 `work.start`、`work.end`），不扣午休；日历没铺到的日期按周一至周五算。端口没有实现时（装配里把它拿掉了）这三张表迁移即抛 `FlowError`，不写空值：只增表事后改不了。
+
+测试装配缺省带着真实实现。要固定日历（周一至周五 09:00–18:00，不读库）传 `@liyoxi/services/testing` 的 `fixedWorkMinutes`；要“没有实现”传 `workMinutes: null`。
 
 ## 8. 测试里怎么用
 
@@ -114,6 +116,7 @@ export const registration = defineRegistration("staff", {
 import { createSampleFlow, fixedWorkMinutes } from "@liyoxi/services/testing";
 
 const sample = createSampleFlow(prisma, { workMinutes: fixedWorkMinutes }); // 测试装配 + events + flow + 可拨时钟
+// 不传 workMinutes：用 sla 登记的真实实现（读测试库里的日历与参数）
 await sample.tx.run((tx) => sample.flow.transition(tx, ctx, { … }));
 ```
 

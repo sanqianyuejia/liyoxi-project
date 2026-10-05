@@ -41,3 +41,8 @@ export interface ConfigProblem {
 }
 
 export type ConfigReport = (problem: ConfigProblem) => void;
+
+/** 没有接上日志时的上报出口：一行 console.error（说明里不带参数值） */
+export const reportToConsole: ConfigReport = (problem) => {
+  console.error(`配置读取：${problem.kind} ${problem.subject}：${problem.detail}`);
+};

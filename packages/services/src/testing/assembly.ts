@@ -6,7 +6,13 @@
 // 查重名与缺实现的口径与生产装配相同：样例与真实登记撞名，照样报错。
 import { MODULE_ENTRIES } from "../assembly.js";
 import { assemble, collectRegistrations } from "../kernel/index.js";
-import type { AppEnv, Assembly, AssemblyEntry, ModuleRegistration } from "../kernel/index.js";
+import type {
+  AnyPort,
+  AppEnv,
+  Assembly,
+  AssemblyEntry,
+  ModuleRegistration,
+} from "../kernel/index.js";
 
 export interface TestAssemblyOptions {
   /** 模拟哪个进程 */
@@ -17,11 +23,27 @@ export interface TestAssemblyOptions {
   readonly extra?: readonly ModuleRegistration[];
   /** 为真时不带真实模块的登记，只装 extra */
   readonly isolated?: boolean;
+  /**
+   * 这几个端口不带真实模块登记的实现（W0-30a）：用例要换成自己的实现（写进 extra），
+   * 或要看没有实现时的行为。样例与真实登记撞名照样报错，所以换实现得先把真实的那一份拿掉。
+   */
+  readonly withoutRealPorts?: readonly AnyPort[];
 }
 
 /** 测试装配：同一组参数下，entry 写 api 与写 worker 收到的内容相同 */
 export function assembleForTest(options: TestAssemblyOptions): Assembly {
-  const real = options.isolated === true ? [] : collectRegistrations(MODULE_ENTRIES);
+  const dropped = options.withoutRealPorts ?? [];
+  const real = (options.isolated === true ? [] : collectRegistrations(MODULE_ENTRIES)).map(
+    (registration) =>
+      dropped.length === 0
+        ? registration
+        : {
+            ...registration,
+            portImplementations: registration.portImplementations.filter(
+              (item) => !dropped.includes(item.port),
+            ),
+          },
+  );
   return assemble({
     entry: options.entry,
     appEnv: options.appEnv ?? "test",

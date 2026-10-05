@@ -12,6 +12,8 @@ export type {
   WorkMinutesInput,
 } from "./due.js";
 export { findCalendarGaps, registration } from "./register.js";
+// W0-30a：flow 的“工作分钟”端口的实现，与按句柄读工作时段
+export { calendarWorkMinutes, DEFAULT_WORK_HOURS, workHoursAt } from "./work-minutes.js";
 // W0-21 种子：工作日历
 export { calendarDaysOf, HOLIDAY_ARRANGEMENTS, seed, seededCalendarYears } from "./seed.js";
 export type { CalendarDayKind, CalendarDaySeed, HolidayArrangement } from "./seed.js";

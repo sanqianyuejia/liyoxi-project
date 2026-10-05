@@ -7,10 +7,10 @@ import { PARAM_DEFS } from "@liyoxi/shared/params";
 import type { ParamDef } from "@liyoxi/shared/params";
 import { describe, expect, it } from "vitest";
 
-import { isAppError, uuidv7 } from "../kernel/index.js";
+import { createTxRunner, isAppError, uuidv7 } from "../kernel/index.js";
 import { createClock, useTestDatabase, useTestRedis } from "../testing/index.js";
 
-import { createConfig, ParamDefsError, PROBE_INTERVAL_MS } from "./index.js";
+import { createConfig, ParamDefsError, paramsAt, PROBE_INTERVAL_MS } from "./index.js";
 import type { Config, ConfigProblem } from "./index.js";
 
 const db = useTestDatabase("services");
@@ -120,6 +120,54 @@ describe("参数（验收 3）", () => {
       values: { "notify.sms.daily_cap": 4, "notify.window.end": "21:00" },
       revs: { "notify.sms.daily_cap": rev, "notify.window.end": null },
     });
+  });
+
+  it("paramsAt：不经配置服务，拿事务句柄读某一时刻的值（W0-30a）", TIMEOUT, async () => {
+    const { prisma, problems, at, saveParam } = await setup();
+    await saveParam("service.reopen_window_days", 3, at(-10 * HOUR));
+    await saveParam("service.reopen_window_days", 5, at(-5 * HOUR));
+    await saveParam("service.reopen_window_days", 9, at(HOUR)); // 还没生效
+    await saveParam("service.reopen_window_days", 8, at(-HOUR), at(-2 * HOUR)); // 生效前撤销了
+    const tx = createTxRunner({ prisma, appEnv: "test" });
+    const keys = ["service.reopen_window_days", "work.end"] as const;
+    const read = (when: Date, defs?: readonly ParamDef[]) =>
+      tx.run((handle) =>
+        paramsAt(handle, keys, when, {
+          report: (problem) => problems.push(problem),
+          ...(defs ? { defs } : {}),
+        }),
+      );
+    expect(await read(at(0))).toEqual({
+      "service.reopen_window_days": 5,
+      "work.end": "18:00", // 库里没有：代码默认值
+    });
+    expect((await read(at(-6 * HOUR)))["service.reopen_window_days"]).toBe(3);
+    expect((await read(at(-11 * HOUR)))["service.reopen_window_days"]).toBe(7);
+    expect((await read(at(2 * HOUR)))["service.reopen_window_days"]).toBe(9);
+    expect(problems).toEqual([]);
+    // 库里的值不合定义（这里把定义的上限收到 4，库里的 5 就不合了）：回退到代码默认值并上报
+    const narrowed = (PARAM_DEFS as readonly ParamDef[]).map((def) =>
+      def.key === "service.reopen_window_days" ? { ...def, max: 4 } : def,
+    );
+    expect((await read(at(0), narrowed))["service.reopen_window_days"]).toBe(7);
+    expect(problems.map(({ kind, subject }) => [kind, subject])).toEqual([
+      ["param_invalid_value", "service.reopen_window_days"],
+    ]);
+    // 同一个事务里刚写的值读得到：这是它与走缓存的 get 的差别
+    const fresh = await tx.run(async (handle) => {
+      await handle.paramValue.create({
+        data: {
+          id: uuidv7(),
+          key: "service.reopen_window_days",
+          value: 6,
+          effectiveAt: at(-HOUR),
+          createdByStaffId: staffId,
+          createdAt: at(0),
+        },
+      });
+      return paramsAt(handle, ["service.reopen_window_days"], at(0));
+    });
+    expect(fresh).toEqual({ "service.reopen_window_days": 6 });
   });
 
   it("库里的值不合定义、库里有没定义的键：回退默认值并上报；自检列得出来", TIMEOUT, async () => {

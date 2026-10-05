@@ -8,7 +8,7 @@
 | --- | --- |
 | `index.ts` | `createConfig`：进程装配时建一次，给出下面各件 |
 | `cache.ts` | 版本号缓存：`read`、`bump`、`version`、`invalidate` |
-| `params.ts` | 参数：`get`、`getAt`、`snapshot`、`all`；启动自检 `assertParamDefs` |
+| `params.ts` | 参数：`get`、`getAt`、`snapshot`、`all`；启动自检 `assertParamDefs`；不经配置服务的 `paramsAt(句柄, 键, 时刻)` |
 | `flags.ts` | 开关：`evaluate`、`forClient`、`value`、`isEnabled`、`requireEnabled`、`minClientVersion` |
 | `dicts.ts` | 字典：`list`（后台视图）、`listForMerchant`（小程序视图）、`label`、`isSelectable`、`versions` |
 | `site-config.ts` | 站点配置：`published("mall" \| "home_recommend")` |
@@ -36,6 +36,7 @@ const name = await config.dicts.label("industry", "C0101"); // 不看启用状�
 - 参数缺定义启动失败：`createConfig` 先核对“契约登记的参数键都有定义、默认值合定义”，不过即抛 `ParamDefsError`。
 - 库里没有值的键用代码默认值；默认值是 `null` 的键读到 `null`，意思是“未配置”。
 - 库里没有的开关（还没播种）取登记的默认值。规则按序首条命中；上下文里缺的那一项当不满足。
+- 手里只有事务句柄、拿不到配置服务的地方（装配时静态登记的端口实现与处理器）用 `paramsAt(tx, ["work.start", "work.end"], 时刻)`：一次查询、不走缓存，取值的规矩同 `getAt`，读得到同一事务里刚写的值（W0-30a）。别处照旧用 `config.params`。
 - 写侧提交之后调 `config.cache.bump(命名空间)`：`dict`、`param`、`site`、`flag`、`checklist`。本进程立刻重读，别的进程 5 秒内重读。
 
 ## 3. 缓存的口径
