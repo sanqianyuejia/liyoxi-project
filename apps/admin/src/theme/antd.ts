@@ -13,7 +13,7 @@ const fontSize = adminTokens["font-size"];
 const radius = adminTokens.radius;
 const shadow = adminTokens.shadow;
 
-/** 全局字号 14，表格、输入框、下拉、描述列表、面包屑下调到 13（规范 第 5.4 节） */
+/** 全局字号 14，表格、输入框、下拉、描述列表下调到 13（规范 第 5.4 节）；面包屑是外壳自己写的，13px 在 global.css 里 */
 const BODY = px(fontSize.body);
 
 /** 开关轨道高 20、滑块 16（规范 第 5.3 节；样式变量里只有轨道宽，高与滑块写在它的说明里）：轨道内边距 2，滑块 = 20 − 2 × 2 */
@@ -95,17 +95,9 @@ export const adminTheme: ThemeConfig = {
       // 宽 480、关闭按钮在右在下面的 adminComponentConfig 里给。阴影（antd 的抽屉不认 boxShadow，按方向各有一个不公开的变量）、
       // 内边距 24、头部无分隔线、关闭按钮 32 × 32 在 global.css 里覆盖
     },
-    Tabs: {
-      inkBarColor: color.primary,
-      itemColor: color["text-secondary"],
-      itemSelectedColor: color["text-primary"],
-      itemHoverColor: color["text-primary"],
-      itemActiveColor: color["text-primary"],
-      titleFontSize: px(fontSize.base),
-      horizontalItemGutter: px(sharedTokens.space[4]),
-      horizontalItemPadding: `0 ${sharedTokens.space[10]}`,
-      horizontalMargin: "0",
-    },
+    // 页签、分页、面包屑用本目录自己的构件（components/Tabs、SimplePager、外壳里的面包屑），antd 的 Tabs、Pagination、Breadcrumb
+    // 这里不设：以前有过三段没人用的配置，其中 Tabs 那段把项的上下内边距设成 0，antd 的页签会被压到 22 高（规范是 46）。
+    // 哪个包要用 antd 的这几个组件，走构件 PR 连同键盘聚焦一起整套补（global.css 开头）
     Input: {
       inputFontSize: BODY,
       paddingInline: px(sharedTokens.space[10]),
@@ -188,25 +180,9 @@ export const adminTheme: ThemeConfig = {
       headerPadding: px(sharedTokens.space[16]),
       headerFontSize: px(fontSize["title-md"]),
     },
-    Breadcrumb: {
-      fontSize: BODY,
-      itemColor: color["text-secondary"],
-      linkColor: color["text-secondary"],
-      linkHoverColor: color["text-primary"],
-      lastItemColor: color["text-primary"],
-      separatorColor: color["text-secondary"],
-    },
     Descriptions: {
       fontSize: BODY,
       labelColor: color["text-secondary"],
-    },
-    Pagination: {
-      itemSize: px(size["control-sm"]),
-      itemActiveBg: color["bg-inverse"],
-      itemActiveColor: color["text-inverse"],
-      itemActiveColorHover: color["text-inverse"],
-      borderRadius: px(radius["icon-button"]),
-      fontSize: BODY,
     },
     Notification: {
       colorBgElevated: color["bg-inverse"],
