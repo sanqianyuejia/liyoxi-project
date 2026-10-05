@@ -65,7 +65,8 @@
     "status-tone:check": "pnpm --filter @liyoxi/shared status-tone:check",
     "demo:m0": "pnpm --filter @liyoxi/services demo:m0",
     "plan:summaries": "node infra/ci/plan-summaries.mjs",
-    "counts:report": "node infra/ci/four-counts.mjs"
+    "counts:report": "node infra/ci/four-counts.mjs",
+    "test:fault": "vitest run concurrency.test property.test fault idempotency lease.test"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.3",
