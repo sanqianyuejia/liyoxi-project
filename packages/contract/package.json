@@ -29,6 +29,10 @@
       "types": "./src/config/params.ts",
       "default": "./src/config/params.ts"
     },
+    "./authz": {
+      "types": "./src/authz/index.ts",
+      "default": "./src/authz/index.ts"
+    },
     "./types/merchant": {
       "types": "./generated/merchant.d.ts"
     },

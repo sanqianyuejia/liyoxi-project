@@ -653,7 +653,7 @@ describe("验收 6：纯常量子路径不带 Zod", () => {
     }
   });
 
-  it("exports 只开任务书定的子路径（W0-08 的五个；W0-09a 加的纯常量子路径各有自己的用例）", () => {
+  it("exports 只开任务书定的子路径（W0-08 的五个；W0-09a、W0-09b 加的纯常量子路径各有自己的用例）", () => {
     expect(Object.keys(manifest.exports)).toEqual([
       ".",
       "./errors",
@@ -661,6 +661,7 @@ describe("验收 6：纯常量子路径不带 Zod", () => {
       "./registry",
       "./config/flags",
       "./config/params",
+      "./authz",
       "./types/merchant",
       "./types/admin",
       "./types/portal",
