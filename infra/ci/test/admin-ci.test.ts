@@ -19,14 +19,15 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
 
-function verifySteps(): Map<string, string> {
-  const start = ci.indexOf("\n  verify:\n");
-  const end = ci.indexOf("\n  gate-classify:\n");
+/** web 任务的各个步骤：从它的键到下一个任务的键 */
+function webSteps(): Map<string, string> {
+  const start = ci.indexOf("\n  web:\n");
   expect(start).toBeGreaterThan(0);
-  expect(end).toBeGreaterThan(start);
+  const next = ci.slice(start + 2).search(/^ {2}[\w-]+:$/m) + 1;
+  expect(next).toBeGreaterThan(0);
   const steps = new Map<string, string>();
   for (const text of ci
-    .slice(start, end)
+    .slice(start, start + 1 + next)
     .split(/^ {6}- name: /m)
     .slice(1)) {
     steps.set(text.slice(0, text.indexOf("\n")), text);
@@ -34,8 +35,8 @@ function verifySteps(): Map<string, string> {
   return steps;
 }
 
-describe("CI：后台与下载页的步骤在必过任务 verify 里", () => {
-  const steps = verifySteps();
+describe("CI：后台与下载页的步骤在必过任务 web 里", () => {
+  const steps = webSteps();
   const scripts = (JSON.parse(read("package.json")) as { scripts: Record<string, string> }).scripts;
 
   it("单测、构建、页面清单三步都在，不带条件、不带免死牌", () => {
@@ -51,6 +52,11 @@ describe("CI：后台与下载页的步骤在必过任务 verify 里", () => {
       expect(step, name).not.toMatch(/^ {8}if:/m);
       expect(step, name).not.toMatch(/\|\|/);
     }
+  });
+
+  it("web 是 required 的依赖：这几步失败，必过检查就失败", () => {
+    const required = ci.slice(ci.indexOf("\n  required:\n"));
+    expect(required).toMatch(/^ {4}needs:\n(?: {6}- [\w-]+\n)*? {6}- web$/m);
   });
 
   it("根脚本指到两个应用自己的脚本；两个应用的 build 都在 vite build 之后跑产物检查，test 是真的 vitest", () => {
@@ -78,6 +84,19 @@ describe("CI：后台与下载页的步骤在必过任务 verify 里", () => {
       "github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || ''",
     );
     expect(decide).not.toMatch(/^ {8}if:/m);
+    // 浏览器缓存的两步（取版本、缓存）也只在要跑时执行；缓存的键里带 Playwright 的版本
+    for (const name of ["取 Playwright 的版本", "后台冒烟用的浏览器缓存"]) {
+      expect(steps.get(name), name).toContain(
+        "\n        if: steps.admin-e2e.outputs.run == 'true'\n",
+      );
+    }
+    expect(steps.get("取 Playwright 的版本")).toContain("\n        id: playwright\n");
+    const cache = steps.get("后台冒烟用的浏览器缓存");
+    expect(cache).toMatch(/uses: actions\/cache@[0-9a-f]{40} # v\d+\.\d+\.\d+/);
+    expect(cache).toContain("\n          path: ~/.cache/ms-playwright\n");
+    expect(cache).toMatch(
+      /^ {10}key: playwright-.*\$\{\{ steps\.playwright\.outputs\.version \}\}$/m,
+    );
     for (const name of ["装后台冒烟用的浏览器", "后台冒烟"]) {
       expect(steps.get(name), name).toContain(
         "\n        if: steps.admin-e2e.outputs.run == 'true'\n",

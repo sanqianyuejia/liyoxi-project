@@ -19,10 +19,10 @@ const GUARD = "与源码一致由 `pnpm design:check` 把关";
 /** verify 任务的全文：从它的键到下一个任务的键 */
 function verifyJob(): string {
   const start = ci.indexOf("\n  verify:\n");
-  const end = ci.indexOf("\n  gate-classify:\n");
   expect(start).toBeGreaterThan(0);
-  expect(end).toBeGreaterThan(start);
-  return ci.slice(start, end);
+  const next = ci.slice(start + 2).search(/^ {2}[\w-]+:$/m) + 1;
+  expect(next).toBeGreaterThan(0);
+  return ci.slice(start, start + 1 + next);
 }
 
 describe("CI：两步检查在必过任务 verify 里", () => {

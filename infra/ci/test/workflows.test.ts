@@ -341,66 +341,128 @@ describe("ci.yml", () => {
     expect(runsOn.filter((value) => value !== "*runner")).toEqual(["&runner ubuntu-24.04"]);
   });
 
-  it("verify 的步骤齐全，顺序照计划 第 5.5 节", () => {
-    const commands = [...jobBody(ci, "verify").matchAll(/^ {8}run: (.+)$/gm)].map((m) => m[1]);
-    expect(commands).toEqual([
-      "pnpm install --frozen-lockfile",
+  // 必过任务并行跑：各任务各自装依赖、各起各的服务。
+  // 往某个任务加一步时，在它那张清单的同一位置加一行；新增任务时在这里加一张清单（都是只增）。
+  const INSTALL = "pnpm install --frozen-lockfile";
+  // W0-05：数据库客户端不入库，类型检查与测试之前先生成
+  const DB_GENERATE = "pnpm db:generate";
+  // packages/db 的用例、枚举对账及其反例要连迁移库 lyx_migrate_check，W0-10 的 api-check、约束名核对
+  // 及其用例与反例也读它：用到它的任务各建一份
+  const MIGRATE = 'psql -X -w -d postgres -c "CREATE DATABASE lyx_migrate_check" && pnpm db:deploy';
+  const MINIO_UP = "docker compose -f infra/compose/local.yml up -d --wait minio";
+  const STEPS: Record<string, string[]> = {
+    // 静态检查，不连库
+    verify: [
+      INSTALL,
       "pnpm lint",
       // 只认 .prettierignore：不让 .gitignore（不是门禁文件）决定哪些文件不查格式
       "pnpm format:check --ignore-path .prettierignore",
       "pnpm check:rename",
       // W0-26：页面不写色值
       "pnpm lint:colors",
-      // W0-05：数据库客户端不入库，类型检查之前先生成
-      "pnpm db:generate",
+      DB_GENERATE,
       "pnpm typecheck",
       // 两个 React 大版本并存：类型解析不经 pnpm 的提升目录落到各工程装得不一样的包上
       "pnpm check:type-hoist",
       "pnpm depcheck",
-      // W0-05：首版迁移的等价性证明，排在“测试”之前（上传比对报告那一步没有 run）
       "pnpm db:validate",
-      "npm ci --prefix tools/schema-check --no-audit --no-fund --registry https://registry.npmjs.org/ && python3 tools/schema-check/check.py --keep",
-      'psql -X -w -d postgres -c "CREATE DATABASE lyx_migrate_check" && pnpm db:deploy',
-      "pnpm db:catalog-diff",
-      "pnpm db:deploy && pnpm db:catalog-diff",
-      "docker compose -f infra/compose/local.yml up -d --wait minio",
-      "pnpm exec vitest run packages/services/src/providers/storage/minio.test.ts",
-      "pnpm test",
-      // W0-05b：两个会话同时跑连库的测试项目（挂了 globalSetup 的），核对库名与 Redis 前缀没有交集
-      "pnpm test:isolation --scope connected",
       "pnpm contract:check",
-      // W0-09a：登记表对账（x01 名称登记与归属表）、枚举与库 CHECK 一致
+      // W0-09a：登记表对账（x01 名称登记与归属表）
       "pnpm registry:check",
-      "pnpm enums:check",
       // W0-12：状态机迁移表与分组文档逐行对照
       "pnpm machines:check",
       // W0-09b：接口侧注册表对账（错误码、权限点、能力点、资源、场景、点位、埋点事件）
       "pnpm api-registries:check",
-      // W0-10：路由元数据对账、api-check、约束名核对、待落地数只减不增、计划 第 8.2 节的表（它的下一步上传两份清单，没有 run）
+      // W0-10：路由元数据对账（不连库；其余四步在 test）
       "pnpm contract:docs-check",
+      // W0-26：设计生成物无差异（它的下一步上传预览页，没有 run）
+      "pnpm design:check",
+      "node infra/ci/check-env-example.mjs",
+      // 状态文件核对：只查状态文件合不合规；状态汇总不入库，不再与入库的文件比对
+      "node infra/ci/status-summary.mjs --check",
+    ],
+    // 各包的用例：infra 以外的测试项目
+    test: [
+      INSTALL,
+      DB_GENERATE,
+      // W0-05：首版迁移的等价性证明，排在“测试”之前（上传比对报告那一步没有 run）
+      "npm ci --prefix tools/schema-check --no-audit --no-fund --registry https://registry.npmjs.org/ && python3 tools/schema-check/check.py --keep",
+      MIGRATE,
+      "pnpm db:catalog-diff",
+      "pnpm db:deploy && pnpm db:catalog-diff",
+      // W0-09a：枚举与库 CHECK 一致，读上面建的迁移库
+      "pnpm enums:check",
+      MINIO_UP,
+      "pnpm exec vitest run packages/services/src/providers/storage/minio.test.ts",
+      "pnpm test --project '!infra'",
+      // W0-10：api-check、约束名核对读上面建的迁移库；待落地数只减不增要排在“测试”之后（已挂载处理器的清单由
+      // apps/api 的测试装配导出）；计划 第 8.2 节的表（它的下一步上传两份清单，没有 run）
       "node infra/ci/api-check.mjs",
       "node infra/ci/natural-constraints.mjs",
       "node infra/ci/landed.mjs --check --report --out packages/contract/dist/pending-routes.md",
       "node infra/ci/plan-routes.mjs --check --summary packages/contract/dist/route-milestones.md",
-      // W0-26：设计生成物无差异（它的下一步上传预览页，没有 run）
-      "pnpm design:check",
+    ],
+    // infra 项目的用例：连库的几份自己建临时库，不用生成的客户端；W0-10 约束名核对的用例只读迁移库，所以先建一份
+    "test-infra": [INSTALL, MIGRATE, "pnpm test --project infra"],
+    // W0-05b：两个会话同时跑连库的测试项目（挂了 globalSetup 的），核对库名与 Redis 前缀没有交集
+    "test-isolation": [
+      INSTALL,
+      DB_GENERATE,
+      MIGRATE,
+      MINIO_UP,
+      "pnpm test:isolation --scope connected",
+    ],
+    // 构建；W0-28：后台与下载页的单测、构建、页面清单；后台冒烟按受影响范围跑（它后面上传截图的一步没有 run）
+    web: [
+      INSTALL,
       "pnpm -r --if-present build",
-      // W0-28：后台与下载页的单测、构建、页面清单；后台冒烟按受影响范围跑（它后面上传截图的一步没有 run）
       "pnpm --filter @liyoxi/admin --filter @liyoxi/portal test",
       "pnpm admin:build && pnpm portal:build",
       "node infra/ci/pages/generate.mjs --check",
       'node apps/admin/scripts/e2e-affected.mjs --base "$BASE"',
+      // 浏览器缓存的键：Playwright 的版本（它的下一步是缓存，没有 run）
+      `node -p '"version=" + require("./apps/admin/package.json").devDependencies["@playwright/test"]' >> "$GITHUB_OUTPUT"`,
       "pnpm --filter @liyoxi/admin exec playwright install --with-deps chromium",
       "pnpm admin:e2e",
-      "node infra/ci/check-env-example.mjs",
+    ],
+    gates: [
+      INSTALL,
       "node infra/ci/secret-scan.mjs",
       "pnpm audit --prod --audit-level high --registry https://registry.npmjs.org/",
       'node infra/ci/check-release-age.mjs --since "$SINCE" --registry https://registry.npmjs.org/',
+      // 门禁自测里“枚举与库 CHECK 一致”的反例要读迁移库
+      MIGRATE,
       "pnpm gates:selftest",
-      // 状态文件核对：只查状态文件合不合规；状态汇总不入库，不再与入库的文件比对
-      "node infra/ci/status-summary.mjs --check",
+    ],
+  };
+  const commandsOf = (id: string) =>
+    [...jobBody(ci, id).matchAll(/^ {8}run: (.+)$/gm)].map((match) => match[1]);
+
+  it("跑检查的任务都列在这里：分类与汇总以外的每个任务各有一张命令清单", () => {
+    const others = jobIds(ci).filter((id) => id !== "gate-classify" && id !== "required");
+    expect(Object.keys(STEPS).sort()).toEqual(others.sort());
+  });
+
+  it.each(Object.keys(STEPS))("%s 的步骤齐全，顺序照清单", (id) => {
+    expect(commandsOf(id)).toEqual(STEPS[id]);
+  });
+
+  it("根上的 pnpm test 拆在两个任务里跑：infra 项目与 infra 以外的全部项目，合起来是全量", () => {
+    const runs = Object.keys(STEPS).flatMap((id) =>
+      commandsOf(id)
+        .filter((command) => /^pnpm test(?: |$)/.test(command))
+        .map((command) => [id, command]),
+    );
+    expect(runs).toEqual([
+      ["test", "pnpm test --project '!infra'"],
+      ["test-infra", "pnpm test --project infra"],
     ]);
-    // 步骤名跟着含义走：不再叫“状态汇总无差异”
+    // infra 确实是根测试配置里的一个项目：改了名，上面两条命令就不再是“一半对一半”
+    expect(read("infra/vitest.config.ts")).toMatch(/^ {4}name: "infra",$/m);
+    expect(read("vitest.config.ts")).toMatch(/^ {4}projects: \[.*"infra".*\],$/m);
+  });
+
+  it("状态文件核对的步骤名跟着含义走：不再叫“状态汇总无差异”", () => {
     expect(jobBody(ci, "verify")).toMatch(
       /^ {6}- name: 状态文件核对\n {8}run: node infra\/ci\/status-summary\.mjs --check$/m,
     );
@@ -484,14 +546,43 @@ describe("本地 Compose 与 CI 的服务容器", () => {
     expect(compose).not.toMatch(/^\s*TZ:/m);
   });
 
-  it("CI 的服务容器与本地用同一组镜像、端口与开发口令", () => {
-    for (const service of ["postgres", "redis"]) {
-      expect(imageOf(ci, service)).toBe(imageOf(compose, service));
-    }
-    expect(ci).toContain('ports: ["5442:5432"]');
-    expect(ci).toContain('ports: ["6389:6379"]');
+  it("CI 的服务容器与本地用同一组镜像、端口与开发口令；几个任务各挂各的，每一处都一样", () => {
     const password = compose.match(/POSTGRES_PASSWORD: (\S+)/)?.[1];
-    expect(ci).toContain(`POSTGRES_PASSWORD: ${password}`);
-    expect(ci).toContain(`DATABASE_URL: postgresql://liyoxi:${password}@localhost:5442/liyoxi`);
+    const blocks = (service: string) =>
+      [
+        ...ci.matchAll(new RegExp(`^ {6}${service}:\\n {8}image: (\\S+)\\n(?: {8,}.*\\n)*`, "gm")),
+      ].map((match) => ({ image: match[1], text: match[0] }));
+    const postgres = blocks("postgres");
+    const redis = blocks("redis");
+    expect(postgres.length).toBeGreaterThan(0);
+    expect(redis.length).toBeGreaterThan(0);
+    for (const block of postgres) {
+      expect(block.image).toBe(imageOf(compose, "postgres"));
+      expect(block.text).toContain('ports: ["5442:5432"]');
+      expect(block.text).toContain(`POSTGRES_PASSWORD: ${password}`);
+    }
+    for (const block of redis) {
+      expect(block.image).toBe(imageOf(compose, "redis"));
+      expect(block.text).toContain('ports: ["6389:6379"]');
+    }
+    // 别的写法的服务容器（缩进不同、镜像不在下一行）读不到：image 一共就这么几行
+    expect(ci.match(/^ +image: /gm)).toHaveLength(postgres.length + redis.length);
+    // 连接参数只写在工作流顶层一处，全部任务相同
+    expect(ci).toMatch(
+      new RegExp(
+        `^env:\\n {2}APP_ENV: test\\n {2}DATABASE_URL: postgresql://liyoxi:${password}@localhost:5442/liyoxi\\n {2}REDIS_URL: redis://localhost:6389/0\\n`,
+        "m",
+      ),
+    );
+    expect(ci.match(/^ +APP_ENV: /gm)).toHaveLength(1);
+  });
+
+  it("要连库的任务都挂了 PostgreSQL；跑连 Redis 的用例的任务另挂 Redis", () => {
+    const servicesOf = (id: string) =>
+      [...jobBody(ci, id).matchAll(/^ {6}([\w-]+):\n {8}image: /gm)].map((match) => match[1]);
+    expect(servicesOf("test")).toEqual(["postgres", "redis"]);
+    expect(servicesOf("test-isolation")).toEqual(["postgres", "redis"]);
+    expect(servicesOf("test-infra")).toEqual(["postgres"]);
+    expect(servicesOf("gates")).toEqual(["postgres"]);
   });
 });
