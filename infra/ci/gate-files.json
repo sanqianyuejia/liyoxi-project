@@ -144,6 +144,11 @@
       "pattern": "infra/ci/draft-freeze.sha256",
       "kind": "frozen",
       "note": "草稿冻结守卫的登记值：docs/data-model/schema.prisma 与 constraints/ 的 sha256。草稿已冻结，结构以迁移为准"
+    },
+    {
+      "pattern": "packages/shared/scripts/status-tone-check.ts",
+      "kind": "new-file",
+      "note": "“状态字典键与契约枚举同名”的检查脚本（pnpm status-tone:check）：它在 packages/shared 下，不在 infra/ci 的条目之内，单独登记"
     }
   ]
 }

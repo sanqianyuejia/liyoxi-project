@@ -83,7 +83,8 @@
     "build": "echo '源码包：exports 直接指向 src，没有构建'",
     "design:generate": "tsx scripts/generate.ts",
     "machines:check": "tsx scripts/machines-check.ts",
-    "machines:coverage": "tsx scripts/machines-coverage.ts"
+    "machines:coverage": "tsx scripts/machines-coverage.ts",
+    "status-tone:check": "tsx scripts/status-tone-check.ts"
   },
   "dependencies": {
     "@liyoxi/contract": "workspace:*"

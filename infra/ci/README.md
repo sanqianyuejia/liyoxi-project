@@ -76,6 +76,7 @@
 - `verify` 的“类型”之后有一步“类型解析不靠提升”（`pnpm check:type-hoist`）。它不看类型检查这一次过没过，看的是结果会不会随 pnpm 提升了哪一份而变，所以两步都要。来历、口径与失败了怎么办见第 7 节。每晚任务没有加这一步：它查的是结果会不会随安装变，与 Node 版本无关。它的用例（`test/type-hoist.test.ts`）只摆小树，不对本仓库再跑一遍。
 - 路由元数据接管（W0-10）的六步分在两个任务里，五步检查加一步上传，都只读，合计几秒。“路由元数据对账”（`pnpm contract:docs-check`，脚本在 `packages/contract/scripts/`，理由同 W0-09a 那一条）在 `verify`，排在“接口侧注册表对账”之后：不连库。其余五步在 `test` 的“测试”之后：“api-check”；“natural 幂等的约束名核对”；“待落地数只减不增”；“里程碑归属与计划 第 8.2 节的表”；“上传里程碑归属汇总与待落地清单”（产物 `route-milestones`，两份 Markdown，写在 `packages/contract/dist/`，不入库）。前两步读前面“空库跑全部迁移”建的 `lyx_migrate_check`：任务书原定给 api-check 另建一个 `lyx_api_check`，为省时长改成共用，两个库的内容相同。后两步不连库，放在 `test` 是因为“待落地数只减不增”要排在“测试”之后（已挂载处理器的清单 `apps/api/dist/mounted-operations.json` 由 `apps/api` 的测试装配导出，W0-22 接上），它出的清单又与“里程碑归属”那一步的由同一步上传。约束名核对的用例（`test/routes-gates.test.ts`）只读迁移库，所以 `test-infra` 在“测试”之前也建一份。口径见第 7 节。
 - 结构防漂移（W0-06b）的六步分在两个任务里。连库的四步在 `test`，排在“上传系统目录比对报告”之后、“枚举与库 CHECK 一致”之前。“结构快照无差异”（`pnpm db:snapshot:check`）：另建一个临时库跑完全部迁移，重新生成快照后 `git diff --exit-code`，再查快照目录下没有未跟踪的文件。“约束清单比对”（`pnpm db:constraints:check`）与“分区断言”（`pnpm db:partitions:assert`）：读前面建的 `lyx_migrate_check`，只读。“分组文档字段表与迁移后的库一致（schema-check）”（`python3 tools/schema-check/check.py --existing lyx_migrate_check`）：只读；这个工具只认 `PG*` 环境变量，在步骤里写明。不连库的两步在 `verify`，排在 `prisma validate` 之后：“迁移规范”（`pnpm db:migration-lint --base "$BASE"`）与“草稿冻结守卫”（`pnpm db:draft-freeze:check`）；基线 PR 取目标分支，推到 main 取推之前的提交，写法同“新增依赖发布时长”一步。六步本机合计十几秒，大头是快照那一步里的建库跑迁移。口径、怎么跟、已知的限度见第 8 节。
+- 状态字典（W0-30a）在 `verify` 的末尾有一步：“状态字典键与契约枚举同名”（`pnpm status-tone:check`）。状态色调字典（`packages/shared/src/design/status-tone`）里写了“表.列”的条目，那一列要在契约里绑定了枚举，取值都在枚举的取值之内；没写“表.列”的条目（无枚举对应）不查，字典没收的枚举取值不算差异。库里确有这一列而契约还没有绑定枚举的（取值写在组合条件的 CHECK 里，`enums:check` 认不了），条目的说明以“契约未绑定枚举：”开头，检查只列出；契约补上之后检查会要求把这句去掉。只读文件，不连库，约 1 秒。脚本在 `packages/shared/scripts/status-tone-check.ts`，理由同 W0-09a 那一条；它不在本目录的条目之内，在 `gate-files.json` 里单独登记（`new-file`：改它算放松）。字典本身没有登记成门禁文件。
 
 ## 3. 怎么加一步检查
 
@@ -120,6 +121,7 @@ export default {
 - `landed-above-baseline`、`plan-routes-stale-table`（W0-10）不连库：各把一份输入（路由清单加一条、计划文档改一个数）另存到仓库外，用脚本的参数换路径，判定用的其余输入是仓库里真的那几份。待落地数、基线、表里的数都是现读的，不写死。
 - `natural-constraints-wrong-name`、`api-check-unverified`、`api-check-stale-registry`（W0-10）要本地那套 PostgreSQL 与连接参数，第一、三例另要 `lyx_migrate_check` 已跑过迁移；都只读，不建库。后两例要 `python3` 与 `psql` 在 PATH 上；第三例在仓库外建一个临时 git 仓库，拷进校验工具与它读的 `docs/api`、`docs/data-model`，改路线图里一条摘要后跑副本里的包装脚本。
 - 名字以 `db-snapshot-`、`db-constraints-`、`db-partitions-` 开头的七例与 `schema-check-doc-column-type`（W0-06b）要本地那套 PostgreSQL 与连接参数，后一例另要 `python3` 与 `psql`。它们共用两个库（`selftest/lib/db-structure.mjs`）：头一个用到的反例建“基准库”（空库上跑完全部迁移），再拷一个“改过的库”，把几处一次改完，之后各例只认自己那一处的报错；两个库以 `lyx_selftest_struct_` 开头、带进程号，门禁自测退出时删掉。要动手脚的索引、列、触发器、月份都从库里现挑，不点名：加表、改索引的包不用改这些反例。`migration-lint-unmarked-drop-column`、`draft-freeze-one-byte` 不连库。
+- `status-tone-check-unknown-value`（W0-30a）在仓库外的副本里跑真的根脚本（`pnpm status-tone:check`），条件同 `contract-check-stale-generated`；不连库。改哪个条目的取值是现挑的（按文件名排序第一份字典里第一条有枚举对应的条目），字典随各域的包改动时不用改这个反例。
 
 ## 5. 门禁改动分类
 

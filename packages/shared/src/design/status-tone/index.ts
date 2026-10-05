@@ -1,6 +1,7 @@
 // 状态色调字典：状态与颜色的对应集中在这一份常量里，页面不写色值（规范 第 6.1 节）。
 // 一个业务对象一个文件，这里按规范 第 6.2 节的先后汇总。表里没有的状态按规范 第 6.1 节的方法判断；
-// 超时与逾期一律 danger。“键与契约枚举同名”的检查由 M0 合流（W0-30）接入，只查有枚举对应的条目。
+// 超时与逾期一律 danger。“键与契约枚举同名”的检查是 pnpm status-tone:check（W0-30a），只查有枚举对应的条目：
+// 条目的“表.列”在契约里绑定了枚举，取值都在那个枚举之内。口径见 scripts/status-tone-check.ts 开头的注释。
 
 import { ad } from "./ad.js";
 import { approval } from "./approval.js";
@@ -31,7 +32,7 @@ import { subscription } from "./subscription.js";
 import { taskQueue } from "./task-queue.js";
 import type { StatusToneEntry, StatusToneGroup } from "./types.js";
 
-export { TONES } from "./types.js";
+export { TONES, UNBOUND_ENUM_NOTE } from "./types.js";
 export type { Side, StatusToneEntry, StatusToneGroup, Tone, ToneSide } from "./types.js";
 
 /** 全部业务对象，顺序同规范 第 6.2 节的表 */

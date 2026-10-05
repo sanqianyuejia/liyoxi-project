@@ -383,6 +383,8 @@ describe("ci.yml", () => {
       "node infra/ci/check-env-example.mjs",
       // 状态文件核对：只查状态文件合不合规；状态汇总不入库，不再与入库的文件比对
       "node infra/ci/status-summary.mjs --check",
+      // W0-30a：状态字典键与契约枚举同名
+      "pnpm status-tone:check",
     ],
     // 各包的用例：infra 以外的测试项目
     test: [

@@ -21,13 +21,19 @@ export interface StatusToneEntry {
   readonly column: string | null;
   /** 该列的取值；无枚举对应时为空 */
   readonly values: readonly string[];
-  /** 无枚举对应时写推导来源；有对应时可以补一句说明 */
+  /** 无枚举对应时写推导来源；有对应时可以补一句说明；契约还没有绑定这一列的枚举时以 UNBOUND_ENUM_NOTE 开头 */
   readonly note?: string;
   /** 商家端；null = 这一端不出现 */
   readonly merchant: ToneSide | null;
   /** 后台；null = 这一端不出现 */
   readonly admin: ToneSide | null;
 }
+
+/**
+ * 库里确有这一列、契约还没有绑定枚举的条目，说明以这句开头并写明出处（W0-30a）。
+ * “键与契约枚举同名”的检查（pnpm status-tone:check）见到它只列出、不核对取值；契约补上枚举之后检查会要求把它去掉。
+ */
+export const UNBOUND_ENUM_NOTE = "契约未绑定枚举：";
 
 export interface StatusToneGroup {
   /** 分组键，与文件名相同 */

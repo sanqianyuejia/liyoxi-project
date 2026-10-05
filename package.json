@@ -57,7 +57,8 @@
     "db:constraints:check": "node infra/ci/db-constraints.mjs",
     "db:partitions:assert": "node infra/ci/db-partition-assert.mjs",
     "db:migration-lint": "node infra/ci/migration-lint.mjs",
-    "db:draft-freeze:check": "node infra/ci/draft-freeze.mjs"
+    "db:draft-freeze:check": "node infra/ci/draft-freeze.mjs",
+    "status-tone:check": "pnpm --filter @liyoxi/shared status-tone:check"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.3",
