@@ -71,6 +71,9 @@ jobs:
         run: pnpm check:rename
       - name: 页面不写色值
         run: pnpm lint:colors
+      # W1-05：规范 第 11 节的词不出现在它管的页面与错误码的默认文案里。规则表 infra/ci/copy-rules.json；不连库
+      - name: 文案约束
+        run: pnpm lint:copy
       # 数据库客户端是生成物，不入库（W0-05）：类型检查之前先生成。这一步不连库
       - name: 生成数据库客户端
         run: pnpm db:generate

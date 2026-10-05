@@ -360,6 +360,8 @@ describe("ci.yml", () => {
       "pnpm check:rename",
       // W0-26：页面不写色值
       "pnpm lint:colors",
+      // W1-05：文案约束（规范 第 11 节的词不出现在它管的页面与错误码的默认文案里）
+      "pnpm lint:copy",
       DB_GENERATE,
       "pnpm typecheck",
       // 两个 React 大版本并存：类型解析不经 pnpm 的提升目录落到各工程装得不一样的包上
