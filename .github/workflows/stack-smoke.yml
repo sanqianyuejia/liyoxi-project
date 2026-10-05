@@ -1,0 +1,60 @@
+# 狸有戏 · 本地整套环境的冒烟（W1-22 任务书 第 7 节、第 10 节第 9 项）。
+#
+# 不是必过检查：不进 ci.yml 的汇总任务 required，失败不挡合并（PR 必过检查合计 ≤15 分钟；镜像构建进必过是 M2 的事，W2-25）。
+# 触发：改到镜像定义、Compose、起停与冒烟脚本、两个服务端应用、迁移或本文件的 PR；推到 main；手动。
+# 步骤对着任务书 第 7 节：第 1 条构建三个镜像；第 2 条看 server 镜像的内容；第 3 条一条命令起整套，再起一遍
+#（不报错、不重复播种）；第 4、5 条冒烟（经网关的探活与静态资源、域名隔离、请求体上限、mediatool 的套接字、容器约束）；
+# 第 6 条收场。脚本只用 Node 自带模块与 docker 命令行，所以这里不装依赖：依赖在镜像的构建阶段里按锁文件装。
+# 写法照 infra/ci/README.md 第 2 节：任务编号与名字相同，键不带引号，第三方 Action 固定到提交 SHA。
+name: stack-smoke
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - infra/docker/**
+      - infra/compose/**
+      - infra/stack/**
+      - apps/api/**
+      - apps/worker/**
+      - packages/db/prisma/**
+      - .github/workflows/stack-smoke.yml
+  push:
+    branches: [main]
+
+concurrency:
+  group: stack-smoke-${{ github.head_ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  stack-smoke:
+    name: stack-smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: 检出
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: 装 Node（版本取 .nvmrc）
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - name: 第 1 条：构建三个镜像
+        run: node infra/stack/up.mjs build
+      - name: 第 2 条：server 镜像的内容
+        run: node infra/stack/smoke.mjs --image-only
+      - name: 第 3 条：一条命令起整套
+        run: node infra/stack/up.mjs up
+      - name: 第 3 条：再起一遍
+        run: node infra/stack/up.mjs up
+      - name: 第 4、5 条：冒烟
+        run: node infra/stack/smoke.mjs
+      - name: 没过时的现场
+        if: failure()
+        run: docker ps -a; for name in lyx-gateway lyx-api lyx-worker lyx-mediatool; do echo "== $name"; docker logs --tail 80 "$name" 2>&1 || true; done
+      - name: 第 6 条：收场
+        run: node infra/stack/up.mjs down --reset

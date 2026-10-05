@@ -616,3 +616,53 @@ describe("本地 Compose 与 CI 的服务容器", () => {
     expect(servicesOf("gates")).toEqual(["postgres"]);
   });
 });
+
+describe("stack-smoke.yml", () => {
+  const stackSmoke = read(".github/workflows/stack-smoke.yml");
+
+  it("手动、推到 main、改到镜像定义、Compose、起停脚本、两个服务端应用、迁移或它自己的 PR 时触发", () => {
+    expect(stackSmoke).toMatch(/^ {2}workflow_dispatch:$/m);
+    expect(stackSmoke).toMatch(/^ {2}push:\n {4}branches: \[main\]$/m);
+    const paths = [
+      ...(
+        stackSmoke.match(/^ {2}pull_request:\n {4}paths:\n((?: {6}- .+\n)+)/m)?.[1] ?? ""
+      ).matchAll(/^ {6}- (.+)$/gm),
+    ].map((match) => match[1]);
+    expect(paths).toEqual([
+      "infra/docker/**",
+      "infra/compose/**",
+      "infra/stack/**",
+      "apps/api/**",
+      "apps/worker/**",
+      "packages/db/prisma/**",
+      ".github/workflows/stack-smoke.yml",
+    ]);
+  });
+
+  it("构建、看镜像、起两遍、冒烟、收场；超时 15 分钟；不装依赖", () => {
+    expect(stackSmoke).toMatch(/^ {4}timeout-minutes: 15$/m);
+    const commands = [...stackSmoke.matchAll(/^ {8}run: (.+)$/gm)].map((match) => match[1] ?? "");
+    // 往这个任务加一步时，在这张清单的同一位置加一行。“没过时的现场”一步只在前面失败时跑，不在清单里比全文
+    expect(commands.filter((command) => !command.startsWith("docker ps -a;"))).toEqual([
+      "node infra/stack/up.mjs build",
+      "node infra/stack/smoke.mjs --image-only",
+      "node infra/stack/up.mjs up",
+      "node infra/stack/up.mjs up",
+      "node infra/stack/smoke.mjs",
+      "node infra/stack/up.mjs down --reset",
+    ]);
+    expect(stackSmoke).not.toMatch(/pnpm install/);
+    // 根脚本指到同一组命令
+    const scripts = (JSON.parse(read("package.json")) as { scripts: Record<string, string> })
+      .scripts;
+    expect(scripts["stack:build"]).toBe("node infra/stack/up.mjs build");
+    expect(scripts["stack:up"]).toBe("node infra/stack/up.mjs up");
+    expect(scripts["stack:smoke"]).toBe("node infra/stack/smoke.mjs");
+    expect(scripts["stack:down"]).toBe("node infra/stack/up.mjs down");
+  });
+
+  it("不在必过检查里：ci.yml 的任务清单里没有它", () => {
+    expect(jobIds(stackSmoke)).toEqual(["stack-smoke"]);
+    expect(jobIds(ci)).not.toContain("stack-smoke");
+  });
+});

@@ -63,7 +63,11 @@
     "weapp:build": "pnpm --filter @liyoxi/weapp build",
     "weapp:shots": "pnpm --filter @liyoxi/weapp shots",
     "status-tone:check": "pnpm --filter @liyoxi/shared status-tone:check",
-    "lint:copy": "node infra/ci/check-copy.mjs"
+    "lint:copy": "node infra/ci/check-copy.mjs",
+    "stack:build": "node infra/stack/up.mjs build",
+    "stack:up": "node infra/stack/up.mjs up",
+    "stack:smoke": "node infra/stack/smoke.mjs",
+    "stack:down": "node infra/stack/up.mjs down"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.3",
