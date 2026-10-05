@@ -1,0 +1,23 @@
+// M0 占位页的样式。页面包交付时连同占位页一起换掉
+.lyx-placeholder-page {
+  box-sizing: border-box;
+  padding: 4px 16px 20px;
+}
+
+.lyx-placeholder-page__card {
+  padding: 24px 16px;
+  border-radius: $lyx-radius-lg;
+  background: $lyx-color-bg-card;
+}
+
+.lyx-placeholder-page__title {
+  font-size: $lyx-font-size-title;
+  font-weight: $lyx-font-weight-semibold;
+  color: $lyx-color-text-primary;
+}
+
+.lyx-placeholder-page__note {
+  margin-top: 8px;
+  font-size: $lyx-font-size-caption;
+  color: $lyx-color-text-secondary;
+}

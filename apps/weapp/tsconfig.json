@@ -1,3 +1,9 @@
 {
-  "extends": "../../packages/config/tsconfig/taro-react18.json"
+  "extends": "../../packages/config/tsconfig/taro-react18.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": { "@/*": ["./src/*"] },
+    "types": ["@tarojs/taro", "node"]
+  },
+  "include": ["./src", "./types", "./config", "./vitest.config.ts"]
 }

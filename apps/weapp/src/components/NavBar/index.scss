@@ -1,0 +1,21 @@
+.lyx-navbar__bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  box-sizing: border-box;
+  padding-left: 16px;
+  padding-bottom: 8px;
+  background: $lyx-color-bg-page;
+}
+
+.lyx-navbar__content {
+  display: flex;
+  align-items: center;
+  font-family: $lyx-font-family-serif;
+  font-size: 19px;
+  font-weight: $lyx-font-weight-black;
+  letter-spacing: 2px;
+  color: $lyx-color-text-primary;
+}

@@ -2,13 +2,20 @@
   "name": "@liyoxi/weapp",
   "version": "0.1.0",
   "private": true,
-  "description": "商家端微信小程序（Taro 4 · React 18；工程由 W0-27a 接）",
+  "description": "商家端微信小程序（Taro 4 · React 18 · NutUI）",
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "echo '占位：前端测试由 W0-27a 接'",
-    "build": "echo '占位：真实构建由 W0-27a 接'"
+    "test": "vitest run",
+    "build": "node scripts/build.mjs weapp",
+    "build:h5": "node scripts/build.mjs h5",
+    "dev": "node scripts/build.mjs weapp --watch",
+    "shots": "node scripts/shots.mjs"
   },
+  "browserslist": [
+    "defaults and fully supports es6-module",
+    "maintained node versions"
+  ],
   "dependencies": {
     "@babel/runtime": "7.29.7",
     "@liyoxi/contract": "workspace:*",

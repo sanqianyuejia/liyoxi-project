@@ -1,0 +1,23 @@
+// 全局样式：页面底色、字色、字体，以及 NutUI 的主题变量（组件样式是预编译的，只能用 CSS 变量覆盖）。
+// $lyx-* 来自 @liyoxi/shared/design/merchant.scss，由构建配置注入每个样式文件。
+page,
+body {
+  background: $lyx-color-bg-page;
+  color: $lyx-color-text-primary;
+  font-family: $lyx-font-family-sans;
+  font-size: $lyx-font-size-body;
+
+  --nutui-color-primary: #{$lyx-color-primary};
+  --nutui-color-primary-stop-1: #{$lyx-color-primary};
+  --nutui-color-primary-stop-2: #{$lyx-color-primary};
+  --nutui-color-primary-text: #{$lyx-color-text-inverse};
+  --nutui-color-text: #{$lyx-color-text-primary};
+  --nutui-color-text-secondary: #{$lyx-color-text-secondary};
+  --nutui-color-title: #{$lyx-color-text-primary};
+  --nutui-font-family: #{$lyx-font-family-sans};
+}
+
+// 原生 input 的占位符只能靠类名着色，这个类要传给 placeholderClass，不能进 CSS Modules
+.lyx-placeholder {
+  color: $lyx-color-text-disabled;
+}

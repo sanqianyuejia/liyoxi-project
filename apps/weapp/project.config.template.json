@@ -1,0 +1,31 @@
+{
+  "miniprogramRoot": "dist/",
+  "projectname": "liyoxi-weapp",
+  "description": "狸有戏商家端小程序",
+  "appid": "__WEAPP_APPID__",
+  "setting": {
+    "urlCheck": true,
+    "es6": true,
+    "enhance": true,
+    "compileHotReLoad": false,
+    "postcss": false,
+    "minified": false,
+    "packNpmManually": false,
+    "packNpmRelationList": [],
+    "compileWorklet": false,
+    "uglifyFileName": false,
+    "uploadWithSourceMap": true,
+    "minifyWXSS": true,
+    "minifyWXML": true,
+    "localPlugins": false,
+    "disableUseStrict": false,
+    "useCompilerPlugins": false,
+    "condition": false,
+    "babelSetting": { "ignore": [], "disablePlugins": [], "outputPath": "" }
+  },
+  "compileType": "miniprogram",
+  "libVersion": "3.8.0",
+  "editorSetting": { "tabIndent": "insertSpaces", "tabSize": 2 },
+  "simulatorPluginLibVersion": {},
+  "packOptions": { "ignore": [], "include": [] }
+}
