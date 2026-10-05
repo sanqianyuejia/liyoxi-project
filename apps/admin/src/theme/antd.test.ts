@@ -21,6 +21,10 @@ describe("组件级配置（ConfigProvider）", () => {
     expect(adminComponentConfig.button).toEqual({ autoInsertSpace: false });
   });
 
+  it("抽屉的关闭按钮在标题右侧（照原型）", () => {
+    expect(adminComponentConfig.drawer.closable).toEqual({ placement: "end" });
+  });
+
   it("左右方向的抽屉缺省宽 480；页面自己给了 size 的、上下方向的不动", () => {
     const widthOf = (props: DrawerProps): unknown =>
       adminComponentConfig.drawer.styles({ props }).wrapper?.width;

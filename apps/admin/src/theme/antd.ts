@@ -92,8 +92,8 @@ export const adminTheme: ThemeConfig = {
     },
     Drawer: {
       fontSizeLG: px(fontSize["title-lg"]),
-      // 宽 480 在下面的 adminComponentConfig 里给。阴影（antd 的抽屉不认 boxShadow，按方向各有一个不公开的变量）、
-      // 头部内边距 24、关闭按钮 32 × 32 在 global.css 里覆盖
+      // 宽 480、关闭按钮在右在下面的 adminComponentConfig 里给。阴影（antd 的抽屉不认 boxShadow，按方向各有一个不公开的变量）、
+      // 内边距 24、头部无分隔线、关闭按钮 32 × 32 在 global.css 里覆盖
     },
     Tabs: {
       inkBarColor: color.primary,
@@ -229,13 +229,14 @@ export const adminTheme: ThemeConfig = {
  *   button   两个字的按钮不自动加空格（原型是“驳回”不是“驳 回”）
  *   modal    弹窗两个方向都居中（规范 第 5.3 节“弹窗｜居中”）；antd 的缺省是离顶 100
  *   drawer   左右方向的抽屉缺省宽 480（规范 第 5.3 节“抽屉”）；antd 的缺省 378 写死在组件里，没有主题变量。
- *            页面自己给了 size 的不动
+ *            页面自己给了 size 的不动。关闭按钮照原型放在标题右侧（antd 的缺省在左侧）
  */
 export const adminComponentConfig = {
   form: { requiredMark: false, scrollToFirstError: true },
   button: { autoInsertSpace: false },
   modal: { centered: true },
   drawer: {
+    closable: { placement: "end" },
     styles: ({ props }) =>
       props.size === undefined && props.placement !== "top" && props.placement !== "bottom"
         ? { wrapper: { width: size.drawer } }

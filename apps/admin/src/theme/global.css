@@ -1079,14 +1079,20 @@ a.lyx-link--danger:hover {
 
 /*
  * 抽屉（规范 第 5.3 节“抽屉”）：右侧，内边距 24，shadow-drawer；关闭按钮与弹窗的同一种（32 × 32，圆角 8，灰底）。
- * 宽 480 由 ConfigProvider 的 drawer 配置给（theme/antd.ts 的 adminComponentConfig）。
+ * 头部照原型（Orders 的付款单抽屉）：标题在左、关闭按钮在右，没有分隔线，与内容相隔 16（与弹窗一样的内部间距）。
+ * 宽 480、关闭按钮在右由 ConfigProvider 的 drawer 配置给（theme/antd.ts 的 adminComponentConfig）。
  */
 .ant-drawer-right > .ant-drawer-content-wrapper {
   box-shadow: var(--lyx-shadow-drawer);
 }
 
 .ant-drawer .ant-drawer-header {
-  padding: var(--lyx-space-24);
+  padding: var(--lyx-space-24) var(--lyx-space-24) 0;
+  border-bottom: 0;
+}
+
+.ant-drawer .ant-drawer-body {
+  padding: var(--lyx-space-16) var(--lyx-space-24) var(--lyx-space-24);
 }
 
 .ant-drawer .ant-drawer-close {
