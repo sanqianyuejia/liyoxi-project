@@ -98,6 +98,35 @@ describe("队列封装", () => {
   );
 
   it(
+    "Redis 断着的时候关消费者：没有在途任务就立刻关掉，不等连接恢复",
+    async () => {
+      // 出过的问题（已固化在这里）：BullMQ 自带的“等任务跑完再关”要等阻塞连接断开的事件，
+      // 而连接正在重连时这个事件不会来，关停就一直等到上限
+      const outage = await createRedisOutage();
+      try {
+        const channel = await open({ redisUrl: outage.url });
+        let handled = 0;
+        const consumer = channel.consume("outbox_delivery", 1, async () => {
+          handled += 1;
+        });
+        consumer.start();
+        await channel.enqueue("outbox_delivery", "evt-3-lyxtest.onA-1", {});
+        await until("消费者已在领任务", () => handled === 1);
+        await outage.down();
+        await until("发现连接断开", async () => !(await channel.ping()));
+
+        const startedAt = Date.now();
+        await consumer.close(PATIENCE_MS);
+        // 给的上限是 60 秒；没有在途任务，不该用到它
+        expect(Date.now() - startedAt).toBeLessThan(PATIENCE_MS / 2);
+      } finally {
+        await outage.close();
+      }
+    },
+    SLOW,
+  );
+
+  it(
     "事务内入队即违规：入队要放在提交之后",
     async () => {
       const channel = await open();
