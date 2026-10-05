@@ -80,3 +80,11 @@ export type {
 } from "./kernel/index.js";
 // W0-22 探活的响应结构（h01 第 2.5 节）
 export type { FinanceHealth, FlowHealth, Health, HealthSummary } from "./ops/index.js";
+// W0-24 不变量与清理：一次运行的用例函数（发布后、演练、后台的手工触发调它）；定时的那三个任务登记在 ops 的 register.ts
+export { runInvariants } from "./ops/index.js";
+export type {
+  InvariantRunDeps,
+  InvariantRunResult,
+  InvariantTrigger,
+  RunInvariantsInput,
+} from "./ops/index.js";
