@@ -56,7 +56,7 @@ export function FrameBody() {
           &quot;release.partner&quot; 后刷新可以看到带 V1.1 小标记的菜单。
         </Remark>
         <Remark>
-          顶栏：这一页不占菜单位置，所以没有面包屑；面包屑与菜单选中的样子在上面几个样例页里看。
+          顶栏：这一页不占菜单位置，所以没有面包屑；面包屑与菜单选中的样子到下面“五类页面”一组链出去的样例页里看。
         </Remark>
       </Demo>
       <Demo title="页头：标题加副标题，右侧操作按钮高 36">
