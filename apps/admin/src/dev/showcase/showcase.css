@@ -1,0 +1,387 @@
+/*
+ * 陈列页自己的版式：只随陈列页进带夹具的构建。颜色、字号、间距一律取 var(--lyx-…)，不写色值。
+ * 这里只排版（一组一张卡、示例怎么摆），不给被陈列的构件加样式：它们长什么样由 theme/ 决定。
+ */
+
+.lyx-showcase-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lyx-space-8) var(--lyx-space-16);
+  padding: var(--lyx-space-12) var(--lyx-space-16);
+}
+
+.lyx-showcase-section {
+  padding: var(--lyx-space-20);
+  /* 从目录跳过来时，标题不贴着内容区的上沿 */
+  scroll-margin-top: var(--lyx-space-16);
+}
+
+.lyx-showcase-section__head {
+  display: flex;
+  gap: var(--lyx-space-12);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lyx-showcase-section__head .lyx-section-title {
+  margin: 0;
+  font-size: var(--lyx-font-size-title-lg);
+}
+
+/* 要点：对照规范时逐条看的几句 */
+.lyx-showcase-section__points {
+  padding: var(--lyx-space-10) var(--lyx-space-12) var(--lyx-space-10) 28px;
+  margin: var(--lyx-space-12) 0 0;
+  font-size: var(--lyx-font-size-body);
+  color: var(--lyx-color-text-regular);
+  background: var(--lyx-color-primary-bg-subtle);
+  border: var(--lyx-border-width-default) solid var(--lyx-color-warning-border);
+  border-radius: var(--lyx-radius-inner);
+}
+
+.lyx-showcase-section__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lyx-space-20);
+  margin-top: var(--lyx-space-20);
+}
+
+.lyx-showcase-demo__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lyx-space-12);
+}
+
+.lyx-showcase-demo__body--row {
+  flex-flow: row wrap;
+  gap: var(--lyx-space-12) var(--lyx-space-16);
+  align-items: center;
+}
+
+.lyx-showcase-remark {
+  margin: 0;
+  font-size: var(--lyx-font-size-caption);
+  color: var(--lyx-color-text-secondary);
+}
+
+.lyx-showcase-inline {
+  display: inline-flex;
+  gap: var(--lyx-space-12);
+  align-items: center;
+}
+
+.lyx-showcase-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lyx-space-16);
+  align-items: flex-start;
+}
+
+.lyx-showcase-columns > * {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.lyx-showcase-columns > .lyx-showcase-aside {
+  flex: 0 0 var(--lyx-size-detail-aside);
+}
+
+.lyx-showcase-panel {
+  padding: var(--lyx-space-20);
+}
+
+/* 把页头圈出来看：虚线框只是陈列用的 */
+.lyx-showcase-frame {
+  padding: var(--lyx-space-16);
+  background: var(--lyx-color-bg-page);
+  border: var(--lyx-border-width-default) dashed var(--lyx-color-border-strong);
+  border-radius: var(--lyx-radius-inner);
+}
+
+/* ---------- 颜色 ---------- */
+
+.lyx-showcase-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--lyx-space-8) var(--lyx-space-16);
+}
+
+.lyx-showcase-swatch {
+  display: flex;
+  gap: var(--lyx-space-10);
+  align-items: center;
+  font-size: var(--lyx-font-size-body);
+}
+
+/* 色块外面套一圈描边：白色、页面底色这类浅色在白底上也看得出边界 */
+.lyx-showcase-swatch__chip {
+  flex: none;
+  width: 40px;
+  height: 24px;
+  border: var(--lyx-border-width-default) solid var(--lyx-color-border);
+  border-radius: var(--lyx-radius-icon-button);
+}
+
+.lyx-showcase-swatch__name {
+  flex: 1;
+  min-width: 0;
+}
+
+.lyx-showcase-swatch__value {
+  font-size: var(--lyx-font-size-caption);
+  color: var(--lyx-color-text-secondary);
+}
+
+/* ---------- 文字 ---------- */
+
+.lyx-showcase-type {
+  display: flex;
+  gap: var(--lyx-space-16);
+  align-items: baseline;
+}
+
+.lyx-showcase-type__meta {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 220px;
+  font-size: var(--lyx-font-size-body);
+}
+
+.lyx-showcase-type__spec {
+  font-size: var(--lyx-font-size-caption);
+  color: var(--lyx-color-text-secondary);
+}
+
+.lyx-showcase-type__sample {
+  line-height: var(--lyx-line-height-title);
+}
+
+.lyx-showcase-type__sample--semibold {
+  font-weight: var(--lyx-font-weight-semibold);
+}
+
+.lyx-showcase-type__sample--bold {
+  font-weight: var(--lyx-font-weight-bold);
+}
+
+.lyx-showcase-type__sample--serif {
+  font-family: var(--lyx-font-family-serif);
+}
+
+.lyx-showcase-type__sample--mono {
+  font-family: var(--lyx-font-family-mono);
+  font-size: var(--lyx-font-size-body);
+}
+
+.lyx-showcase-paragraph {
+  max-width: 560px;
+  margin: 0;
+  font-size: var(--lyx-font-size-body);
+}
+
+.lyx-showcase-numbers {
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  font-size: var(--lyx-font-size-stat-inline);
+  font-weight: var(--lyx-font-weight-bold);
+  text-align: right;
+}
+
+/* ---------- 间距、圆角、描边、阴影 ---------- */
+
+.lyx-showcase-space {
+  display: flex;
+  gap: var(--lyx-space-12);
+  align-items: center;
+}
+
+.lyx-showcase-space__label {
+  flex: none;
+  width: 24px;
+  font-size: var(--lyx-font-size-caption);
+  color: var(--lyx-color-text-secondary);
+  text-align: right;
+}
+
+/* 条的宽度就是这一档间距 */
+.lyx-showcase-space__bar {
+  height: 12px;
+  background: var(--lyx-color-primary);
+  border-radius: var(--lyx-radius-xs);
+}
+
+.lyx-showcase-radius,
+.lyx-showcase-shadow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lyx-space-8);
+  align-items: center;
+}
+
+.lyx-showcase-shadow {
+  width: 200px;
+  padding: var(--lyx-space-16) 0;
+}
+
+.lyx-showcase-radius__box {
+  width: 72px;
+  height: 48px;
+  background: var(--lyx-color-primary-bg);
+}
+
+.lyx-showcase-shadow__box {
+  width: 96px;
+  height: 48px;
+  background: var(--lyx-color-bg-card);
+  border-radius: var(--lyx-radius-inner);
+}
+
+.lyx-showcase-radius__label {
+  font-size: var(--lyx-font-size-caption);
+  color: var(--lyx-color-text-secondary);
+  text-align: center;
+}
+
+.lyx-showcase-border {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 40px;
+  font-size: var(--lyx-font-size-caption);
+  color: var(--lyx-color-text-secondary);
+  border-radius: var(--lyx-radius-control);
+}
+
+.lyx-showcase-border--default {
+  border: var(--lyx-border-width-default) solid var(--lyx-color-border);
+}
+
+.lyx-showcase-border--strong {
+  background: var(--lyx-color-primary-bg-subtle);
+  border: var(--lyx-border-width-strong) solid var(--lyx-color-primary);
+}
+
+.lyx-showcase-border--dashed {
+  background: var(--lyx-color-bg-subtle);
+  border: var(--lyx-border-width-default) dashed var(--lyx-color-border-strong);
+}
+
+/* ---------- 五类页面、自建组件清单 ---------- */
+
+.lyx-showcase-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lyx-space-8);
+  padding: 0;
+  margin: 0;
+  font-size: var(--lyx-font-size-body);
+  list-style: none;
+}
+
+.lyx-showcase-links > li {
+  display: flex;
+  gap: var(--lyx-space-12);
+  align-items: center;
+}
+
+.lyx-showcase-links__todo {
+  color: var(--lyx-color-text-secondary);
+}
+
+.lyx-showcase-links__note {
+  font-size: var(--lyx-font-size-caption);
+  color: var(--lyx-color-text-secondary);
+}
+
+.lyx-showcase-fill {
+  align-self: stretch;
+}
+
+/* ---------- 表单 ---------- */
+
+.lyx-showcase-form {
+  max-width: 720px;
+}
+
+.lyx-showcase-form__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--lyx-space-12);
+}
+
+.lyx-showcase-upload {
+  max-width: 480px;
+}
+
+/* ---------- 状态取色 ---------- */
+
+.lyx-showcase-tones {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  font-size: var(--lyx-font-size-body);
+}
+
+.lyx-showcase-tones__row {
+  display: flex;
+  gap: var(--lyx-space-16);
+  align-items: center;
+  min-height: var(--lyx-size-table-row);
+  border-bottom: var(--lyx-border-width-default) solid var(--lyx-color-divider);
+}
+
+.lyx-showcase-tones__row:last-child {
+  border-bottom: 0;
+}
+
+.lyx-showcase-tones__row dt {
+  flex: none;
+  width: 168px;
+  color: var(--lyx-color-text-secondary);
+}
+
+.lyx-showcase-tones__row dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lyx-space-8);
+  padding: var(--lyx-space-8) 0;
+  margin: 0;
+}
+
+/* ---------- 图标 ---------- */
+
+.lyx-showcase-icons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: var(--lyx-space-10) var(--lyx-space-16);
+  padding: 0;
+  margin: 0;
+  font-size: var(--lyx-font-size-caption);
+  color: var(--lyx-color-text-regular);
+  list-style: none;
+}
+
+.lyx-showcase-icons > li {
+  display: flex;
+  gap: var(--lyx-space-8);
+  align-items: center;
+}
+
+.lyx-showcase-tint {
+  display: inline-flex;
+}
+
+.lyx-showcase-tint--primary {
+  color: var(--lyx-color-primary);
+}
+
+.lyx-showcase-tint--success {
+  color: var(--lyx-color-success);
+}
+
+.lyx-showcase-tint--danger {
+  color: var(--lyx-color-danger);
+}

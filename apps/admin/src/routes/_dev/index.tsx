@@ -1,5 +1,5 @@
 // 样例路由（任务书 第 11 节第 4 项）：三种骨架各一页，另有一页整行可点的表格（筛选表格骨架的 onRowClick）、
-// 一页长表单（提交有错时滚到第一个出错的字段），只用夹具数据，给冒烟与看样用。W0-29 的看样页另建。
+// 一页长表单（提交有错时滚到第一个出错的字段），只用夹具数据，给冒烟与看样用。W0-29 的看样页（陈列页）在最后一条。
 // 生产构建不包含样例页：__LYX_DEV_FIXTURES__ 为 false 时页面组件与夹具整段被摇掉，
 // 这里只剩几条访问即“页面不存在”的空路由（scripts/check-build.mjs 断言产物里没有夹具的标记）。
 // 本文件会进生产构建，不得静态引入 src/dev/ 下的任何模块。
@@ -74,10 +74,25 @@ export const devFormRoute = createRoute({
     : undefined,
 });
 
+/**
+ * 陈列页（看样页，W0-29）：构件、设计变量、状态取色、图标照规范的章节逐组摆出来。不借用菜单位置：它不是业务页面，
+ * 没有面包屑，侧栏也没有选中项。地址另写在 src/dev/showcase/sections.ts 的 SHOWCASE_PATH（那边不能引本文件）
+ */
+export const devShowcaseRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/dev/showcase",
+  validateSearch: passthrough,
+  beforeLoad: devOnly,
+  component: __LYX_DEV_FIXTURES__
+    ? lazyRouteComponent(() => import("../../dev/showcase/Showcase"), "Showcase")
+    : undefined,
+});
+
 export const devRoutes = [
   devTableRoute,
   devQueueRoute,
   devDetailRoute,
   devRowsRoute,
   devFormRoute,
+  devShowcaseRoute,
 ] as const;
