@@ -1,0 +1,96 @@
+@import "../../styles/mixins";
+
+.lyx-list {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: 4px 16px;
+  border-radius: $lyx-radius-card;
+  background: $lyx-color-bg-card;
+}
+
+.lyx-list-row {
+  display: flex;
+  align-items: center;
+  gap: $lyx-space-12;
+  box-sizing: border-box;
+  min-height: $lyx-size-list-row;
+  border-bottom: $lyx-border-width-default solid $lyx-color-divider;
+  color: $lyx-color-text-primary;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.lyx-list-row--double {
+  min-height: $lyx-size-list-row-double;
+  padding: $lyx-space-10 0;
+}
+
+.lyx-list-row--pressed {
+  opacity: 0.7;
+}
+
+.lyx-list-row__media {
+  display: flex;
+  flex: none;
+}
+
+.lyx-list-row__icon {
+  display: flex;
+  flex: none;
+  color: $lyx-color-text-regular;
+}
+
+.lyx-list-row__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: $lyx-space-2;
+  min-width: 0;
+}
+
+.lyx-list-row__title {
+  @include lyx-ellipsis;
+
+  font-size: $lyx-font-size-body;
+  line-height: 1.4;
+}
+
+.lyx-list-row--double .lyx-list-row__title {
+  font-weight: $lyx-font-weight-semibold;
+}
+
+.lyx-list-row__description {
+  @include lyx-ellipsis;
+
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-tag;
+  line-height: 1.5;
+}
+
+.lyx-list-row__value {
+  display: flex;
+  flex: none;
+  align-items: center;
+  max-width: 50%;
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-caption;
+}
+
+.lyx-list-row__arrow {
+  display: flex;
+  flex: none;
+  margin-left: -$lyx-space-6;
+  color: $lyx-color-text-secondary;
+}
+
+.lyx-list-row--disabled {
+  .lyx-list-row__title,
+  .lyx-list-row__icon,
+  .lyx-list-row__value,
+  .lyx-list-row__arrow {
+    color: $lyx-color-text-disabled;
+  }
+}

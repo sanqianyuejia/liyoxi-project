@@ -1,0 +1,23 @@
+// 组件共用的 mixin。只出规则，不出类名；用到的组件在自己的样式文件里 @import "../../styles/mixins"。
+
+// 点击区补足到 44（规范 第 10 节）：视觉尺寸不变，用伪元素把可点的范围向外撑开。
+// $v、$h 是上下、左右各撑出多少：高 32 的元素上下各 6，高 34 的各 5。
+@mixin lyx-hit-area($v: 6px, $h: 0px) {
+  position: relative;
+
+  &::after {
+    content: "";
+    position: absolute;
+    top: -$v;
+    right: -$h;
+    bottom: -$v;
+    left: -$h;
+  }
+}
+
+// 单行，超出省略
+@mixin lyx-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

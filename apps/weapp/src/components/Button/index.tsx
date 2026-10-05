@@ -1,7 +1,8 @@
 import type { ButtonProps as TaroButtonProps } from "@tarojs/components";
 import type { ReactNode } from "react";
 
-import { Button as NutButton } from "@nutui/nutui-react-taro";
+// 按组件的路径引：从包的根上引，H5 构建会把整个组件库（连同动画库）都带进来
+import NutButton from "@nutui/nutui-react-taro/dist/es/packages/button";
 import { View } from "@tarojs/components";
 
 import { Icon, type IconName } from "@/components/Icon";

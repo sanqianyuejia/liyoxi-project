@@ -37,6 +37,17 @@ export const GALLERY_ITEMS = [
   item("Icon", "图标", "基础"),
   item("NavBar", "自绘导航", "基础"),
   item("Button", "按钮", "按钮"),
+  item("PillButton", "胶囊小按钮", "按钮"),
+  item("TextButton", "文字按钮", "按钮"),
+  item("IconButton", "图标按钮", "按钮"),
+  item("AddButton", "虚线添加按钮", "按钮"),
+  item("StatusTag", "状态标签", "标签与角标"),
+  item("InfoTag", "信息标签", "标签与角标"),
+  item("Badge", "数字角标与红点", "标签与角标"),
+  item("Card", "卡片", "卡片与列表"),
+  item("Section", "分组", "卡片与列表"),
+  item("List", "列表行", "卡片与列表"),
+  item("DescList", "键值网格", "卡片与列表"),
 ] as const;
 
 export type GalleryName = (typeof GALLERY_ITEMS)[number]["name"];

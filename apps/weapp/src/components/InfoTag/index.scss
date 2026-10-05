@@ -1,0 +1,12 @@
+.lyx-info-tag {
+  display: inline-block;
+  flex: none;
+  padding: 1px 6px;
+  border-radius: $lyx-radius-tag;
+  background: $lyx-color-fill-neutral;
+  color: $lyx-color-text-primary;
+  font-size: $lyx-font-size-tag;
+  font-weight: $lyx-font-weight-regular;
+  line-height: 1.5;
+  white-space: nowrap;
+}

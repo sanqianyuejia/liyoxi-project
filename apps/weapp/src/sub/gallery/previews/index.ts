@@ -3,12 +3,34 @@ import type { ComponentType } from "react";
 
 import type { GalleryName } from "@/gallery";
 
+import AddButton from "./AddButton";
+import Badge from "./Badge";
 import Button from "./Button";
+import Card from "./Card";
+import DescList from "./DescList";
 import Icon from "./Icon";
+import IconButton from "./IconButton";
+import InfoTag from "./InfoTag";
+import List from "./List";
 import NavBar from "./NavBar";
+import PillButton from "./PillButton";
+import Section from "./Section";
+import StatusTag from "./StatusTag";
+import TextButton from "./TextButton";
 
 export const PREVIEWS: Record<GalleryName, ComponentType> = {
   Icon,
   NavBar,
   Button,
+  PillButton,
+  TextButton,
+  IconButton,
+  AddButton,
+  StatusTag,
+  InfoTag,
+  Badge,
+  Card,
+  Section,
+  List,
+  DescList,
 };

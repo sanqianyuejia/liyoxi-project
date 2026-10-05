@@ -1,0 +1,43 @@
+.lyx-status-tag {
+  display: inline-block;
+  flex: none;
+  padding: 1px 6px;
+  border-radius: $lyx-radius-tag;
+  font-size: $lyx-font-size-tag;
+  font-weight: $lyx-font-weight-semibold;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+// 五种色调的文字色与浅底：修饰符与样式变量同名（规范 第 4.1 节）
+.lyx-status-tag--success {
+  background: $lyx-color-success-bg;
+  color: $lyx-color-success;
+}
+
+.lyx-status-tag--info {
+  background: $lyx-color-info-bg;
+  color: $lyx-color-info;
+}
+
+.lyx-status-tag--warning {
+  background: $lyx-color-warning-bg;
+  color: $lyx-color-warning;
+}
+
+.lyx-status-tag--danger {
+  background: $lyx-color-danger-bg;
+  color: $lyx-color-danger;
+}
+
+.lyx-status-tag--neutral {
+  background: $lyx-color-neutral-bg;
+  color: $lyx-color-neutral;
+}
+
+// 写在色调后面：去掉底色，只留文字色
+.lyx-status-tag--plain {
+  padding: 0;
+  background: none;
+  font-size: $lyx-font-size-caption;
+}

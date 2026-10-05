@@ -1,0 +1,31 @@
+.lyx-desc-list {
+  display: flex;
+  flex-direction: column;
+  gap: $lyx-space-8;
+  font-size: $lyx-font-size-caption;
+  line-height: $lyx-line-height-body;
+}
+
+.lyx-desc-list__row {
+  display: flex;
+  align-items: flex-start;
+  gap: $lyx-space-8;
+}
+
+.lyx-desc-list__label {
+  flex: none;
+  width: 64px;
+  color: $lyx-color-text-secondary;
+}
+
+.lyx-desc-list--lg .lyx-desc-list__label {
+  width: 96px;
+}
+
+.lyx-desc-list__value {
+  flex: 1;
+  min-width: 0;
+  color: $lyx-color-text-primary;
+  font-variant-numeric: tabular-nums;
+  word-break: break-all;
+}

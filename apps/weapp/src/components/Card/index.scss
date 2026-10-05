@@ -1,0 +1,78 @@
+.lyx-card {
+  display: flex;
+  flex-direction: column;
+  gap: $lyx-space-section;
+  box-sizing: border-box;
+  padding: $lyx-space-card-padding;
+  border-radius: $lyx-radius-card;
+  background: $lyx-color-bg-card;
+  color: $lyx-color-text-primary;
+}
+
+.lyx-card--item {
+  padding: 14px 16px;
+}
+
+.lyx-card--list {
+  gap: 0;
+  padding: 4px 16px;
+}
+
+.lyx-card--dark {
+  border-radius: $lyx-radius-card-lg;
+  background: $lyx-color-bg-inverse;
+  color: $lyx-color-text-inverse;
+}
+
+.lyx-card--subtle {
+  gap: $lyx-space-8;
+  padding: 10px 12px;
+  border-radius: $lyx-radius-lg;
+  background: $lyx-color-bg-subtle;
+}
+
+.lyx-card--pressed {
+  opacity: 0.7;
+}
+
+.lyx-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $lyx-space-8;
+}
+
+.lyx-card__title {
+  flex: 1;
+  min-width: 0;
+  font-size: $lyx-font-size-heading;
+  font-weight: $lyx-font-weight-semibold;
+  line-height: 1.4;
+}
+
+.lyx-card__extra {
+  display: flex;
+  flex: none;
+  align-items: center;
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-tag;
+}
+
+.lyx-card__eyebrow {
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-tag;
+}
+
+// 深色卡：眉标用强调色、字间距 2px；右侧说明用深底上的说明色
+.lyx-card--dark .lyx-card__eyebrow {
+  color: $lyx-color-accent-on-dark;
+  letter-spacing: 2px;
+}
+
+.lyx-card--dark .lyx-card__extra {
+  color: $lyx-color-text-on-dark-secondary;
+}
+
+.lyx-card--subtle .lyx-card__title {
+  font-size: $lyx-font-size-body-sm;
+}

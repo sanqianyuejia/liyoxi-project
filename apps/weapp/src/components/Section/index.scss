@@ -1,0 +1,29 @@
+.lyx-section {
+  display: flex;
+  flex-direction: column;
+  gap: $lyx-space-section;
+}
+
+.lyx-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $lyx-space-8;
+}
+
+.lyx-section__title {
+  flex: 1;
+  min-width: 0;
+  color: $lyx-color-text-primary;
+  font-size: $lyx-font-size-title;
+  font-weight: $lyx-font-weight-semibold;
+  line-height: 1.4;
+}
+
+.lyx-section__extra {
+  display: flex;
+  flex: none;
+  align-items: center;
+  color: $lyx-color-text-secondary;
+  font-size: $lyx-font-size-tag;
+}

@@ -1,0 +1,36 @@
+.lyx-badge {
+  display: inline-block;
+  flex: none;
+  box-sizing: border-box;
+  min-width: $lyx-size-badge;
+  height: $lyx-size-badge;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: $lyx-color-badge-bg;
+  color: $lyx-color-text-inverse;
+  font-size: $lyx-font-size-tag;
+  font-weight: $lyx-font-weight-semibold;
+  font-variant-numeric: tabular-nums;
+  line-height: $lyx-size-badge;
+  text-align: center;
+}
+
+.lyx-badge--sm {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  font-size: $lyx-font-size-mini;
+  line-height: 16px;
+}
+
+.lyx-badge-dot {
+  display: inline-block;
+  flex: none;
+  box-sizing: content-box;
+  width: 10px;
+  height: 10px;
+  border: $lyx-border-width-strong solid $lyx-color-bg-card;
+  border-radius: 50%;
+  background: $lyx-color-danger;
+}

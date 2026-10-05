@@ -1,0 +1,21 @@
+.lyx-icon-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: $lyx-size-touch-min;
+  height: $lyx-size-touch-min;
+  color: $lyx-color-text-primary;
+}
+
+.lyx-icon-button--muted {
+  color: $lyx-color-text-secondary;
+}
+
+.lyx-icon-button--disabled {
+  color: $lyx-color-text-disabled;
+}
+
+.lyx-icon-button--pressed {
+  opacity: 0.7;
+}
