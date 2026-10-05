@@ -992,6 +992,11 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     expect(await numericOf(form.getByRole("textbox", { name: "备注（选填）" })), "多行输入").toBe(
       "tabular-nums",
     );
+    // 写在表单里、字段之外的说明（操作条左侧的提示）同样是正文的行高：antd 给表单另设了一遍它的缺省行高
+    expect(
+      await lineHeightRatio(form.getByText("的可以不填", { exact: false })),
+      "表单里的说明",
+    ).toBe(await tokenNumber(page, "--lyx-line-height-body"));
 
     // 标签在上，标签文字的下沿到控件的上沿是 6；上一个控件的下沿到下一个标签的上沿是 14（规范 第 3、5.3 节）
     const spaceOf = (step: number): Promise<number> =>
