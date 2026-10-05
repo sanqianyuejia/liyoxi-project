@@ -28,6 +28,11 @@ coverage/
 # 状态汇总：pnpm status:summary 现生成，只供本地看，不入库（docs/plan/status/README.md 第 5 节）
 docs/plan/status/SUMMARY.md
 
+# 台账三张汇总：pnpm plan:summaries 现生成，只供本地看，不入库（docs/plan/README.md 第 1 节）
+docs/plan/stubs/SUMMARY.md
+docs/plan/changes/SUMMARY.md
+docs/plan/external-verification/SUMMARY.md
+
 # 小程序的本地生成物（W0-27a）：project.config.json 由构建脚本按模板生成；另两样是开发者工具与 Taro 的缓存
 apps/weapp/project.config.json
 apps/weapp/project.private.config.json
