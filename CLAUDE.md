@@ -214,6 +214,8 @@
 | `node infra/ci/natural-constraints.mjs` | natural 幂等的约束名核对：契约里写的每个约束名在迁移库 `lyx_migrate_check` 里都找得到；只读 |
 | `node infra/ci/api-check.mjs` | CI 里跑 `tools/api-check/check.py` 的写法：“表.列”一项连 `lyx_migrate_check`，未核对按失败算；通过后重新生成三份登记文档（`docs/api/registry-*.md`）并 `git diff --exit-code` |
 | `pnpm --filter @liyoxi/services exec vitest run src/kernel/assembly/ src/assembly.test.ts` | 只跑服务装配的用例：两个样例模块在 api、worker 两个入口都能收集到，重名与缺实现启动失败，按环境过滤（`envs`），组合根的入口清单与模块目录对账。用例不碰库，命令照样要带 `DATABASE_URL`（services 的全局准备要它）。模块怎么登记、端口怎么用见 [README](packages/services/src/kernel/assembly/README.md) |
+| `pnpm --filter @liyoxi/api build` | api 的构建：出 `apps/api/dist/server.js` 与 `check-env.js`（`@liyoxi/*` 内联，第三方包运行时解析），构建完核对产物引到的第三方包都已在 `apps/api/package.json` 里声明。起它：`node apps/api/dist/server.js --port 3000`（要连接参数）。见 [README](apps/api/README.md) 第 5 节 |
+| `pnpm exec vitest run --project api` | 只跑 `apps/api` 的用例（也在 `pnpm test` 里）：接口层、幂等、声明即挂载、探活、构建产物起得来；顺带写出已挂载清单 `apps/api/dist/mounted-operations.json`（`node infra/ci/landed.mjs` 读它）。要连接参数。接口测试支架的用法见 [README](apps/api/README.md) 第 2 节与 `apps/api/src/testing/index.ts` 开头的注释 |
 
 本地连接参数：配置只经 `loadEnv`（`packages/services/src/kernel/env.ts`）读环境变量，会话与测试不建、不读 `.env`，在命令前或 shell 里给出。取值出处是 [local.yml](infra/compose/local.yml)，账号与口令是固定的开发值，只对本机这套容器有效；CI 的服务容器用同一组值。
 

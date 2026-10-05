@@ -99,3 +99,7 @@ pnpm --filter @liyoxi/services exec vitest run src/kernel/assembly/ src/assembly
 - 处理函数拿到的对象（`DeliveredEvent`、`FiredTimer`、各个 `Context`）只写了当前确定的字段；调度与执行在 W0-15、W0-17、W0-23、W0-24，它们按需要只增字段。
 - 端口实现的类型由 `implement`、`implementKeyed` 在登记时对上；手写 `{ port, impl }` 对象绕得过类型检查，不要手写。
 - 模块目录增减时要改组合根的清单（同时要改 `infra/ci/layers.json`，走单独的 `gate-change` PR）；漏改时 `src/assembly.test.ts` 会红。
+
+## 8. 进程运行时（W0-22）
+
+第 5 节说的“装配基础设施”落在包级文件 `packages/services/src/runtime.ts`，不在 kernel：`createRuntime({ entry, env, version })` 建数据库客户端（连接参数照 D7 第 8.3 节的表，`DB_POOLS`）、Redis 连接、事务入口、业务单号、配置读侧、健康检查，并调 `assembleServices`；`runStartupChecks(runtime.startupChecks)` 跑启动自检。api 与 worker 经 `@liyoxi/services` 的入口拿到它，拿不到数据库客户端。日志的唯一构造在 `packages/services/src/logger.ts`。
