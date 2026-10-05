@@ -3,6 +3,7 @@
 import { uuidv7 } from "@liyoxi/services";
 import { describe, expect, it } from "vitest";
 
+import { HANDLERS } from "../src/routes/index.js";
 import { MountError } from "../src/routing/mount.js";
 import { PIPELINE_ORDER, ROUTE_MIDDLEWARES } from "../src/routing/pipeline.js";
 import { MIDDLEWARE_REQUIREMENTS } from "../src/routing/requirements.js";
@@ -144,7 +145,10 @@ describe("挂齐了就起得来", () => {
 
   it("生产的处理器清单配生产的装配：现在就起得来；规则表要的中间件都有槽位", TIMEOUT, async () => {
     const { api } = await testApi.start();
-    expect(api.mounted).toEqual([]);
+    // 起得来即挂载核对通过：生产清单里的处理器一条不落都挂上了（W1-03 起清单不再是空的）
+    expect(api.mounted.map((route) => route.operationId).sort()).toEqual(
+      HANDLERS.map((entry) => entry.route.operationId).sort(),
+    );
     const slots = ROUTE_MIDDLEWARES.map((entry) => entry.slot);
     expect(slots).toEqual(expect.arrayContaining(["rateLimit", "idempotency"]));
     for (const requirement of MIDDLEWARE_REQUIREMENTS) {
