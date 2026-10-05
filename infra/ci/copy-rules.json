@@ -1,0 +1,35 @@
+{
+  "说明": [
+    "文案约束的规则表（规范 第 11 节）。infra/ci/check-copy.mjs 读本文件，根脚本是 pnpm lint:copy，CI 的 verify 里有“文案约束”一步。",
+    "rules 一条一个对象：id；word 是不许出现的词；paths 是它管的源码（相对仓库根；目录以 / 结尾，文件不带；还没建的页面可以先登记，但要对得上小程序页面清单里的路由）；errors 是默认文案也归它管的错误码（可以不写）；source 是出处。",
+    "phrases 一行一条：rule 是规则的 id；allow 是这条规则下不算数的说法，要含那个词，又不能就是那个词。",
+    "页面包加规则：把新规则加在 rules 的最前面，同 PR 在 infra/ci/selftest/cases/ 加一个反例。这是只增类门禁改动。不要加在末尾：JSON 的最后一项后面不带逗号，加在末尾就得给上一条的最后一行补逗号，门禁改动分类会把它判成改了已有行。",
+    "删改已有的规则、往 phrases 里加一行，都是放松类门禁改动，走单独的 gate-change PR。脚本只认这里写明的键，多一个不认识的键就报错退出。"
+  ],
+  "rules": [
+    {
+      "id": "login-no-wechat",
+      "word": "微信",
+      "paths": [
+        "apps/weapp/src/pages/login/",
+        "apps/weapp/src/sub/member/join/",
+        "apps/weapp/src/sub/member/invite/"
+      ],
+      "errors": [
+        "WECHAT_UNAVAILABLE",
+        "WECHAT_CODE_INVALID",
+        "PHONE_REGION_UNSUPPORTED",
+        "ACCOUNT_DISABLED",
+        "REVERIFY_REQUIRED"
+      ],
+      "source": "规范 第 11 节：登录相关文案不出现“微信”二字（M:Login、M:Join、M:Invite）"
+    }
+  ],
+  "phrases": [
+    { "rule": "login-no-wechat", "allow": "微信支付" },
+    { "rule": "login-no-wechat", "allow": "添加企业微信" },
+    { "rule": "login-no-wechat", "allow": "从微信聊天中选择文件" },
+    { "rule": "login-no-wechat", "allow": "发送给微信好友" },
+    { "rule": "login-no-wechat", "allow": "微信订阅消息" }
+  ]
+}

@@ -62,7 +62,8 @@
     "test:db:seeded": "pnpm --filter @liyoxi/services seeded-db",
     "weapp:build": "pnpm --filter @liyoxi/weapp build",
     "weapp:shots": "pnpm --filter @liyoxi/weapp shots",
-    "status-tone:check": "pnpm --filter @liyoxi/shared status-tone:check"
+    "status-tone:check": "pnpm --filter @liyoxi/shared status-tone:check",
+    "lint:copy": "node infra/ci/check-copy.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.3",
