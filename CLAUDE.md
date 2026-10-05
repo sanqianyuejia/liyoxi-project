@@ -243,6 +243,7 @@
 | `pnpm --filter @liyoxi/services exec vitest run src/ops/`（任务进程里的那一份：`pnpm --filter @liyoxi/worker exec vitest run test/ops-jobs.test.ts`） | 只跑不变量与清理框架的用例：带种子的库上 full 0 违规、人为造一条违规能发现并去重、三种自愈策略、上报端口、清理的限量与出错隔离；真实装配里的三个周期任务（`invariant.full`、`invariant.quick`、`ops.retention`）经任务进程跑。除一份外都连库，要本地的 PostgreSQL 与 `DATABASE_URL`，任务进程的那一份另要 `REDIS_URL`。检查项与清理项怎么登记、手工跑一次（`runInvariants`）怎么调，见 [README](packages/services/src/ops/invariants/README.md) |
 | `pnpm lint:copy` | 文案约束：规范 第 11 节的词不出现在规则管的页面源码、页面标题与错误码的默认文案里（第一版只有“登录相关文案不出现‘微信’”一条）；命中时指出文件、行与规则。只读文件，不连库。规则表 [copy-rules.json](infra/ci/copy-rules.json)，页面包加规则照它开头的“说明”；口径见 [脚本](infra/ci/check-copy.mjs) 开头的注释 |
 | `pnpm --filter @liyoxi/services exec vitest run src/authz/` | 只跑 authz（后台判定与数据范围）的用例：8 角色 × 13 模块与每个权限点的表驱动、性质测试（固定种子、每个性质 200 轮）、范围谓词；连库的一份要本地的 PostgreSQL 与 `DATABASE_URL`。`authorize`、`assertConfirm`、`scopeOf` 与范围谓词怎么用，轮次与种子怎么改，见 [README](packages/services/src/authz/README.md) |
+| `pnpm --filter @liyoxi/services exec vitest run src/docs/ src/tenant/` | 只跑 docs（协议的当前版本、同意记录、待同意与指纹、已签署协议、占位版本）与 tenant（建主体、成员关系解析、门店列表与额度、资质结论的三个写函数）的用例。连库的走带种子的测试库，要本地的 PostgreSQL 与 `DATABASE_URL`。两个模块各有一个装配入口 `createDocs`、`createTenant`，用法见 [docs](packages/services/src/docs/README.md)、[tenant](packages/services/src/tenant/README.md) 的 README；商家读侧的事实端口见 [kernel/ports](packages/services/src/kernel/ports/README.md) |
 
 本地连接参数：配置只经 `loadEnv`（`packages/services/src/kernel/env.ts`）读环境变量，会话与测试不建、不读 `.env`，在命令前或 shell 里给出。取值出处是 [local.yml](infra/compose/local.yml)，账号与口令是固定的开发值，只对本机这套容器有效；CI 的服务容器用同一组值。
 

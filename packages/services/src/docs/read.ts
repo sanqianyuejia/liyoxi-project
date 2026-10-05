@@ -108,7 +108,7 @@ export async function getAgreementVersion(
     contentHtml: version.contentHtml,
     contentSha256: version.contentSha256,
     // 留桩：PDF 的签名读地址要经 media 现签，docs → media 不在同层白名单里（06 第 3.6 节），随 G2-B 定走法。
-    // 现在地址为空串，端上只展示 contentHtml（docs/plan/stubs/m2-agreement-pdf-url.md）
+    // 现在地址为空串，端上只展示 contentHtml（docs/plan/stubs/m2-docs-agreement-pdf-url.md）
     pdf: { url: "", expiresAt: new Date(now.getTime() + AGREEMENT_PDF_URL_TTL_MS).toISOString() },
   };
 }
