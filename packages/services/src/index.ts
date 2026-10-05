@@ -116,3 +116,26 @@ export type { Notices, NoticesDeps } from "./config/index.js";
 // W1-03 演示种子：协议的占位版本（运行器 demo-seed.ts 由 W1-01a 起头，W1-07 在里面加这一步）
 export { seedPlaceholderAgreementVersions } from "./docs/index.js";
 export type { PlaceholderFile, PlaceholderSeedInput } from "./docs/index.js";
+// W1-04 identity 与商家侧授权：装配入口 createIdentity（api 启动时建一次，用法见 identity/README.md）、
+// 商家鉴权链要用的类型、能力点判定与门店、主体的数据范围；微信能力的接口类型给装配处用
+export { createIdentity } from "./identity/index.js";
+export type {
+  Identity,
+  IdentityDeps,
+  PhoneLoginInput,
+  PhoneLoginOptions,
+  RequestMeta,
+  SessionCheck,
+  SessionPrincipal,
+  SessionRejection,
+  SilentLoginInput,
+} from "./identity/index.js";
+export {
+  assertCapability,
+  entityScopeOf,
+  hasCapability,
+  standingOf,
+  storeScopeOf,
+} from "./authz/index.js";
+export type { EntityScope, MerchantStanding, StoreMode, StoreScope } from "./authz/index.js";
+export type { WechatProvider } from "./providers/types.js";
