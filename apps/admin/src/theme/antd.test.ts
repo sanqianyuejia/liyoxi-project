@@ -92,3 +92,19 @@ describe("主题里的控件规格", () => {
     expect(components.Modal).toMatchObject({ borderRadiusLG: 14 });
   });
 });
+
+describe("第四轮复审之后补的", () => {
+  it("下拉左右内边距 10：antd 按“paddingSM 减描边宽”算，paddingSM 给 10 + 1；与输入框的左右内边距同值", () => {
+    const borderWidth = Number.parseFloat(sharedTokens["border-width"].default);
+    expect(borderWidth).toBe(1);
+    expect(components.Select).toMatchObject({ paddingSM: 11, fontSize: 13 });
+    expect((components.Select?.paddingSM ?? 0) - borderWidth).toBe(components.Input?.paddingInline);
+    expect(components.Input?.paddingInline).toBe(10);
+  });
+
+  it("antd 的 Tabs、Pagination、Breadcrumb 不设主题：用本目录自己的页签、分页与面包屑，不留半套的配置", () => {
+    for (const name of ["Tabs", "Pagination", "Breadcrumb"]) {
+      expect(Object.keys(components)).not.toContain(name);
+    }
+  });
+});
