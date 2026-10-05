@@ -191,8 +191,8 @@
 | `pnpm db:deploy` | `prisma migrate deploy`：对 `DATABASE_URL` 指的库跑全部待执行的迁移，可重复跑。`pnpm test` 里 `packages/db` 的用例要连迁移库 `lyx_migrate_check`，没建就失败、不跳过：怎么建、报错怎么看见 [README](packages/db/README.md) 第 3 节 |
 | `pnpm db:catalog-diff` | 系统目录比对：由底稿建的参照库 `lyx_schema_check` 与迁移库 `lyx_migrate_check` 的表、列、约束定义、索引定义、触发器、函数体逐项 0 差异，数量两组口径对得上；出报告。两个库怎么建、参数与口径见 [README](packages/db/README.md) 第 6 节。它的用例（`infra/ci/test/db-*.test.ts`）与 `gates:selftest` 里它的反例也要连本地的 PostgreSQL，各建各的临时库，用完删掉 |
 | `pnpm db:verify-managed` | 托管库验证：对 `DATABASE_URL` 指的、`lyx_` 开头的空库报告两个扩展可建、迁移跑通、计数表；不打印连接串。业主在托管库到位时跑；本地演练的做法见 [README](packages/db/README.md) 第 7 节 |
-| `pnpm db:verify-grants` | 角色与授权的核对：对 `DATABASE_URL` 指的、`lyx_` 开头、跑完全部迁移的库，核对两个角色、授权是否生效、分区表能否写入与查询；只读系统目录，不打印连接串。`pnpm db:verify-managed` 成功后会自动接着跑它（后置钩子 `postdb:verify-managed`）。见 [README](packages/db/README.md) 第 7、9 节 |
-| `pnpm --filter @liyoxi/db exec vitest run src/grants.test.ts` | 权限测试（也在 `pnpm test` 里）：自建自删一个库，跑两遍迁移，以应用角色、只读角色、属主三种身份逐张表去试。要 `DATABASE_URL` 的账号能建库、能切换角色。加表、加自增列要同时改迁移里的授权与这份用例里的清单，见 [README](packages/db/README.md) 第 9 节 |
+| `pnpm db:verify-grants` | 角色与授权的核对：对 `DATABASE_URL` 指的、`lyx_` 开头、跑完全部迁移的库，核对两个角色、授权是否生效、分区表能否写入与查询；逐表与期望比，只读系统目录，不打印连接串。`pnpm db:verify-managed` 成功后会自动接着跑它（后置钩子 `postdb:verify-managed`，要经 pnpm 跑才有）。见 [README](packages/db/README.md) 第 7、9 节 |
+| `pnpm --filter @liyoxi/db exec vitest run src/grants.test.ts` | 权限测试（也在 `pnpm test` 里）：自建自删一个库，跑两遍迁移，以应用角色、只读角色、属主三种身份逐张表去试。要 `DATABASE_URL` 的账号能建库、能切换角色。加表要同时改迁移里的授权与期望的授权 `packages/db/src/grants.expected.json`（核对脚本也读它），见 [README](packages/db/README.md) 第 9 节 |
 
 本地连接参数：配置只经 `loadEnv`（`packages/services/src/kernel/env.ts`）读环境变量，会话与测试不建、不读 `.env`，在命令前或 shell 里给出。取值出处是 [local.yml](infra/compose/local.yml)，账号与口令是固定的开发值，只对本机这套容器有效；CI 的服务容器用同一组值。
 

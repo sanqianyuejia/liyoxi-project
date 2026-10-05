@@ -19,8 +19,8 @@
 ## 决定
 
 1. 出下一版迁移的草稿，固定用“库 → schema”的 `prisma migrate diff`，只当草稿用，人工删改补全后入库。不用 `prisma migrate dev`（含 `--create-only`）、`migrate reset`、`db push`。
-2. 手写对象（CHECK、部分索引、表达式索引、排他约束、触发器、函数、分区）与授权，Prisma 不出、也不比：一律人工写进迁移。它们有没有被误伤，靠结构快照与约束清单比对（W0-06b）和权限测试（本包）把关，不靠 Prisma。
-3. 授权随迁移走：新表在建它的那个迁移里逐表授给 `lyx_app`；`lyx_readonly` 靠缺省授权自动带上。全部迁移由同一个账号执行。
+2. 手写对象（CHECK、部分索引、表达式索引、排他约束、触发器、函数、分区）与授权，Prisma 不出、也不比：一律人工写进迁移。它们有没有被误伤，靠结构快照与约束清单比对（W0-06b）和权限测试、角色与授权的核对脚本（本包；两者共用一份期望 `packages/db/src/grants.expected.json`）把关，不靠 Prisma。
+3. 授权随迁移走：新表在建它的那个迁移里逐表授给 `lyx_app`；`lyx_readonly` 靠缺省授权自动带上。全部迁移由同一个账号执行：这是缺省授权成立的前提（第 3 节“谁来跑”一行）。
 4. V1.0 不建 `lyx_archiver`。建分区的函数建议改成“以属主身份执行”再授给 `lyx_app`，落地在 G2-C；本包不改函数。
 
 ### 1. 出下一版迁移的固定做法
@@ -34,7 +34,7 @@
 | ⑤ 逐条核对 | 草稿里凡 `DROP`、`RenameIndex`，不是本次要做的一律删。已知的假动作：schema 里新加的普通索引与某个手写的部分索引同列时，Prisma 出的不是 `CREATE INDEX`，而是把那条部分索引改名，要改写成 `CREATE INDEX` |
 | ⑥ 必补 | Prisma 不会出的：新表、新列上的 CHECK、部分索引、表达式索引、排他约束、触发器、函数；标量数组列的 `SET NOT NULL`；新表的授权（第 3 节）；四类语句前的 `-- lyx:allow <理由>`（D7 第 8.3 节第 5 条） |
 | ⑦ 删列、改列类型之前 | 先查这一列上有没有手写的 CHECK、部分索引、触发器参数。`DROP COLUMN` 会连带把引用它的 CHECK 与索引一起删掉，不报错；触发器留下，参数里还写着已经不存在的列名 |
-| ⑧ 核对 | 空库上 `pnpm db:deploy` 跑通，再跑一遍没有待执行的迁移；再出一次草稿，输出只剩第 ④ 步那一句（多出别的，说明迁移与模型不一致）；`pnpm --filter @liyoxi/db exec vitest run src/grants.test.ts`（新表没补授权会红，把新表写进用例里的清单）；手写对象的增减看结构快照的差异（W0-06b 交付之前没有这道检查，靠评审逐条读迁移） |
+| ⑧ 核对 | 空库上 `pnpm db:deploy` 跑通，再跑一遍没有待执行的迁移；再出一次草稿，输出只剩第 ④ 步那一句（多出别的，说明迁移与模型不一致）；`pnpm --filter @liyoxi/db exec vitest run src/grants.test.ts`（新表没补授权会红：在 `packages/db/src/grants.expected.json` 里给新表加一行）；手写对象的增减看结构快照的差异（W0-06b 交付之前没有这道检查，靠评审逐条读迁移） |
 
 删列三步、CHECK 替换三句、大表加索引等写法照 D7 第 8.3 节第 2 条，本条不重复。
 
@@ -51,17 +51,18 @@
 
 | 项 | 规则 |
 | --- | --- |
-| 新表 | 建它的迁移里逐表写 `GRANT … TO lyx_app`。常规表给 `SELECT, INSERT, UPDATE, DELETE`；行不物理删除的不给 `DELETE`；只增表只给 `INSERT, SELECT`，触发器放行的列另授列级 `UPDATE` |
+| 新表 | 建它的迁移里逐表写 `GRANT … TO lyx_app`。常规表给 `SELECT, INSERT, UPDATE, DELETE`；行不物理删除的不给 `DELETE`；只增表只给 `INSERT, SELECT`，触发器放行的列另授列级 `UPDATE`。同一个 PR 在 `packages/db/src/grants.expected.json` 的 `tables` 里给它加一行（只增表另加进 `appendOnly`，例外列写进 `columnUpdate`）：权限测试与核对脚本都读这一份，不加就红 |
 | 新的自增列 | 背后的序列授 `USAGE`，否则插不进去 |
-| 新的 `SECURITY DEFINER` 函数 | 先 `REVOKE ALL … FROM PUBLIC`，再授给要用它的角色 |
+| 新的 `SECURITY DEFINER` 函数 | 先 `REVOKE ALL … FROM PUBLIC`，再授给要用它的角色；并在 `grants.expected.json` 的 `definerFunctions` 里登记由谁执行 |
 | `lyx_readonly` | 不用写：授权迁移里的缺省授权让“跑迁移的账号”以后建的表与序列自动对它只读 |
-| 谁来跑 | 全部迁移由同一个账号执行：本地与 CI 是管理账号，预发与生产是 `lyx_migrator`（D7 第 8.3 节第 6 条）。换一个不是属主的账号来跑，授权语句报“permission denied”；缺省授权也只对当初那个账号建的对象生效 |
-| 登录账号 | 迁移建的两个角色不可登录、不带口令。给它们口令，或另建登录账号再加进角色，由环境初始化做（G2-D），不进迁移 |
+| 谁来跑 | 全部迁移由同一个账号执行：本地与 CI 是管理账号，预发与生产是 `lyx_migrator`（D7 第 8.3 节第 6 条）。换一个不是属主的账号来跑，授权语句报“permission denied”。它也是 `lyx_readonly` 缺省授权成立的前提：那两条缺省授权只挂在跑授权迁移的那个账号名下、只在这个库里，只对这个账号以后建的表与序列生效。实测：换一个账号在这个库里建一张表，`lyx_readonly` 读不到它，以 `lyx_readonly` 身份做的逻辑备份（`pg_dump`）整个失败（`permission denied for table …`），核对脚本报“`lyx_readonly` 的权限不是恰好 SELECT 的表”。所以后面的迁移、建分区都不要换账号；真要换，属主与缺省授权都得跟着换，那是一次要单独设计的操作，本条没有试 |
+| 登录账号 | 迁移建的两个角色不可登录、不带口令，之后也不要把它们改成可登录。登录账号另建（名字与口令由环境初始化定，G2-D），加为这两个角色的成员（`GRANT lyx_app TO <应用的登录账号>`），不进迁移。核对脚本与权限测试都把“`lyx_app`、`lyx_readonly` 可登录”判为不通过。D7 第 7.5 节与 `docs/plan/runbook.md` 写的“`lyx_app` 的数据库口令”因此指的是那个登录账号的口令（两份文档本包没有改，列在偏差里） |
+| 迁移中途失败 | 授权迁移是整个放在一个事务里执行的：中途出错整体回滚，库里不留一句授权、缺省授权、模式授权，这次新建的角色也不留（2026-10-05 实测两种：先只跑首版迁移，再让授权迁移在最后一组授权上出错；跑迁移的账号没有 `CREATEROLE`、实例上又没有这两个角色）。`pnpm db:deploy` 报 `P3018`，`_prisma_migrations` 里留一行未完成的记录；把出错的原因修好之后直接再跑报 `P3009`，要先 `pnpm --filter @liyoxi/db exec prisma migrate resolve --rolled-back 20261005060000_grants`（只把那一行记录标成已回滚），再 `pnpm db:deploy`。之后的迁移若带显式的事务语句或不能放进事务的语句，失败后是不是整体回滚没有试过：先查库里留下了什么再标记 |
 
 ### 4. `lyx_archiver` 与建分区的函数
 
 - `lyx_archiver`：V1.0 不建。D7 第 2.5、7.5 节把它列为“分区归档”的角色，出处是 D4 的审计日志分区；而 D4 定稿时审计日志在 V1.0 不分区。埋点事件的归档是整分区 `DETACH` 再 `DROP`，那是属主才能做的 DDL，头一次发生在上线 25 个月之后（14 分组 第 2.9 节）。到真要归档时，由当时的结构变更包决定要不要这个角色。
-- 建分区：14 分组 第 2.9 节写周期任务 `analytics.partitions` “用迁移账号执行”，而 worker 拿不到迁移账号的口令（D7 第 7.5 节）。实测 `lyx_app` 调 `lyx_14_analytics_event_ensure_partition` 报 42501（它不是父表的属主）。建议（落地在 G2-C，要改函数，走结构变更包）：把这个函数改成 `SECURITY DEFINER`，收回 PUBLIC 的执行权，只授给 `lyx_app`。函数只会建名字固定的月分区，参数只有一个日期；新分区的属主是函数的属主，也就是跑迁移的账号，`lyx_readonly` 的缺省授权照样生效。在那之前：首版迁移已预建到未来 3 个月（按建库那天算）；G2-C 落地前要更远的分区，由结构变更包在迁移里再调一次这个函数，迁移是以属主身份执行的。
+- 建分区：14 分组 第 2.9 节写周期任务 `analytics.partitions` “用迁移账号执行”，而 worker 拿不到迁移账号的口令（D7 第 7.5 节）。实测 `lyx_app` 调 `lyx_14_analytics_event_ensure_partition` 报 42501，原文是 `permission denied for schema public`：先卡在它在模式 `public` 上没有 `CREATE`；就算给了，下一层报 `must be owner of table analytics_event`（建分区要是父表的属主）。两层都不该放开。建议（落地在 G2-C，要改函数，走结构变更包）：把这个函数改成 `SECURITY DEFINER`，收回 PUBLIC 的执行权，只授给 `lyx_app`（并在 `grants.expected.json` 的 `definerFunctions` 里加一行）。函数只会建名字固定的月分区，参数只有一个日期；新分区的属主是函数的属主，也就是跑迁移的账号，`lyx_readonly` 的缺省授权照样生效。在那之前：首版迁移已预建到未来 3 个月（按建库那天算）；G2-C 落地前要更远的分区，由结构变更包在迁移里再调一次这个函数，迁移是以属主身份执行的。
 
 ## 理由
 
@@ -80,9 +81,9 @@
 
 | # | 项 | 本地的表现 |
 | --- | --- | --- |
-| 1 | 跑迁移的账号有没有 `CREATEROLE` | 没有时建角色报“permission denied to create role”，迁移失败。退路：先由控制台或管理账号建好 `lyx_app`、`lyx_readonly`，迁移见到已有就跳过 |
+| 1 | 跑迁移的账号有没有 `CREATEROLE` | 没有时建角色报“permission denied to create role”，迁移失败。退路：先由控制台或管理账号建好 `lyx_app`、`lyx_readonly`，迁移见到已有就跳过。预建的必须是不可登录、不带口令、没有任何特权属性的角色（`CREATE ROLE lyx_app NOLOGIN`）；登录账号另建并加为成员。本地实测：这样预建之后，没有 `CREATEROLE` 的账号跑 `pnpm db:verify-managed` 两段都通过。预建成可登录的（控制台建带口令的账号通常就是这样）：迁移照样跑通、不改它的属性，但核对脚本报“角色的属性不对”，改回 `NOLOGIN` 才通过。平台若不让建不可登录的角色，那是要回到这里改决定的事，不是放宽核对 |
 | 2 | 两个迁移是不是同一个账号跑的 | 换一个不是属主的账号跑授权迁移：`permission denied for table idempotency_record` |
-| 3 | 跑迁移的账号是不是库的属主 | 不是时 `GRANT USAGE ON SCHEMA public` 只出警告、不失败；平台若收回了所有人对 `public` 的使用权，应用角色会进不了模式 |
+| 3 | 跑迁移的账号是不是库的属主 | 不是时 `GRANT USAGE ON SCHEMA public` 只出警告、不失败；平台若收回了所有人对 `public` 的使用权，应用角色会进不了模式（表上的授权都在，却一张表也找不到）；核对脚本会报“进不了模式 public（没有 USAGE）的角色” |
 | 4 | 管理账号能不能切换到 `lyx_app` | 16 起不能直接切：建角色的账号只拿到管理权。要先 `GRANT lyx_app TO <自己> WITH SET TRUE`。权限测试靠切换角色，所以它只在本地与 CI 跑；托管库验证脚本只读系统目录，不切换角色 |
 | 5 | 缺省授权 | 同一个账号之后建的分区，`lyx_readonly` 自动可读，`lyx_app` 在子表上没有权限 |
 | 6 | 逻辑备份 | `pg_dump --role=lyx_readonly` 成功；换成 `lyx_app` 失败（读不了 `_prisma_migrations` 与分区子表） |
@@ -103,6 +104,6 @@
 
 - 每次出草稿都要人工删掉 `DROP INDEX "ix_store_asset_search"`，并逐条核对索引的改名。漏删会把素材搜索的索引删掉；W0-06b 交付之后，结构快照会多出差异，迁移规范检查也会因为那句 `DROP` 没带 `-- lyx:allow` 而失败。
 - Prisma 对手写对象既不建也不查：少一个触发器、少一条 CHECK，`migrate deploy`、`migrate status`、`migrate diff` 都看不出来。W0-06b 合并之前只有评审这一道。
-- 授权清单有两份：迁移里的语句、权限测试里的期望。加表要改两处，这是有意的重复。
+- 授权清单有两份：迁移里的语句、`packages/db/src/grants.expected.json` 里的期望（权限测试与核对脚本共用）。加表要改两处，这是有意的重复。期望那一份不是门禁文件：改它不用走单独的门禁 PR；但只改它而没有对应的迁移，测试就红，而迁移是甲类、要业主同意。
 - 上面的结论只对 Prisma 7.9.1 成立。升级 Prisma 时把第 1、2 问的实验重做一遍：它对部分索引的处理不是文档里的承诺，是试出来的。
 - 权限测试插夹具行时靠 `session_replication_role = replica` 绕开外键，要超级用户；它证明的是权限与触发器，不证明业务写入路径上的外键与触发器（那由各服务包的连库测试覆盖）。
