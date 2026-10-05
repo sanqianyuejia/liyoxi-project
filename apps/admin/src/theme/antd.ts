@@ -16,6 +16,10 @@ const shadow = adminTokens.shadow;
 /** 全局字号 14，表格、输入框、下拉、描述列表、面包屑下调到 13（规范 第 5.4 节） */
 const BODY = px(fontSize.body);
 
+/** 开关轨道高 20、滑块 16（规范 第 5.3 节；样式变量里只有轨道宽，高与滑块写在它的说明里）：轨道内边距 2，滑块 = 20 − 2 × 2 */
+const SWITCH_HEIGHT = 20;
+const SWITCH_PADDING = px(sharedTokens.space[2]);
+
 export const adminTheme: ThemeConfig = {
   token: { ...antdTheme.token },
   components: {
@@ -87,8 +91,9 @@ export const adminTheme: ThemeConfig = {
       // 内边距 24、内部间距 16、关闭按钮 32 × 32 灰底：这几样没有公开的主题变量，在 global.css 里覆盖
     },
     Drawer: {
-      boxShadow: shadow.drawer,
       fontSizeLG: px(fontSize["title-lg"]),
+      // 宽 480 在下面的 adminComponentConfig 里给。阴影（antd 的抽屉不认 boxShadow，按方向各有一个不公开的变量）、
+      // 头部内边距 24、关闭按钮 32 × 32 在 global.css 里覆盖
     },
     Tabs: {
       inkBarColor: color.primary,
@@ -115,6 +120,14 @@ export const adminTheme: ThemeConfig = {
       activeBorderColor: color.primary,
       activeShadow: shadow["focus-ring-input"],
     },
+    // 日期与日期范围选择器套输入框的规格（规范 第 12 节“日期筛选”：套用主题）
+    DatePicker: {
+      inputFontSize: BODY,
+      paddingInline: px(sharedTokens.space[10]),
+      hoverBorderColor: color.primary,
+      activeBorderColor: color.primary,
+      activeShadow: shadow["focus-ring-input"],
+    },
     Select: {
       fontSize: BODY,
       optionFontSize: BODY,
@@ -134,14 +147,24 @@ export const adminTheme: ThemeConfig = {
       itemSelectedBg: color["bg-card"],
       itemSelectedColor: color["text-primary"],
       itemColor: color["text-secondary"],
+      // 项 13px（规范 第 5.2 节“分段控件”）；选中项字重 600 在 global.css 里给
+      fontSize: BODY,
     },
     Checkbox: {
       controlInteractiveSize: px(size.checkbox),
       borderRadiusSM: px(sharedTokens.radius.sm),
     },
+    // 开关 36 × 20，滑块 16 带 shadow-knob；开是成功绿，关是 fill-disabled（规范 第 5.3 节“开关”）
     Switch: {
       colorPrimary: color["switch-on"],
       colorPrimaryHover: color["switch-on"],
+      colorTextQuaternary: color["fill-disabled"],
+      colorTextTertiary: color["fill-disabled"],
+      trackMinWidth: px(size["switch-width"]),
+      trackHeight: SWITCH_HEIGHT,
+      trackPadding: SWITCH_PADDING,
+      handleSize: SWITCH_HEIGHT - SWITCH_PADDING * 2,
+      handleShadow: shadow.knob,
     },
     Alert: {
       defaultPadding: `${sharedTokens.space[10]} ${sharedTokens.space[12]}`,
@@ -157,6 +180,10 @@ export const adminTheme: ThemeConfig = {
       borderRadiusLG: px(radius.card),
       colorBorderSecondary: color["border-light"],
       boxShadowTertiary: "none",
+      // 内容卡内边距 16、卡片标题 15px（规范 第 3 节、第 2.3 节）
+      bodyPadding: px(sharedTokens.space[16]),
+      headerPadding: px(sharedTokens.space[16]),
+      headerFontSize: px(fontSize["title-md"]),
     },
     Breadcrumb: {
       fontSize: BODY,

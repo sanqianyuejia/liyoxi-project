@@ -34,10 +34,49 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* 键盘聚焦环（规范 第 12 节）：浅色光晕在白底上看不见，按钮、链接、可点的行用主色环 */
-.lyx-focusable:focus-visible {
+/*
+ * 键盘聚焦环（规范 第 12 节、第 10 节“键盘”）：浅色光晕在白底上看不见，按钮、链接、可点的行用主色环。
+ * 自己写的可点元素挂 .lyx-focusable；文字链（.lyx-link）自带。输入框、下拉是另一种：描边变主色加浅色光晕，由主题给（antd.ts）。
+ */
+.lyx-focusable:focus-visible,
+.lyx-link:focus-visible {
   outline: none;
   box-shadow: var(--lyx-shadow-focus-ring);
+}
+
+/* 文字链没有自己的形状，环按小圆角画 */
+.lyx-link:focus-visible {
+  border-radius: var(--lyx-radius-sm);
+}
+
+/*
+ * Ant Design 的控件键盘聚焦时缺省是一圈 3px 的浅色描边（主色的浅色，对白底的对比度约 1.8），换成同一个主色环。
+ * 盖到的是本包用到的与规范 第 5.3、5.4 节点名的控件：按钮（各种类型与三档大小）、弹窗与抽屉的关闭键、通知与提示条的关闭键、
+ * 输入框与下拉的清除键、复选框、单选框、开关、分段控件；侧栏菜单在下面“外壳”一段。
+ * 规范 第 12 节点名的是“按钮、链接、可点的行”，复选框、单选框、开关、分段控件没有点名，按可点的控件同样处理（状态文件偏差 16）。
+ * 前面加 :root 是为了不靠样式表的先后顺序压过 antd 自己的规则。
+ */
+:root
+  :is(
+    .ant-btn:not(:disabled),
+    .ant-switch,
+    .ant-modal-close,
+    .ant-drawer-close,
+    .ant-notification-notice-close,
+    .ant-alert-close-icon,
+    .ant-input-clear-icon,
+    .ant-select-clear,
+    .ant-picker-clear
+  ):focus-visible,
+:root :is(.ant-checkbox, .ant-radio-wrapper .ant-radio):has(input:focus-visible),
+:root .ant-segmented:has(input:focus-visible) {
+  outline: none;
+  box-shadow: var(--lyx-shadow-focus-ring);
+}
+
+/* 分段控件的环画在整条轨道上（当前项由白底的滑块标出）；项自己的浅色描边去掉 */
+:root .ant-segmented .ant-segmented-item-focused {
+  outline: none;
 }
 
 /* ---------- 外壳（规范 第 5.1 节） ---------- */
@@ -112,6 +151,16 @@ body {
   padding-inline-start: 40px !important;
   font-size: var(--lyx-font-size-body);
   line-height: var(--lyx-size-control-sm);
+}
+
+/*
+ * 侧栏菜单的键盘聚焦（规范 第 12 节：可点的行用主色聚焦环）：Tab 先落在整个菜单上，方向键在各项之间走。
+ * 环的内圈是白色，落在深色侧栏上同样看得见。菜单区的内边距（12、10）比环宽（4），不会被裁。
+ */
+:root .lyx-shell__nav .ant-menu-root:focus-visible,
+:root .lyx-shell__nav .ant-menu :is(.ant-menu-item, .ant-menu-submenu-title):focus-visible {
+  outline: none;
+  box-shadow: var(--lyx-shadow-focus-ring);
 }
 
 /* 分组箭头：14px，贴着菜单项的右内边距（位置与过渡沿用 antd 给展开图标的样式） */
@@ -499,10 +548,13 @@ body {
   box-shadow: inset 0 0 0 var(--lyx-border-width-strong) var(--lyx-color-primary);
 }
 
-/* 行高两档：单行内容 44，双行内容 56。一行里有双行单元格（.lyx-cell-2）就取 56，页面不用另外声明 */
+/*
+ * 行高两档：单行内容 44，双行内容 56。一行里有双行单元格（.lyx-cell-2）就取 56，页面不用另外声明。
+ * 上下内边距 4：行里放高 32 的行内按钮时（32 + 4 × 2 + 分隔线 1 = 41）仍在 44 之内，不会把这一行撑高。
+ */
 .lyx-table .ant-table-tbody > tr > td {
   height: var(--lyx-size-table-row);
-  padding-block: var(--lyx-space-6);
+  padding-block: var(--lyx-space-4);
 }
 
 .lyx-table .ant-table-tbody > tr > td:has(.lyx-cell-2) {
@@ -1016,13 +1068,41 @@ a.lyx-link--danger:hover {
   margin-bottom: var(--lyx-space-16);
 }
 
-/* 提示条圆角 8（规范 第 5.3 节“提示条”）；通栏的那种（banner）不要圆角。主题变量不起作用的原因见 antd.ts 的 Alert 一段 */
+/*
+ * 抽屉（规范 第 5.3 节“抽屉”）：右侧，内边距 24，shadow-drawer；关闭按钮与弹窗的同一种（32 × 32，圆角 8，灰底）。
+ * 宽 480 由 ConfigProvider 的 drawer 配置给（theme/antd.ts 的 adminComponentConfig）。
+ */
+.ant-drawer-right > .ant-drawer-content-wrapper {
+  box-shadow: var(--lyx-shadow-drawer);
+}
+
+.ant-drawer .ant-drawer-header {
+  padding: var(--lyx-space-24);
+}
+
+.ant-drawer .ant-drawer-close {
+  width: var(--lyx-size-control-sm);
+  height: var(--lyx-size-control-sm);
+  color: var(--lyx-color-text-primary);
+  background: var(--lyx-color-bg-page);
+  border-radius: var(--lyx-radius-control);
+}
+
+.ant-drawer .ant-drawer-close:hover {
+  background: var(--lyx-color-fill-neutral);
+}
+
+/*
+ * 提示条（规范 第 5.3 节“提示条”）：圆角 8，无描边；通栏的那种（banner）不要圆角。
+ * 圆角的主题变量不起作用的原因见 antd.ts 的 Alert 一段；antd 的提示条自带 1px 描边，这里去掉（单行高 10 + 20.8 + 10）。
+ */
 .ant-alert:not(.ant-alert-banner) {
   border-radius: var(--lyx-radius-control);
 }
 
 .ant-alert {
   line-height: var(--lyx-line-height-body);
+  border: 0;
 }
 
 /*
@@ -1079,6 +1159,29 @@ a.lyx-link--danger:hover {
 .lyx-toast-icon--danger circle {
   fill: var(--lyx-color-danger);
   stroke: var(--lyx-color-danger);
+}
+
+/* ---------- 表单控件（规范 第 5.3 节；主题变量管不到的几处） ---------- */
+
+/* 表单字段的标签 13px / 600（字号由主题给，字重没有主题变量）；控件下方的错误提示与辅助说明 12px */
+.ant-form-item .ant-form-item-label > label {
+  font-weight: var(--lyx-font-weight-semibold);
+}
+
+.ant-form-item .ant-form-item-explain,
+.ant-form-item .ant-form-item-extra {
+  font-size: var(--lyx-font-size-caption);
+}
+
+/* 多行输入：内边距 8px 10px，行高 1.6 */
+textarea.ant-input {
+  padding: var(--lyx-space-8) var(--lyx-space-10);
+  line-height: var(--lyx-line-height-body);
+}
+
+/* 分段控件：选中项 600（轨道、项高、字号由主题给） */
+.ant-segmented .ant-segmented-item-selected {
+  font-weight: var(--lyx-font-weight-semibold);
 }
 
 /* ---------- 二次确认（规范 第 5.3 节“二次确认弹窗”） ---------- */
@@ -1141,6 +1244,11 @@ a.lyx-link--danger:hover {
   font-size: var(--lyx-font-size-body);
   border: var(--lyx-border-width-default) solid var(--lyx-color-border);
   border-radius: var(--lyx-radius-inner);
+}
+
+.lyx-confirm__check .ant-checkbox-wrapper {
+  width: 100%;
+  font-size: var(--lyx-font-size-body);
 }
 
 .lyx-confirm__check[data-checked="true"] {
