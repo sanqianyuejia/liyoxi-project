@@ -1,0 +1,46 @@
+# 狸有戏 · 预发：宿主机 nginx 上的一个站点（ADR-041“决定”第 4.3 节；W2-25）。
+# 本文件由 infra/deploy/nginx/render.sh 从模板渲染，三个预发域名各一份；改模板后重新渲染，不要直接改渲染出来的文件。
+# 只新增这三个独立的站点文件，不改机器上已有的站点。装上之前先 nginx -t；重载会波及同机的其他站点，先经业主同意。
+# 这一层只做三件事：终止 TLS；把请求原样转给本机回环上的 gateway；告诉 gateway 真实的客户端地址。
+#   Host 原样透传：gateway 靠它按域名隔离接口面。
+#   X-Forwarded-For 是覆盖写，不是追加：客户端自己带来的那一段不可信，gateway 只认这一层写的。
+#   请求体上限不小于 gateway 的 2MB（回调 1MB）：真正的上限由 gateway 把关，这里别先一步拒掉。
+#   安全响应头只由 gateway 与 api 设，这一层不加（重复的 HSTS 是踩过的坑）。
+
+server {
+  listen 80;
+  server_name ${LYX_SITE_HOST};
+
+  # 证书签发用的 HTTP 验证目录；其余一律跳到 https
+  location ^~ /.well-known/acme-challenge/ {
+    root ${LYX_ACME_ROOT};
+    default_type text/plain;
+  }
+  location / {
+    return 301 https://$host$request_uri;
+  }
+}
+
+# ---- 以下是 https 的站点：证书还没签下来时先不要（render.sh --http-only 只渲染到这一行之前） ----
+server {
+  listen 443 ssl;
+  server_name ${LYX_SITE_HOST};
+
+  ssl_certificate ${LYX_TLS_DIR}/${LYX_SITE_HOST}/fullchain.pem;
+  ssl_certificate_key ${LYX_TLS_DIR}/${LYX_SITE_HOST}/privkey.pem;
+
+  client_max_body_size 2m;
+
+  location / {
+    proxy_pass http://127.0.0.1:${LYX_GATEWAY_PORT};
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_connect_timeout 5s;
+    # gateway 等 api 35 秒，这里再多等 5 秒
+    proxy_read_timeout 40s;
+    proxy_send_timeout 40s;
+  }
+}
