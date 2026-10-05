@@ -38,8 +38,8 @@ export interface MerchantFactsQuery {
   readonly storeIds: readonly string[];
   /** 观察者角色：待办数等有老板口径与店员口径之分 */
   readonly viewerRole: MerchantRole;
-  /** 观察者：按人算的事实（未读消息数）要它 */
-  readonly merchantUserId: string;
+  /** 观察者：按人算的事实（未读消息数）要它；没有观察者（只取额度、后台与任务里取数）时为空 */
+  readonly merchantUserId: string | null;
   /** 业务时间：读侧从注入的时钟取了传进来，实现不自己取 */
   readonly now: Date;
 }
