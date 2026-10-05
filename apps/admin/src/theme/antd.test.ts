@@ -108,3 +108,21 @@ describe("第四轮复审之后补的", () => {
     }
   });
 });
+
+describe("第五轮复审之后补的", () => {
+  it("弹窗标题的行高取标题行高 1.3（规范 第 2.3 节）；antd 缺省按标题字号算出 1.5", () => {
+    expect(adminTokens["line-height"]).toEqual({ body: 1.6, title: 1.3 });
+    expect(components.Modal).toMatchObject({
+      titleFontSize: 18,
+      titleLineHeight: adminTokens["line-height"].title,
+    });
+  });
+
+  it("不改 antd 全局主题的行高：控件的上下内边距按它算，改了各控件的高会差出零点几个像素；段落的 1.6 在 global.css 里给", () => {
+    expect(Object.keys(adminTheme.token ?? {})).not.toContain("lineHeight");
+    for (const name of ["Input", "InputNumber", "Select", "DatePicker", "Button", "Table"]) {
+      const overrides = (components as Record<string, object | undefined>)[name] ?? {};
+      expect(Object.keys(overrides), name).not.toContain("lineHeight");
+    }
+  });
+});
