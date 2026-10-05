@@ -31,6 +31,7 @@
     "@liyoxi/db": "workspace:*",
     "@liyoxi/shared": "workspace:*",
     "ioredis": "6.0.0",
+    "pino": "10.3.1",
     "zod": "4.6.5"
   },
   "devDependencies": {
