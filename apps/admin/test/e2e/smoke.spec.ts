@@ -7,6 +7,9 @@
 // 弹窗两个方向居中（规范 第 5.3 节）；按钮、文字链、弹窗关闭键用键盘走到时是主色聚焦环（规范 第 12 节），没有 antd 缺省的浅色描边。
 // 截图（1440 × 900）写到 dist/e2e-shots，CI 当产物上传：01–04 是验收要的外壳与三种骨架（02b 是筛选表格滚到底的样子），
 // 05–12 是顺路留的几个状态（空、出错、处理后、冲突、上传失败、二次确认、403、已处理的事项）。断言用角色与文字定位，不用样式类名。
+// 第四轮复审之后加的两步：规范写明数值的又几处（卡片内的分区标题 14px、下拉左右内边距 10、数字等宽）；
+// 整行可点的表格（样例页 /dev/rows，截图 13）：点行里的文字链、按钮，或焦点在它们上面按回车，不触发整行的动作；
+// 分段控件用 Tab 走到的两站（容器自己、里面的项）都是主色聚焦环；抽屉用键盘打开时根节点上没有描边。键盘一律真按 Tab 走。
 import { mkdirSync } from "node:fs";
 
 import { expect, test, type Locator, type Page } from "@playwright/test";
@@ -236,6 +239,32 @@ async function offCenter(
     vertical: Math.round(Math.abs(box.y - (size.height - box.y - box.height))),
     horizontal: Math.round(Math.abs(box.x - (size.width - box.x - box.width))),
   };
+}
+
+/**
+ * 控件的外框（带描边的那一层）的高与左右内边距：从控件里拿到焦点的那个输入往上找，第一个有描边的祖先就是外框。
+ * 输入框、下拉是同一行规格（规范 第 5.3、5.4 节：高 36、左右内边距 10），用它量两种控件，不靠样式类名。
+ */
+async function framePadding(
+  target: Locator,
+): Promise<{ height: number; left: string; right: string } | null> {
+  return target.evaluate((element) => {
+    let frame: Element | null = element;
+    while (frame && getComputedStyle(frame).borderTopWidth === "0px") frame = frame.parentElement;
+    if (!frame) return null;
+    const style = getComputedStyle(frame);
+    return {
+      // 取整：外框的高由文字行高撑出来，不同字体下会差出零点零几个像素
+      height: Math.round(frame.getBoundingClientRect().height),
+      left: style.paddingLeft,
+      right: style.paddingRight,
+    };
+  });
+}
+
+/** 元素的 font-variant-numeric（规范 第 2.4 节：所有数字等宽） */
+async function numericOf(target: Locator): Promise<string> {
+  return target.evaluate((element) => getComputedStyle(element).fontVariantNumeric);
 }
 
 test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page }) => {
@@ -613,6 +642,178 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     const disable = backend.received.find((request) => request.path.endsWith("/disable"));
     expect(disable?.body).toEqual({ lockVersion: 1, confirm: { phoneTail: "5018" } });
     expect(disable?.headers["idempotency-key"]).toMatch(/^sample-store-disable:[0-9a-f-]{36}$/);
+  });
+
+  await test.step("规范写明数值的又几处：卡片内的分区标题 14px、下拉左右内边距 10、数字等宽", async () => {
+    // 卡片内的分区标题（h3）14px / 600（规范 第 2.3 节 title-sm、第 13 节“分区 14”）：骨架出的“核对清单”与样例页写的一处
+    await page.goto("/dev/queue");
+    const queue = page.getByRole("region", { name: "资质审核的队列" });
+    const detail = page.getByRole("region", { name: "资质审核的详情" });
+    await expect(detail.getByRole("heading", { level: 2 })).toBeVisible();
+    for (const name of ["核对清单", "营业执照 · 识别结果"]) {
+      expect(
+        await detail.getByRole("heading", { level: 3, name }).evaluate((element) => {
+          const style = getComputedStyle(element);
+          return { size: style.fontSize, weight: style.fontWeight };
+        }),
+        `卡片内的分区标题“${name}”`,
+      ).toEqual({ size: "14px", weight: "600" });
+    }
+    // 数字等宽（规范 第 2.4 节）：加在 body 上全站继承；队列项（带提交时间）、详情卡（带截止时间）、页头副标题都继承得到
+    expect(await numericOf(page.locator("body")), "body").toBe("tabular-nums");
+    for (const [name, target] of Object.entries({
+      队列项: queue.getByRole("button", { name: /XX 火锅/ }),
+      详情卡: detail.getByRole("heading", { level: 2 }),
+      面包屑: page.getByRole("navigation", { name: "面包屑" }),
+      用户区: page.getByTestId("shell-user"),
+    })) {
+      expect(await numericOf(target), `${name}的数字`).toBe("tabular-nums");
+    }
+
+    // 卡片这一级的标题（h2）仍是 15px（title-md）
+    await page.goto("/dev/detail/st-01");
+    const sectionTitle = page.getByRole("heading", { level: 2, name: "基础信息" });
+    await expect(sectionTitle).toBeVisible();
+    expect(await sectionTitle.evaluate((element) => getComputedStyle(element).fontSize)).toBe(
+      "15px",
+    );
+    expect(await numericOf(page.getByRole("tabpanel")), "详情页的信息列表").toBe("tabular-nums");
+
+    // 下拉与输入框同一行规格：高 36、左右内边距 10（规范 第 5.3、5.4 节）。没选值的、选了值的各量一遍，与搜索框相同
+    await page.goto("/dev/table?source=sales");
+    const table = page.getByRole("region", { name: "商家列表" });
+    await expect(table.getByText("共 23 条")).toBeVisible();
+    const searchFrame = await framePadding(
+      table.getByRole("searchbox", { name: "商家、主体名称" }),
+    );
+    expect(searchFrame, "搜索框的外框").toEqual({ height: 36, left: "10px", right: "10px" });
+    for (const name of ["全部区域", "全部来源"]) {
+      expect(
+        await framePadding(table.getByRole("combobox", { name })),
+        `下拉“${name}”的外框`,
+      ).toEqual(searchFrame);
+    }
+    // 下拉浮层里的选项（“10 条”一类）同样等宽：antd 把浮层的 font-variant 设回了初始值，样式里接回来了
+    await table.getByRole("combobox", { name: "每页条数" }).click();
+    expect(await numericOf(page.getByTitle("10 条", { exact: true })), "下拉浮层的选项").toBe(
+      "tabular-nums",
+    );
+    await page.keyboard.press("Escape");
+  });
+
+  await test.step("整行可点的表格：行内的文字链、按钮各管各的；分段控件、抽屉用键盘走到时的样子", async () => {
+    await page.goto("/dev/rows");
+    const table = page.getByRole("region", { name: "对公付款单" });
+    const log = page.getByTestId("rows-log");
+    const drawer = page.getByRole("dialog", { name: "付款单详情" });
+    await expect(table.getByRole("row")).toHaveCount(4);
+    await expect(log).toContainText("整行动作 0 次 · 行内按钮 0 次 · 正在看的凭证：无");
+    await expectNoHorizontalScroll(page, "整行可点的表格");
+    const firstRow = table.getByRole("row").nth(1);
+
+    // 鼠标点行里的空白（付款方那一格）：整行的动作，右侧抽屉打开
+    await firstRow.getByRole("cell").first().click();
+    await expect(drawer).toBeVisible();
+    await expect(log).toContainText("整行动作 1 次 · 行内按钮 0 次");
+    await page.keyboard.press("Escape");
+    await expect(drawer).toBeHidden();
+    // 点行里的按钮：只算按钮自己的，整行的动作不跟着触发
+    await firstRow.getByRole("button", { name: "确认收款" }).click();
+    await expect(log).toContainText("整行动作 1 次 · 行内按钮 1 次");
+    await expect(drawer).toBeHidden();
+    // 点行里的文字链：只走链接（地址带上凭证），整行的动作不跟着触发
+    await table.getByRole("row").nth(2).getByRole("link", { name: "查看凭证" }).click();
+    await expect(page).toHaveURL(/[?&]voucher=pay-2(&|$)/);
+    await expect(log).toContainText("整行动作 1 次 · 行内按钮 1 次 · 正在看的凭证：pay-2");
+    await expect(drawer).toBeHidden();
+
+    // 键盘：先点一下说明条（它不能聚焦，只为把起点定在表格卡前面），之后全用真实的 Tab 走
+    const ring = await tokenShadow(page, "--lyx-shadow-focus-ring");
+    await log.click();
+    await page.keyboard.press("Tab");
+    // 分段控件第一站：容器自己（它带 tabindex）。主色聚焦环，没有 antd 缺省的浅色描边（第四轮复审的阻断项）
+    const segmented = page.getByRole("radiogroup", { name: "收款状态" });
+    await expectFocusRing(page, segmented, "分段控件（容器这一站）");
+    // 第二站：进到里面的项，环仍画在整条轨道上
+    await page.keyboard.press("Tab");
+    await expect(segmented.getByRole("radio", { name: "全部" })).toBeFocused();
+    await expect
+      .poll(
+        () =>
+          segmented.evaluate((element) => {
+            const style = getComputedStyle(element);
+            return { outline: style.outlineStyle, ring: style.boxShadow };
+          }),
+        { message: "分段控件（里面的项这一站）：环画在整条轨道上" },
+      )
+      .toEqual({ outline: "none", ring });
+    // 第三站：第一行。可点的行是向内的 2px 主色环；回车触发整行的动作
+    await page.keyboard.press("Tab");
+    await expect(firstRow).toBeFocused();
+    await expect
+      .poll(() =>
+        firstRow.evaluate((element) => {
+          const style = getComputedStyle(element);
+          return {
+            keyboard: element.matches(":focus-visible"),
+            style: style.outlineStyle,
+            width: style.outlineWidth,
+            offset: style.outlineOffset,
+            color: style.outlineColor,
+          };
+        }),
+      )
+      .toEqual({
+        keyboard: true,
+        style: "solid",
+        width: "2px",
+        offset: "-2px",
+        color: await tokenColor(page, "--lyx-color-primary"),
+      });
+    await page.keyboard.press("Enter");
+    await expect(drawer).toBeVisible();
+    await expect(log).toContainText("整行动作 2 次 · 行内按钮 1 次");
+    // 抽屉用键盘打开：焦点先落在整个抽屉这一层上（它包着对话框）。那是容器不是控件，不画环，也没有浏览器缺省的描边
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const active = document.activeElement;
+          const dialog = document.querySelector('[role="dialog"]');
+          if (!active || !dialog) return null;
+          const style = getComputedStyle(active);
+          return {
+            holdsDialog: active !== dialog && active.contains(dialog),
+            keyboard: active.matches(":focus-visible"),
+            outline: style.outlineStyle,
+          };
+        }),
+      )
+      .toEqual({ holdsDialog: true, keyboard: true, outline: "none" });
+    await page.keyboard.press("Tab");
+    await expectFocusRing(page, drawer.getByRole("button", { name: "关闭" }), "抽屉的关闭键");
+    await shot(page, "13-clickable-rows-drawer");
+    // Esc 关闭，焦点回到触发的那一行（规范 第 10 节“弹层”）
+    await page.keyboard.press("Escape");
+    await expect(drawer).toBeHidden();
+    await expect(firstRow).toBeFocused();
+
+    // 焦点在行里的文字链上按回车：只走链接。浏览器会给链接补发一次点击，它不该冒泡成整行的动作
+    await page.keyboard.press("Tab");
+    await expectFocusRing(page, firstRow.getByRole("link", { name: "查看凭证" }), "行里的文字链");
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/[?&]voucher=pay-1(&|$)/);
+    await expect(log).toContainText("整行动作 2 次 · 行内按钮 1 次 · 正在看的凭证：pay-1");
+    await expect(drawer).toBeHidden();
+    // 焦点在行里的按钮上按回车：只算按钮自己的
+    await page.keyboard.press("Tab");
+    await expectFocusRing(
+      page,
+      firstRow.getByRole("button", { name: "确认收款" }),
+      "行里的小号按钮",
+    );
+    await page.keyboard.press("Enter");
+    await expect(log).toContainText("整行动作 2 次 · 行内按钮 2 次 · 正在看的凭证：pay-1");
+    await expect(drawer).toBeHidden();
   });
 
   await test.step("权限：换成客服的权限后看不到财务菜单，直接访问财务的地址去 403 页", async () => {

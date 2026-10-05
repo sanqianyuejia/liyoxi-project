@@ -1,6 +1,7 @@
-// 样例路由（任务书 第 11 节第 4 项）：三种骨架各一页，只用夹具数据，给冒烟与看样用。W0-29 的看样页另建。
+// 样例路由（任务书 第 11 节第 4 项）：三种骨架各一页，另有一页整行可点的表格（筛选表格骨架的 onRowClick），
+// 只用夹具数据，给冒烟与看样用。W0-29 的看样页另建。
 // 生产构建不包含样例页：__LYX_DEV_FIXTURES__ 为 false 时页面组件与夹具整段被摇掉，
-// 这里只剩三条访问即“页面不存在”的空路由（scripts/check-build.mjs 断言产物里没有夹具的标记）。
+// 这里只剩几条访问即“页面不存在”的空路由（scripts/check-build.mjs 断言产物里没有夹具的标记）。
 // 本文件会进生产构建，不得静态引入 src/dev/ 下的任何模块。
 import { createRoute, lazyRouteComponent, notFound } from "@tanstack/react-router";
 
@@ -49,4 +50,16 @@ export const devDetailRoute = createRoute({
     : undefined,
 });
 
-export const devRoutes = [devTableRoute, devQueueRoute, devDetailRoute] as const;
+/** 整行可点的表格样例（行里另有文字链与按钮；点一行开抽屉）：借用“订购单与付款单”的菜单位置 */
+export const devRowsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/dev/rows",
+  staticData: { pageKey: "order.list" },
+  validateSearch: passthrough,
+  beforeLoad: devOnly,
+  component: __LYX_DEV_FIXTURES__
+    ? lazyRouteComponent(() => import("../../dev/RowsSample"), "RowsSample")
+    : undefined,
+});
+
+export const devRoutes = [devTableRoute, devQueueRoute, devDetailRoute, devRowsRoute] as const;
