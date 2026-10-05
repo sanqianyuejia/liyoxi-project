@@ -49,3 +49,6 @@ export type {
   StaffActor,
   SystemActor,
 } from "./actor.js";
+
+// W0-07b 服务装配：六类注册接口、端口、收集与装配
+export * from "./assembly/index.js";
