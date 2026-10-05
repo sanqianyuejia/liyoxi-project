@@ -1,8 +1,11 @@
 // 商家端：主体、门店与成员 · entities（docs/api/m02-tenant.md）。由 routemap.json 接管（W0-10），之后以本文件为准：
 // 改接口同 PR 改 routemap.json 与分组文档，pnpm contract:docs-check 对账。归属的里程碑在 ../milestones.ts。
-import { merchantMeta } from "../meta-only.js";
+import { errorResponses, okResponse } from "../../common/index.js";
+import { merchantRoute } from "../builders.js";
 
-export const mEntityCreate = merchantMeta({
+import { EntityCreateBodySchema, MembershipResultSchema } from "./tenant.schemas.js";
+
+export const mEntityCreate = merchantRoute({
   method: "post",
   path: "/m/entities",
   operationId: "m.entity.create",
@@ -11,4 +14,8 @@ export const mEntityCreate = merchantMeta({
   "x-auth": "user",
   "x-clerk-view": "same",
   "x-idempotent": "required",
+  request: {
+    body: { required: true, content: { "application/json": { schema: EntityCreateBodySchema } } },
+  },
+  responses: { ...okResponse(MembershipResultSchema), ...errorResponses(400, 401, 409) },
 });

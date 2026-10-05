@@ -23,3 +23,7 @@ export * from "./config/dict-ext.js";
 export * from "./audit/index.js";
 // W0-15 出站事件的载荷结构：按事件名取 schema
 export * from "./events/index.js";
+// W1-03：m01、m02 两份接口文档里已带结构的路由与结构（处理器按名字取路由对象）。别的文档补结构时在末尾各加一行；
+// 同一份文档后到的包不用再动这里，在文档目录的 index.ts 里加自己的资源文件即可
+export * from "./routes/m01-account/index.js";
+export * from "./routes/m02-tenant/index.js";
