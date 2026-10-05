@@ -15,6 +15,8 @@ on:
       - infra/docker/**
       - infra/compose/**
       - infra/stack/**
+      - infra/deploy/**
+      - infra/bootstrap/**
       - apps/api/**
       - apps/worker/**
       - packages/db/prisma/**
@@ -53,6 +55,8 @@ jobs:
         run: node infra/stack/up.mjs up
       - name: 第 4、5 条：冒烟
         run: node infra/stack/smoke.mjs
+      - name: 预发节点的演练（W2-25）：照 node.yml 另起六个容器，走一遍节点步骤，核对后自己清场
+        run: node infra/deploy/rehearse.mjs --without-image-smoke
       - name: 没过时的现场
         if: failure()
         run: docker ps -a; for name in lyx-gateway lyx-api lyx-worker lyx-mediatool; do echo "== $name"; docker logs --tail 80 "$name" 2>&1 || true; done
