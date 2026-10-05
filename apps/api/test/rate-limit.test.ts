@@ -1,5 +1,10 @@
 // 限流的接口层用例（任务书 W0-22b 第 7 节第 1、2 条；约定 C68）。连真的 Redis（本 worker 的测试前缀）；
 // “停掉 Redis”用故障注入的转发口造，不动共享的那份。各用例用各自的来源 IP 与用户，计数互不相干。
+import { once } from "node:events";
+import type { Server } from "node:http";
+import type { AddressInfo } from "node:net";
+
+import { serve } from "@hono/node-server";
 import { uuidv7 } from "@liyoxi/services";
 import { createRedisOutage } from "@liyoxi/services/testing";
 import { afterAll, describe, expect, it } from "vitest";
@@ -217,6 +222,32 @@ describe("超限返回 429", () => {
       expect(executions.update).toBe(before + 1);
     },
   );
+});
+
+describe("真的监听端口", () => {
+  it("取得到套接字的对端地址：本机回环算自家代理，按转发头右数第一个计数", TIMEOUT, async () => {
+    const api = await testApi.start({
+      handlers: [thingGetHandler],
+      rateLimitQuotas: { "m.global": [{ by: "ip", limit: 1, windowSec: 60 }] },
+    });
+    const server = serve({ fetch: api.api.app.fetch, port: 0, hostname: "127.0.0.1" }) as Server;
+    cleanups.push(async () => {
+      server.closeAllConnections();
+      server.close();
+      await once(server, "close");
+    });
+    if (!server.listening) await once(server, "listening");
+    const { port } = server.address() as AddressInfo;
+    const get = (forwardedFor: string) =>
+      fetch(`http://127.0.0.1:${port}${thing()}`, {
+        headers: { "X-Forwarded-For": forwardedFor },
+      }).then((response) => response.status);
+
+    const octet = Math.floor(Math.random() * 200) + 20;
+    expect(await get(`198.19.${octet}.1`)).toBe(200);
+    expect(await get(`6.6.6.6, 198.19.${octet}.1`)).toBe(429);
+    expect(await get(`198.19.${octet}.2`)).toBe(200);
+  });
 });
 
 describe("停掉 Redis 后限流仍生效", () => {
