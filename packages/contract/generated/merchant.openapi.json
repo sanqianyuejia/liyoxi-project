@@ -259,6 +259,22 @@
         ],
         "type": "object"
       },
+      "Attribution": {
+        "properties": {
+          "channelCode": {
+            "maxLength": 32,
+            "type": "string"
+          },
+          "inviteCode": {
+            "maxLength": 32,
+            "type": "string"
+          },
+          "scene": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "ConsentInput": {
         "properties": {
           "agreementKey": {
@@ -645,6 +661,83 @@
         ],
         "type": "object"
       },
+      "MeUser": {
+        "properties": {
+          "actions": {
+            "items": {
+              "enum": [
+                "update",
+                "change-phone",
+                "deletion"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "displayName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "merchantUserId": {
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "phoneMask": {
+            "type": "string"
+          },
+          "registeredAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "merchantUserId",
+          "displayName",
+          "phoneMask",
+          "registeredAt",
+          "actions"
+        ],
+        "type": "object"
+      },
+      "MeView": {
+        "properties": {
+          "memberships": {
+            "items": {
+              "$ref": "#/components/schemas/MembershipBrief"
+            },
+            "type": "array"
+          },
+          "notices": {
+            "items": {
+              "$ref": "#/components/schemas/UserNotice"
+            },
+            "type": "array"
+          },
+          "pendingConsents": {
+            "items": {
+              "$ref": "#/components/schemas/PendingConsent"
+            },
+            "type": "array"
+          },
+          "user": {
+            "$ref": "#/components/schemas/MeUser"
+          }
+        },
+        "required": [
+          "user",
+          "memberships",
+          "pendingConsents",
+          "notices"
+        ],
+        "type": "object"
+      },
       "MemberPreview": {
         "properties": {
           "displayName": {
@@ -669,6 +762,68 @@
         "required": [
           "displayName",
           "role"
+        ],
+        "type": "object"
+      },
+      "MembershipBrief": {
+        "properties": {
+          "entity": {
+            "$ref": "#/components/schemas/EntityBrief"
+          },
+          "joinedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastStoreId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "memberDisplayName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "memberId": {
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "owner",
+              "clerk"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          },
+          "stores": {
+            "items": {
+              "$ref": "#/components/schemas/MembershipStore"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "memberId",
+          "role",
+          "memberDisplayName",
+          "joinedAt",
+          "lastStoreId",
+          "entity",
+          "stores"
         ],
         "type": "object"
       },
@@ -723,6 +878,54 @@
         ],
         "type": "object"
       },
+      "MembershipStore": {
+        "properties": {
+          "isPrimary": {
+            "type": "boolean"
+          },
+          "lifecycle": {
+            "enum": [
+              "active",
+              "archived"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "qualificationStatus": {
+            "enum": [
+              "unsubmitted",
+              "pending",
+              "verified",
+              "rejected"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          },
+          "storeId": {
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "storeId",
+          "name",
+          "isPrimary",
+          "lifecycle",
+          "qualificationStatus"
+        ],
+        "type": "object"
+      },
       "PendingConsent": {
         "properties": {
           "agreementKey": {
@@ -755,6 +958,45 @@
           "versionLabel",
           "effectiveAt",
           "summary"
+        ],
+        "type": "object"
+      },
+      "PhoneLoginResult": {
+        "properties": {
+          "isNewUser": {
+            "type": "boolean"
+          },
+          "me": {
+            "$ref": "#/components/schemas/MeView"
+          },
+          "switchedFrom": {
+            "anyOf": [
+              {
+                "properties": {
+                  "phoneMask": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "phoneMask"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "token": {
+            "pattern": "^lyxm_[0-9a-f-]{36}\\.[A-Za-z0-9_-]{43}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "me",
+          "isNewUser",
+          "switchedFrom"
         ],
         "type": "object"
       },
@@ -909,6 +1151,40 @@
           "isCurrentVersionConsented",
           "latestConsent",
           "firstConsent"
+        ],
+        "type": "object"
+      },
+      "SilentLoginResult": {
+        "properties": {
+          "me": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MeView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "needPhone": {
+            "type": "boolean"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "pattern": "^lyxm_[0-9a-f-]{36}\\.[A-Za-z0-9_-]{43}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "needPhone",
+          "token",
+          "me"
         ],
         "type": "object"
       },
@@ -1208,6 +1484,36 @@
           "clerkCount",
           "todoCount",
           "actions"
+        ],
+        "type": "object"
+      },
+      "UserNotice": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "new_wechat_bound"
+            ],
+            "type": "string",
+            "x-open-enum": true
+          },
+          "message": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "userNoticeId": {
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "userNoticeId",
+          "kind",
+          "occurredAt",
+          "message"
         ],
         "type": "object"
       }
@@ -1898,6 +2204,80 @@
         "x-idempotent": "required"
       }
     },
+    "/api/v1/m/me": {
+      "get": {
+        "operationId": "m.me.get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/MeView"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "客户端版本过低"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          }
+        },
+        "summary": "当前账号：称呼与脱敏手机号、成员关系（主体概要、可访问门店与各门店角色）、待同意协议、一次性提示",
+        "x-auth": "user",
+        "x-clerk-view": "same",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "纯查询，GET 不写库（A18、A19）"
+      }
+    },
     "/api/v1/m/me/current-store": {
       "put": {
         "operationId": "m.me.currentStore.replace",
@@ -2010,6 +2390,351 @@
         "x-capability": "me.*",
         "x-clerk-view": "same",
         "x-idempotent": "required"
+      }
+    },
+    "/api/v1/m/sessions": {
+      "post": {
+        "operationId": "m.session.create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "device": {
+                    "$ref": "#/components/schemas/DeviceInfo"
+                  },
+                  "loginCode": {
+                    "maxLength": 128,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "loginCode"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SilentLoginResult"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "客户端版本过低"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "外部能力不可用、系统繁忙或停机维护"
+          }
+        },
+        "summary": "静默登录：wx.login 的 loginCode 换会话；微信身份已绑定且允许静默登录时返回令牌与 me，否则返回 needPhone 保持游客态",
+        "x-auth": "public",
+        "x-clerk-view": "same",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "登录与换会话（A18）",
+        "x-rate-limit": "m.login.silent"
+      }
+    },
+    "/api/v1/m/sessions/current": {
+      "delete": {
+        "operationId": "m.session.current.delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "type": "null"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "客户端版本过低"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          }
+        },
+        "summary": "退出登录：吊销当前会话并关闭该微信身份的静默登录",
+        "x-auth": "user",
+        "x-clerk-view": "same",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "退出登录；端上把 401 当作已退出（A43）"
+      }
+    },
+    "/api/v1/m/sessions/phone-login": {
+      "post": {
+        "operationId": "m.session.phoneLogin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "attribution": {
+                    "$ref": "#/components/schemas/Attribution"
+                  },
+                  "consentScene": {
+                    "enum": [
+                      "login",
+                      "member_join"
+                    ],
+                    "type": "string"
+                  },
+                  "consents": {
+                    "items": {
+                      "$ref": "#/components/schemas/ConsentInput"
+                    },
+                    "maxItems": 2,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "device": {
+                    "$ref": "#/components/schemas/DeviceInfo"
+                  },
+                  "loginCode": {
+                    "maxLength": 128,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "phoneCode": {
+                    "maxLength": 128,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "loginCode",
+                  "phoneCode",
+                  "consents"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PhoneLoginResult"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "客户端版本过低"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "需要先同意协议"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "外部能力不可用、系统繁忙或停机维护"
+          }
+        },
+        "summary": "手机号快捷登录/注册：{loginCode, phoneCode, consents, attribution}；首次登录建账号、记协议同意与来源；可能返回 REVERIFY_REQUIRED、switchedFrom",
+        "x-auth": "public",
+        "x-clerk-view": "same",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "登录与换会话（A18）",
+        "x-rate-limit": "m.login.phone"
       }
     },
     "/api/v1/m/stores": {

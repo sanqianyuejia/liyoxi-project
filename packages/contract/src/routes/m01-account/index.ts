@@ -24,3 +24,7 @@ export * from "./agreement-versions.js";
 export * from "./agreement.schemas.js";
 export * from "./agreements.js";
 export * from "./error-details.js";
+// W1-04：当前账号与登录的结构；三条会话路由与 m.me.get
+export * from "./account.schemas.js";
+export * from "./me.js";
+export * from "./sessions.js";

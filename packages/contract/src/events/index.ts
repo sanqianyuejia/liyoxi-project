@@ -5,6 +5,7 @@
 import type { EventName } from "../registry/index.js";
 import type { z } from "../zod.js";
 import { payloads as config } from "./config.js";
+import { payloads as identity } from "./identity.js";
 import { payloads as sla } from "./sla.js";
 import { payloads as tenant } from "./tenant.js";
 
@@ -13,6 +14,7 @@ export const EVENT_PAYLOAD_SCHEMAS = {
   ...sla,
   ...tenant,
   ...config,
+  ...identity,
 } as const satisfies Partial<Record<EventName, z.ZodType>>;
 
 /** 已交 schema 的事件名 */

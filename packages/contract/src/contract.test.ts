@@ -331,8 +331,8 @@ describe("提交的生成物（任务书 W0-08 第 11 节第 1 项）", () => {
   //     加具名结构时再改组件清单（现在只有 DictRef、ErrorBody、SentryEnvelope）。
   // 这是预期替换，不算“删改已有黄金条目”。替换时把断言换成新的现状（条数、组件名），不要整条删掉。
   // 路由清单本身的条数、与路线图的对账在 src/routes/routes.test.ts 与 pnpm contract:docs-check。
-  it("路由都已登记：带结构的 8 条在商家端文档里，其余还只有元数据；三份文档都有通用结构与错误体", async () => {
-    // W1-03：m01 的协议 5 条、m02 的建主体、门店列表、记住当前门店各 1 条
+  it("路由都已登记：带结构的 12 条在商家端文档里，其余还只有元数据；三份文档都有通用结构与错误体", async () => {
+    // W1-03：m01 的协议 5 条、m02 的建主体、门店列表、记住当前门店各 1 条；W1-04：m01 的会话 3 条与当前账号 1 条
     expect(allRoutes.map((route) => route.operationId).sort()).toEqual([
       "m.agreement.list",
       "m.agreementConsent.create",
@@ -341,34 +341,46 @@ describe("提交的生成物（任务书 W0-08 第 11 节第 1 项）", () => {
       "m.agreementVersion.get",
       "m.entity.create",
       "m.me.currentStore.replace",
+      "m.me.get",
+      "m.session.create",
+      "m.session.current.delete",
+      "m.session.phoneLogin",
       "m.store.list",
     ]);
-    expect(allMetaOnlyRoutes).toHaveLength(656);
+    expect(allMetaOnlyRoutes).toHaveLength(652);
     expect(allRegistryOnly).toHaveLength(5);
     const common = ["DictRef", "ErrorBody", "SentryEnvelope"];
     /** 各文档的 paths 条数与具名结构 */
     const expected: Record<string, { paths: number; schemas: string[] }> = {
       merchant: {
-        paths: 7,
+        paths: 11,
         schemas: [
           "AgreementConsentReceipt",
           "AgreementConsentSummary",
           "AgreementCurrent",
           "AgreementVersionBrief",
           "AgreementVersionDetail",
+          "Attribution",
           "ConsentInput",
           "ConsentRecord",
           "ConsentRecordForClerk",
           "DeviceInfo",
           "EntityBrief",
           "EntityQuotaCard",
+          "MeUser",
+          "MeView",
           "MemberPreview",
+          "MembershipBrief",
           "MembershipResult",
+          "MembershipStore",
           "PendingConsent",
+          "PhoneLoginResult",
           "SignedAgreementItem",
           "SignedAgreementItemForClerk",
+          "SilentLoginResult",
           "StoreCard",
           "StoreCardForClerk",
+          "UserNotice",
           ...common,
         ],
       },

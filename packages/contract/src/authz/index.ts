@@ -67,3 +67,5 @@ export type {
   RoleModuleLevels,
   StaffRoleDefault,
 } from "./role-defaults.js";
+// W1-04 商家鉴权链的两张名单：版本门槛的豁免、协议同意的白名单（按 operationId）
+export * from "./merchant-gates.js";
