@@ -210,6 +210,8 @@
 | `node infra/ci/check-mp-size.mjs apps/weapp/dist` | 小程序体积门禁：主包 ≤1,500KB、各分包 ≤800KB，打印各包体积。口径见 [脚本](infra/ci/check-mp-size.mjs) 开头的注释 |
 | `pnpm --filter @liyoxi/weapp test` | 小程序的用例：请求层、四个端上封装、页面清单，在 Node 里跑。根上的 `pnpm test` 不含它。只跑一个文件时后面加路径，如 `src/lib/request.test.ts` |
 | `pnpm weapp:shots`（只出一页加 `-- --page pages/home/index`） | 小程序页面截图：出一份 H5 构建，用 Chromium 按 375 宽给已建的页各截一张，产物在 `apps/weapp/shots/dist/png/`。本机没装 Playwright 自带的浏览器时前面加 `LYX_E2E_CHANNEL=chrome`。H5 是近似，与真机的差异见 [README](apps/weapp/README.md) 末节 |
+| `pnpm weapp:shots -- --component Button`（可给多次） | 只出某个组件的预览图 `apps/weapp/shots/dist/png/gallery__<组件名>.png`（整页）。不带参数时，页面之外另给组件陈列的目录页与每个组件各出一张。组件名是 `apps/weapp/src/components/` 下的目录名。见 [README](apps/weapp/README.md)“通用组件” |
+| `WEAPP_GALLERY=1 pnpm weapp:build` | 出带组件陈列分包（`sub/gallery`，开发用）的小程序包，看样时用；同样过体积门禁。不给这个变量时，生产的小程序包不带陈列分包（H5 截图构建与开发构建一律带） |
 
 本地连接参数：配置只经 `loadEnv`（`packages/services/src/kernel/env.ts`）读环境变量，会话与测试不建、不读 `.env`，在命令前或 shell 里给出。取值出处是 [local.yml](infra/compose/local.yml)，账号与口令是固定的开发值，只对本机这套容器有效；CI 的服务容器用同一组值。
 
