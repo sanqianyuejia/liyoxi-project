@@ -213,5 +213,6 @@ PGPASSWORD=lyx-local-dev psql -X -h localhost -p 5442 -U liyoxi -d postgres -c "
   - 下限清单只管表级权限与列级 `UPDATE`。以属主身份执行的函数由谁执行、`views` 里登记了哪些视图，只写在期望数据里，放开它们门禁改动分类不报，靠复审与“迁移是甲类”。
   - 核对脚本要 PostgreSQL 16 及以上；用例里 17 才有的 `MAINTAIN` 按服务器版本决定试不试。16 上核对脚本与它的用例实测通过；`pnpm db:verify-managed` 自己只认 17（W0-05 定的），16 上钩子的用例过不了。15、18 没有跑过。
 - 以应用角色的身份连库（排查权限问题时用；要管理账号）：连接串后面加 `?options=-c%20role%3Dlyx_app`，等同于连上之后 `SET ROLE lyx_app`。
+- 测试支架给用例的连接缺省就是这样切到 `lyx_app` 的（`useTestDatabase`、`connectTestDatabase`、`testDatabaseUrl`；缺省值在 `src/testing/database.ts` 的 `TEST_DEFAULT_ROLE`）：连库的用例看到的权限与 api、worker 一样，漏授权、或写了应用角色做不了的事，用例当场报 `42501`。要属主身份（建探针表、读 `_prisma_migrations`、看别的会话的状态、验触发器那一道）就写 `role: null`，不切角色，用 `DATABASE_URL` 的账号；支架自己建库、删库、建模板库、跑迁移一直用那个账号。用法见 [测试支架的说明](../services/src/testing/README.md) 第 2 节。
 - 权限测试插夹具行时靠 `session_replication_role = replica` 绕开外键，要超级用户；在不是超级用户的托管库上跑不了，那里用 `pnpm db:verify-grants`：它逐表核对的是同一份期望，只是不以应用角色的身份实际去改、去删。
 - Prisma 遇到手写的约束、索引、触发器、分区会怎样，之后出下一版迁移的固定做法，建分区的函数由谁执行：见 [ADR（待分配编号）](../../docs/adr/draft-W0-06a-迁移草稿由migrate-diff从库到schema出-手写对象与授权人工补.md)。

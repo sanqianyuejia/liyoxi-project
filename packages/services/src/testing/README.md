@@ -39,7 +39,13 @@ it("……", async () => {
 - 生命周期：每轮测试开始，globalSetup 重建模板库并 `prisma migrate deploy`，建完关掉它的连接入口；测试文件第一次取连接时从模板库拷一份（约 0.2 秒）；文件里的用例全过，收尾时删库；有失败，库改名为 `<库名>_k<时间戳>` 留下，名字打印在输出里，看完用 `pnpm test:db:prune` 清掉。用例失败、钩子（`beforeAll`、`afterAll`、`beforeEach`、`afterEach`）失败都算失败：收尾挂在 `aroundAll` 上，把这一组用例连同它的钩子整个包在里面，跑完看结果。
 - 守卫：建库、删库、重置、连接四个入口都先过 `assertTestDatabaseName`，名字不是 `lyx_test_` 开头即抛错，一句 SQL 都不发。装配测试用的服务容器之前，用 `assertTestDatabaseUrl(连接串)` 给连接串把关。
 - 重置 = 删库重建，不清表。重置之前取的 Prisma 客户端作废，要重新取。
-- 角色：`useTestDatabase("services", { role: "某个角色" })` 让连接连上之后切到那个角色。缺省不切，用 `DATABASE_URL` 的账号。W0-06a 的授权迁移合并后，缺省值改为应用角色 `lyx_app`（两个包里后合并的一方改，任务书 第 11 节第 8 项）。
+- 角色：给用例的连接缺省切到应用角色 `lyx_app`（W0-06a 的授权迁移建的；W0-05b 任务书 第 11 节第 8 项，由两个包里后合并的 W0-06a 改）。登录的仍是 `DATABASE_URL` 的账号，靠启动参数切过去，等同于连上之后 `SET ROLE lyx_app`，断了重连也还是它。用例看到的权限因此与 api、worker 一样：只增表只能插入与查询，`file_object` 删不了，建不了表，读不到 `_prisma_migrations`，在 `pg_stat_activity` 里看不到别的会话处在什么状态。逐表的权限见 [packages/db/README.md](../../../db/README.md) 第 9 节。
+  - 要属主身份时写 `role: null`：不切角色，用 `DATABASE_URL` 的账号（本地与 CI 是管理账号，也是表的属主）。只在应用角色做不了的事上用：建探针表、造应用角色写不进去的数据、读迁移记录表、看别的会话的状态、验触发器那一道。
+  - 写在哪：`useTestDatabase("services", { role: null })` 管这个句柄给出的连接串与 Prisma 客户端；`connectTestDatabase(db.name, { role: null })`、`testDatabaseUrl(db.name, { role: null })` 只管这一条连接。同一个库上可以两种身份各开一条：用例照常走缺省的连接，只有那一两句用属主的连接。
+  - 也可以写别的角色名，如 `{ role: "lyx_readonly" }`。
+  - 建库、删库、重置、改名、建模板库与跑迁移是支架自己的管理动作，一直用 `DATABASE_URL` 的账号，不受这个选项影响。
+  - `DATABASE_URL` 的账号要切得过去：是超级用户，或是那个角色的成员（本地与 CI 的管理账号是超级用户）。
+  - 缺省由 `packages/db/src/testing/worker.test.ts` 里的一条用例钉住：缺省拿到的连接 `current_user` 是 `lyx_app`，只增表上改、删、清空都报 `42501`；写 `role: null` 才是 `DATABASE_URL` 的账号。
 - 同一个会话标识同一时刻只许一轮测试：globalSetup 用一把咨询锁占着，第二轮会报“会话标识 … 已经有一轮测试在跑”。同一个检出里要同时跑两轮，各给一个 `LYX_TEST_SESSION`。清理命令判断“会话在不在跑”只看 `pg_locks`，不去抢这把锁。
 - 连库的时限：删库要等数据库做一次检查点，实例上别的会话正在大批建表时会慢到十几秒。收尾钩子的时限已放到 120 秒；自己的用例里连库的那几条也建议写明 `{ timeout: … }`，不要用缺省的 5 秒。
 
@@ -156,3 +162,4 @@ pnpm test:isolation --dry-run            # 只打印要跑什么，不跑
 - Redis 故障注入只转发不加密的 `redis://` 连接。
 - CI 的 `test:isolation` 一步（`--scope connected`）跑哪些项目，靠的是一条约定：用支架就得挂 globalSetup。拦的只有 `useTestDatabase`、`useTestRedis` 两个入口；不经这两个入口连库、连 Redis 的用例，它看不到。今天全仓只有 `infra/ci/test/` 下的 `db-catalog-diff`、`db-verify-managed` 两份是这样：自己起 `psql` 建库，库名带进程号（`lyx_test_infra_catdiff_<进程号>`、`lyx_test_infra_managed_<进程号>`），两个会话同时跑互不相干；CI 的“测试”一步与不带 `--scope` 的全量里照跑。`infra` 或别的没挂支架的项目里再加连库的用例：库名带上进程号，或改用支架并挂 globalSetup。直接用 `TestDatabaseHandle`、`TestRedisHandle`、`connectTestDatabase` 而不挂 globalSetup，同样会被漏在这一步之外。
 - `pnpm test:db:prune --all` 会删到别的会话正在用的库。判断“正在用”只有会话锁这一个办法：按本支架命名的库查得到所属的会话，正有一轮测试在跑的不删；不按本支架命名的 `lyx_test_` 库（`infra` 用例自己建的 `lyx_test_infra_…`）没有会话标识，查不了锁，别的会话正用着也照删，那边的用例会红。共享实例上用 `--all` 之前，先确认没有别的会话在跑测试。
+- 缺省切到应用角色是为了让用例看到与线上一样的权限，不是隔离手段：登录的仍是 `DATABASE_URL` 的账号，用例里发一句 `SET ROLE NONE`（或 `SET ROLE <那个账号>`）就换回去了；`RESET ROLE` 换不回去，它回到的是连接时定下的角色。要属主身份就明写 `role: null`，不要在用例里自己切（2026-10-05 本机实测，PostgreSQL 17.11）。这个缺省还要 `DATABASE_URL` 的账号切得过去：切不过去时（既不是超级用户、也不是 `lyx_app` 的成员），缺省的连接一连就报错。连库的用例只在本地与 CI 跑，那里的管理账号是超级用户。
