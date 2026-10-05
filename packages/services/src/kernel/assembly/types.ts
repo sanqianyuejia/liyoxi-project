@@ -225,6 +225,18 @@ export interface InvariantViolation {
   readonly healed?: { readonly action: string; readonly at: Date };
 }
 
+/** 框架调检查项时另给的东西（W0-24）。只增字段 */
+export interface InvariantRunContext {
+  /** 业务时间：调度方从注入的时钟取。检查项里的“现在”用它，不自己取 */
+  readonly now: Date;
+}
+
+/** 取框架给的业务时间。框架（ops）调检查项时一定给；用例直接调 run 而没给第三个参数时抛错 */
+export function invariantNow(ctx: InvariantRunContext | undefined): Date {
+  if (ctx === undefined) throw new TypeError("这个检查项要业务时间：run 的第三个参数写 { now }");
+  return ctx.now;
+}
+
 export interface InvariantRegistration extends EnvScoped {
   /** 检查项编号 <命名空间>.<编号>，如 events.I8、flow.STUCK_TICKET */
   readonly code: string;
@@ -233,8 +245,16 @@ export interface InvariantRegistration extends EnvScoped {
   readonly modes: readonly InvariantMode[];
   readonly every?: InvariantEvery;
   readonly heal?: InvariantHeal;
-  /** modes 非空时必须有。返回本次查到的全部违规，没有即空数组 */
-  readonly run?: (tx: Tx, scope: InvariantScope) => Promise<readonly InvariantViolation[]>;
+  /**
+   * modes 非空时必须有。返回本次查到的全部违规，没有即空数组。
+   * 检查、自愈与违规落库在同一个事务里（W0-24）。第三个参数框架一定给，用不到的检查项不用收；
+   * 类型上可选，是为了已有的登记与直接调 run 的用例不用改：要用它的检查项经 invariantNow 取。
+   */
+  readonly run?: (
+    tx: Tx,
+    scope: InvariantScope,
+    ctx?: InvariantRunContext,
+  ) => Promise<readonly InvariantViolation[]>;
 }
 
 // ---------- ⑥ 清理 ----------
