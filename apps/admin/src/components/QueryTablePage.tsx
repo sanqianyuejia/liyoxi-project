@@ -6,7 +6,7 @@
 //   - 自带三态：首次加载 5 行骨架、空状态、出错重试。
 // 导出按钮在 M7（ExportButton），本构件先留 toolbar 位置。
 import { Button, Select, Table, type TableColumnsType } from "antd";
-import type { ReactNode } from "react";
+import type { HTMLAttributes, KeyboardEvent, ReactNode } from "react";
 
 import {
   hasActiveFilters,
@@ -74,6 +74,7 @@ export interface QueryTablePageProps<Row> {
   /** 正在后台重取（翻页、筛选后）：表格保留上一份数据并显示加载中 */
   refreshing?: boolean;
   onRetry: () => void;
+  /** 整行可点（点一行看详情一类）：鼠标点或键盘聚焦到这一行后按回车 */
   onRowClick?: (row: Row) => void;
   /** 行强调：超时或异常行 */
   rowTone?: (row: Row) => "danger" | undefined;
@@ -87,6 +88,20 @@ export interface QueryTablePageProps<Row> {
 }
 
 const SKELETON_ROWS = 5;
+
+/**
+ * 可点的行交给表格行的属性：除了点击，键盘也要走得到（规范 第 10 节“所有操作可用键盘完成”、第 12 节“可点的行”有聚焦环）。
+ * Tab 能停在行上，回车触发；行里的链接、按钮自己拿到的回车不算这一行的。聚焦环在 global.css 的 .lyx-row--clickable。
+ */
+export function clickableRowProps(onActivate: () => void): HTMLAttributes<HTMLElement> {
+  return {
+    tabIndex: 0,
+    onClick: onActivate,
+    onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+      if (event.key === "Enter" && event.target === event.currentTarget) onActivate();
+    },
+  };
+}
 
 function SkeletonRows() {
   return (
@@ -221,7 +236,7 @@ export function QueryTablePage<Row extends object>({
               .filter(Boolean)
               .join(" ")
           }
-          onRow={onRowClick ? (row) => ({ onClick: () => onRowClick(row) }) : undefined}
+          onRow={onRowClick ? (row) => clickableRowProps(() => onRowClick(row)) : undefined}
           onChange={(_pagination, _filters, sorter) => {
             const single = Array.isArray(sorter) ? sorter[0] : sorter;
             const column = columns.find((item) => item.key === single?.columnKey);

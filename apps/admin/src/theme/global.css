@@ -582,6 +582,15 @@ body {
   cursor: pointer;
 }
 
+/*
+ * 可点的行用键盘聚焦时的环（规范 第 12 节）。行挨着行、外面是裁圆角的卡片，向外的环会被盖住或裁掉，
+ * 与可排序的表头一样画成向内的 2px 主色环（状态文件偏差 16）。
+ */
+.lyx-table .lyx-row--clickable:focus-visible {
+  outline: var(--lyx-border-width-strong) solid var(--lyx-color-primary);
+  outline-offset: calc(-1 * var(--lyx-border-width-strong));
+}
+
 /* 双行单元格：主行 13px（名称 600），副行 12px，间距 2 */
 .lyx-cell-2 {
   display: flex;

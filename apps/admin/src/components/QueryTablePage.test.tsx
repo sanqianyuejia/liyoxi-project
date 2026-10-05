@@ -24,7 +24,12 @@ import {
   writeTableSearch,
 } from "../lib/table-search";
 
-import { QueryTablePage, type QueryColumn, type QueryState } from "./QueryTablePage";
+import {
+  clickableRowProps,
+  QueryTablePage,
+  type QueryColumn,
+  type QueryState,
+} from "./QueryTablePage";
 
 interface Row {
   id: string;
@@ -250,5 +255,54 @@ describe("空、加载、出错重试三态", () => {
     expect(html).toContain("门店 3");
     expect(html).toMatch(/全部<\/span><span class="lyx-tabs__count">46</);
     expect(html).toContain("text-align:right");
+  });
+});
+
+describe("可点的行", () => {
+  const renderRows = (onRowClick?: (row: Row) => void): string =>
+    renderToStaticMarkup(
+      <ConfigProvider locale={zhCN}>
+        <QueryTablePage<Row>
+          label="样例列表"
+          search={readTableSearch({}, [])}
+          onSearchChange={() => {}}
+          columns={columns}
+          rowKey={(row) => row.id}
+          query={{ status: "success", items: rows(2), total: 2 }}
+          onRetry={() => {}}
+          onRowClick={onRowClick}
+        />
+      </ConfigProvider>,
+    );
+
+  it("给了 onRowClick：每个数据行能用 Tab 聚焦（tabindex=0）并带可点的样式；不给就没有", () => {
+    const focusableRows = (html: string): number =>
+      (html.match(/<tr[^>]*data-row-key[^>]*>/g) ?? []).filter((tag) =>
+        tag.includes('tabindex="0"'),
+      ).length;
+    const clickable = renderRows(() => {});
+    expect(focusableRows(clickable)).toBe(2);
+    expect(count(clickable, "lyx-row--clickable")).toBe(2);
+    const plain = renderRows();
+    expect(count(plain, "data-row-key")).toBe(2);
+    expect(focusableRows(plain)).toBe(0);
+    expect(plain).not.toContain("lyx-row--clickable");
+  });
+
+  it("回车触发；行里的链接、按钮自己拿到的回车不算；别的键不算", () => {
+    const hits: string[] = [];
+    const props = clickableRowProps(() => hits.push("go"));
+    const rowElement = {} as EventTarget;
+    const key = (name: string, target: EventTarget) =>
+      props.onKeyDown?.({ key: name, target, currentTarget: rowElement } as never);
+    key("Enter", rowElement);
+    expect(hits).toEqual(["go"]);
+    key("Enter", {} as EventTarget);
+    key(" ", rowElement);
+    key("Tab", rowElement);
+    expect(hits).toEqual(["go"]);
+    props.onClick?.({} as never);
+    expect(hits).toEqual(["go", "go"]);
+    expect(props.tabIndex).toBe(0);
   });
 });
