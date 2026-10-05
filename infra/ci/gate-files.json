@@ -123,6 +123,12 @@
       "except": ["docs/plan/x01-map.md"],
       "kind": "append",
       "note": "x01 条目归属表（生成物，只由 pnpm registry:generate 写）：算门禁路径、不逐行判；与登记数据一致由 pnpm registry:check 与契约自测核对。它是单个文件，generated 口径只认“目录/**”，用不了"
+    },
+    {
+      "pattern": "packages/db/snapshot/**",
+      "kind": "generated",
+      "check": "pnpm db:snapshot:check",
+      "note": "结构快照（表、列、约束、索引、触发器、函数；不含分区子表）：只由 pnpm db:snapshot 在空库上跑完全部迁移后写出；与迁移一致由 db:snapshot:check 核对"
     }
   ]
 }
