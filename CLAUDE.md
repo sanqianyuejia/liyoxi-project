@@ -192,11 +192,11 @@
 | `pnpm db:generate` | 生成数据库客户端到 `packages/db/dist/generated/`（不入库）。`pnpm typecheck`、`pnpm test`、构建之前要先有它，`pnpm install` 不会顺带生成；不连库。见 [README](packages/db/README.md) 第 2、3 节 |
 | `pnpm db:validate` | `prisma validate`：校验 `packages/db/prisma/schema.prisma`。不连库 |
 | `pnpm db:deploy` | `prisma migrate deploy`：对 `DATABASE_URL` 指的库跑全部待执行的迁移，可重复跑。`pnpm test` 里 `packages/db` 的用例要连迁移库 `lyx_migrate_check`，没建就失败、不跳过：怎么建、报错怎么看见 [README](packages/db/README.md) 第 3 节 |
-| `pnpm db:catalog-diff` | 系统目录比对：由底稿建的参照库 `lyx_schema_check` 与迁移库 `lyx_migrate_check` 的表、列、约束定义、索引定义、触发器、函数体逐项 0 差异，数量两组口径对得上；出报告。两个库怎么建、参数与口径见 [README](packages/db/README.md) 第 6 节。它的用例（`infra/ci/test/db-*.test.ts`）与 `gates:selftest` 里它的反例也要连本地的 PostgreSQL，各建各的临时库，用完删掉。W0-06b 起 `check.py` 缺省建的是迁移后的库：参照库要由底稿建时加 `--from-draft`，CI 里那一步的现状见 [README](infra/ci/README.md) 第 7.4 节 |
+| `pnpm db:catalog-diff` | 系统目录比对：由底稿建的参照库 `lyx_schema_check` 与迁移库 `lyx_migrate_check` 的表、列、约束定义、索引定义、触发器、函数体逐项 0 差异，数量两组口径对得上；出报告。两个库怎么建、参数与口径见 [README](packages/db/README.md) 第 6 节。它的用例（`infra/ci/test/db-*.test.ts`）与 `gates:selftest` 里它的反例也要连本地的 PostgreSQL，各建各的临时库，用完删掉。W0-06b 起 `check.py` 缺省建的是迁移后的库：参照库要由底稿建时加 `--from-draft`，CI 里那一步的现状见 [README](infra/ci/README.md) 第 8.4 节 |
 | `pnpm db:verify-managed` | 托管库验证：对 `DATABASE_URL` 指的、`lyx_` 开头的空库报告两个扩展可建、迁移跑通、计数表；不打印连接串。业主在托管库到位时跑；本地演练的做法见 [README](packages/db/README.md) 第 7 节 |
-| `pnpm db:snapshot` | 重出结构快照 `packages/db/snapshot/structure.txt`：自建临时库跑完全部迁移，读表、列、约束、索引、触发器、函数六类（不含分区子表），用完删库。改了结构（写了新迁移）先跑它再提交；生成物不手改。口径见 [README](infra/ci/README.md) 第 7 节 |
+| `pnpm db:snapshot` | 重出结构快照 `packages/db/snapshot/structure.txt`：自建临时库跑完全部迁移，读表、列、约束、索引、触发器、函数六类（不含分区子表），用完删库。改了结构（写了新迁移）先跑它再提交；生成物不手改。口径见 [README](infra/ci/README.md) 第 8 节 |
 | `pnpm db:snapshot:check` | 结构快照无差异：重新生成后 `git diff --exit-code`，且快照目录下没有未跟踪的文件 |
-| `pnpm db:constraints:check`（加 `--db <库>` 换一个库） | 约束清单比对：拿跑完迁移的库（默认 `lyx_migrate_check`）与快照逐条比，数量与快照、06 第 1 节三处对得上。只读；核对已经部署的库的做法见 [README](infra/ci/README.md) 第 7.2 节 |
+| `pnpm db:constraints:check`（加 `--db <库>` 换一个库） | 约束清单比对：拿跑完迁移的库（默认 `lyx_migrate_check`）与快照逐条比，数量与快照、06 第 1 节三处对得上。只读；核对已经部署的库的做法见 [README](infra/ci/README.md) 第 8.2 节 |
 | `pnpm db:partitions:assert`（加 `--db <库>` 换一个库） | 分区断言：兜底分区在且为空，当月与未来 3 个月的分区在，子表上的触发器齐全。只读。本地长期留着的 `lyx_migrate_check` 过了月初会红，删掉重建 |
 | `pnpm db:migration-lint`（加 `--base <git 引用>`，默认 `origin/main`） | 迁移规范检查：`DROP`、`RENAME`、`ALTER … TYPE`、不带默认值的 `SET NOT NULL` 要带一行 `-- lyx:allow <理由>`；已经合并的迁移不能改。不连库。两种不用标记的情形见 [脚本](infra/ci/migration-lint.mjs) 开头的注释 |
 | `pnpm db:draft-freeze:check` | 草稿冻结守卫：`docs/data-model/schema.prisma` 与 `constraints/` 的 sha256 等于登记值（`infra/ci/draft-freeze.sha256`）。不连库 |
@@ -251,7 +251,7 @@ export REDIS_URL=redis://localhost:6389/0
 | 接口、页面、x01 条目的里程碑归属 | `docs/plan/changes/` 记一条 |
 | 默认做法 | 先改文档里的默认，再改代码 |
 
-默认（W0-04 定；数据模型一侧已接管，W0-06b 改）：改 `docs/data-model/` 的分组文档后跑 `python3 tools/schema-check/check.py`，它比的是迁移后的库；草稿 `schema.prisma` 与 `constraints/` 已冻结，不改。改表结构照 [infra/ci/README.md](infra/ci/README.md) 第 7.3 节的单子：新迁移、`pnpm db:snapshot` 重出快照、06 第 1 节的数量、分组文档、授权的期望。`docs/api/` 在 W0-10 合并前，改后仍跑 `python3 tools/api-check/check.py`。
+默认（W0-04 定；数据模型一侧已接管，W0-06b 改）：改 `docs/data-model/` 的分组文档后跑 `python3 tools/schema-check/check.py`，它比的是迁移后的库；草稿 `schema.prisma` 与 `constraints/` 已冻结，不改。改表结构照 [infra/ci/README.md](infra/ci/README.md) 第 8.3 节的单子：新迁移、`pnpm db:snapshot` 重出快照、06 第 1 节的数量、分组文档、授权的期望。`docs/api/` 在 W0-10 合并前，改后仍跑 `python3 tools/api-check/check.py`。
 
 ## 11. 待确认事项与文档有错
 
