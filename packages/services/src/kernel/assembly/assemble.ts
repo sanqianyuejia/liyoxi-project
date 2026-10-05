@@ -126,7 +126,8 @@ function flatten<T>(
 const inEnv =
   (env: AppEnv) =>
   (item: EnvScoped): boolean =>
-    item.envs === undefined || item.envs.includes(env);
+    // envs 写坏了（不是数组）另有一条报错；这里当它没写，不让过滤本身抛错
+    !Array.isArray(item.envs) || item.envs.includes(env);
 
 /** 按环境过滤之前的全部登记 */
 interface Everything {
