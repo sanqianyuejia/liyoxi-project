@@ -8,5 +8,7 @@ export { AUDIT_JSON_MAX_BYTES, AUDIT_JSON_MAX_DEPTH, AUDIT_TEXT_LIMITS } from ".
 export { sensitiveRule } from "./sensitive.js";
 export { AUDIT_INVARIANTS, auditI2, auditI3, findUnknownAuditTargetTypes } from "./invariants.js";
 export type { AuditInvariantCheck, AuditReader, AuditViolation } from "./invariants.js";
-// W0-24：两条每日校验登记进不变量框架
+// W1-01a：登录与安全事件 auth_event 的写函数、清理项与锁定告警，三个身份空间共用
+export * from "./auth-event.js";
+// 本模块的登记：两条每日校验进不变量框架（W0-24），auth_event 的清理项（W1-01a）
 export { registration } from "./register.js";

@@ -1,8 +1,11 @@
-// audit 模块的登记（W0-24 补；检查项是 W0-14 写的）：两条每日校验 audit.I2、audit.I3。
-// 依据：03 分组 第 2.10 节“不变量”；15 分组 第 3 节（对象是 audit_log 的一行，用 subject_id）。
-// 调度在 invariant.full。audit.I1（敏感操作与审计配对）随 M1。
+// audit 模块的登记：
+//   1. 两条每日校验 audit.I2、audit.I3（W0-24 补；检查项是 W0-14 写的）。
+//      依据：03 分组 第 2.10 节“不变量”；15 分组 第 3 节（对象是 audit_log 的一行，用 subject_id）。
+//      调度在 invariant.full。audit.I1（敏感操作与审计配对）随 M1。
+//   2. auth_event 的清理项（W1-01a）。调度在 ops.retention（W0-24），这里只登记。
 import { defineRegistration } from "../kernel/index.js";
 import type { InvariantRegistration } from "../kernel/index.js";
+import { purgeAuthEvents } from "./auth-event.js";
 import { AUDIT_INVARIANTS } from "./invariants.js";
 import type { AuditInvariantCheck } from "./invariants.js";
 
@@ -22,4 +25,5 @@ const toRegistration = (check: AuditInvariantCheck): InvariantRegistration => ({
 
 export const registration = defineRegistration("audit", {
   invariants: AUDIT_INVARIANTS.map(toRegistration),
+  cleanups: [{ name: "audit.auth_event", every: "day", run: purgeAuthEvents }],
 });
