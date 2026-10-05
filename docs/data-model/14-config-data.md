@@ -274,6 +274,8 @@ erDiagram
 | `trg_param_value_write_once` | 触发器：只允许把 `cancelled_at` 从空写一次，其余列不可改，不可删（`lyx_write_once('cancelled_at')`） |
 | `trg_param_value_no_truncate` | 触发器：禁止 TRUNCATE（`lyx_forbid_mutation`） |
 
+授权（在授权迁移里，不在本分组 SQL）：应用角色 `lyx_app` 对本表只有 `INSERT`、`SELECT`，另对 `cancelled_at` 一列授列级 `UPDATE`，供撤销时写入（W0-06a）。
+
 **生命周期**（没有状态列，由时间派生）
 
 | 派生状态 | 条件 |
