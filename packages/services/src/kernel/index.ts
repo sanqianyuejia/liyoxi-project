@@ -30,3 +30,9 @@ export type { KernelViolationKind, Tx, TxRunner, TxRunnerOptions, TxRunOptions }
 export { systemClock } from "./clock.js";
 export type { Clock } from "./clock.js";
 export { uuidv7 } from "./ids.js";
+
+// W0-07 加锁顺序：常量、锁序断言、加锁函数
+export { assertLockOrder, checkLockOrder, LOCK_ORDER } from "./lock-order.js";
+export type { LockTable } from "./lock-order.js";
+export { lockRows } from "./lock.js";
+export type { RowLockMode, RowLockTable } from "./lock.js";
