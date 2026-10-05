@@ -891,6 +891,21 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     await expectRatios(body, {
       信息列表的值: page.getByRole("tabpanel").getByRole("definition").first(),
     });
+    // 上传区：没有浏览器给按钮的缺省内边距（1px 6px，不在间距阶梯里），上下 0、左右取阶梯里的一档；文字是正文
+    await page.getByRole("tab", { name: "资质" }).click();
+    const zone = page.getByRole("button", { name: "点击上传营业执照" });
+    await expectRatios(body, { 上传区的文字: zone });
+    const ladder = await page.evaluate(() =>
+      [2, 4, 6, 8, 10, 12, 14, 16, 20, 24].map((step) =>
+        getComputedStyle(document.documentElement).getPropertyValue(`--lyx-space-${step}`).trim(),
+      ),
+    );
+    const zonePadding = await zone.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { block: style.paddingTop, inline: style.paddingLeft };
+    });
+    expect(zonePadding.block).toBe("0px");
+    expect(ladder).toContain(zonePadding.inline);
     await page.getByRole("button", { name: "禁用账号" }).click();
     const dialog = page.getByRole("dialog", { name: "禁用商家账号" });
     await expectRatios(title, { 弹窗标题: dialog.getByText("禁用商家账号", { exact: true }) });
@@ -917,6 +932,15 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     expect(await numericOf(table.getByRole("button", { name: "下一页" })), "分页的小按钮").toBe(
       "tabular-nums",
     );
+    // 可排序表头里没点亮的排序箭头取色板里的禁用色（antd 缺省算出来的颜色不在色板里）
+    expect(
+      await table
+        .getByRole("columnheader", { name: "可用积分" })
+        .locator("svg")
+        .first()
+        .evaluate((element) => getComputedStyle(element).color),
+      "没点亮的排序箭头",
+    ).toBe(await tokenColor(page, "--lyx-color-text-disabled"));
     await keyword.fill("没有这家店");
     await keyword.press("Enter");
     await expectRatios(title, { 空状态的标题: table.getByText("没有符合条件的记录") });
@@ -925,6 +949,15 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     // 抽屉：标题是标题，里面的信息列表是正文
     await page.goto("/dev/rows");
     const rows = page.getByRole("region", { name: "对公付款单" });
+    // 分段控件的选中项只是白底，不带阴影（规范 第 3 节：只有浮层有阴影）
+    expect(
+      await page
+        .getByRole("radiogroup", { name: "收款状态" })
+        .locator("label")
+        .filter({ hasText: "全部" })
+        .evaluate((element) => getComputedStyle(element).boxShadow),
+      "分段控件选中项的阴影",
+    ).toBe("none");
     await rows.getByRole("row").nth(1).getByRole("cell").first().click();
     const drawer = page.getByRole("dialog", { name: "付款单详情" });
     await expectRatios(title, { 抽屉标题: drawer.getByText("付款单详情", { exact: true }) });

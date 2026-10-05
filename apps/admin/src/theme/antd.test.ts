@@ -118,6 +118,19 @@ describe("第五轮复审之后补的", () => {
     });
   });
 
+  it("分段控件的选中项不带阴影（规范 第 3 节：只有浮层有阴影），与 antd 卡片同一种写法", () => {
+    expect(components.Segmented).toMatchObject({ boxShadowTertiary: "none" });
+    expect(components.Card).toMatchObject({ boxShadowTertiary: "none" });
+  });
+
+  it("禁用的输入类控件的描边取 fill-disabled，与禁用按钮的描边同值；不用 antd 算出来的、不在色板里的灰", () => {
+    const disabled = sharedTokens.color["fill-disabled"];
+    expect(components.Button).toMatchObject({ borderColorDisabled: disabled });
+    for (const name of ["Input", "InputNumber", "Select", "DatePicker"] as const) {
+      expect(components[name], name).toMatchObject({ colorBorderDisabled: disabled });
+    }
+  });
+
   it("不改 antd 全局主题的行高：控件的上下内边距按它算，改了各控件的高会差出零点几个像素；段落的 1.6 在 global.css 里给", () => {
     expect(Object.keys(adminTheme.token ?? {})).not.toContain("lineHeight");
     for (const name of ["Input", "InputNumber", "Select", "DatePicker", "Button", "Table"]) {
