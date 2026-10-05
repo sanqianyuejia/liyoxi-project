@@ -1,0 +1,27 @@
+# 狸有戏 · 预发节点：api 容器的生命周期（D7 第 7.4 节“节点上的进程管理”；ADR-041 第 4.2 节；W2-25）。
+# Compose 里的重启策略是 no：开机自启、进程自己退出、被杀，都由这里按“查密钥文件 → 等依赖 → 起容器”的顺序拉起。
+# 由 infra/bootstrap/node-init.sh 装到 /etc/systemd/system/。发布走 node-step.sh up，平常不用直接操作。
+# Docker 重启时跟着重启（PartOf）。容器的日志在 Docker 的 json-file 里（带轮转），这里不再往日志服务里抄一份。
+[Unit]
+Description=狸有戏预发 api
+Requires=docker.service
+PartOf=docker.service
+After=docker.service network-online.target lyx-postgres.service lyx-redis.service
+Wants=network-online.target lyx-postgres.service lyx-redis.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Environment=HOME=/root
+ExecStartPre=/opt/liyoxi/infra/deploy/check-secrets.sh --service api
+ExecStartPre=/opt/liyoxi/infra/deploy/node-step.sh wait postgres redis
+ExecStart=/opt/liyoxi/infra/deploy/node-step.sh run api
+ExecStop=/opt/liyoxi/infra/deploy/node-step.sh stop api
+Restart=always
+RestartSec=3
+TimeoutStartSec=150
+TimeoutStopSec=90
+StandardOutput=null
+
+[Install]
+WantedBy=multi-user.target
