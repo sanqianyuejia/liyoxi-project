@@ -73,4 +73,12 @@ describe("成功的通知", () => {
     expect(args.title).toBe("晴天洗衣：账号已禁用");
     expect(iconOf(args).props).toMatchObject({ name: "check", size: 16 });
   });
+
+  it("操作结果用状态播报：成功的通知 role 是 status；失败的不给 role，沿用 antd 缺省的 alert", () => {
+    const { success, error } = fakeNotifier();
+    showSuccessNotice("晴天洗衣：账号已禁用");
+    showApiNotice({ symbol: "INTERNAL", message: "服务异常，请稍后重试", requestIdTail: null });
+    expect((success.mock.calls[0]?.[0] as Record<string, unknown>).role).toBe("status");
+    expect(error.mock.calls[0]?.[0] as Record<string, unknown>).not.toHaveProperty("role");
+  });
 });

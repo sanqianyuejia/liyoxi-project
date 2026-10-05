@@ -46,13 +46,17 @@ export function showApiNotice(notice: ApiNotice): void {
   });
 }
 
-/** 操作成功的右上角通知（规范 第 8 节）：对勾，4 秒后消失，可手动关闭。文案用“已……”句式（规范 第 7 节） */
+/**
+ * 操作成功的右上角通知（规范 第 8 节）：对勾，4 秒后消失，可手动关闭。文案用“已……”句式（规范 第 7 节）。
+ * 操作结果用状态播报（规范 第 10 节）：role 给 status；失败的那一种沿用 antd 缺省的 alert（警示播报）。
+ */
 export function showSuccessNotice(message: string): void {
   notifier?.success({
     title: message,
     placement: "topRight",
     duration: SUCCESS_NOTICE_SECONDS,
     icon: toastIcon("success"),
+    role: "status",
   });
 }
 
