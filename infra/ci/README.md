@@ -36,42 +36,52 @@
 
 ## 2. CI 的结构
 
+必过任务并行跑（执行机 2 核，串成一个任务时要十多分钟）。各任务各自检出、装依赖（pnpm 的仓库有缓存），只挂自己用得到的服务容器，端口与账号同 `infra/compose/local.yml`；连接参数（`APP_ENV`、`DATABASE_URL`、`REDIS_URL`）写在工作流顶层一处，全部任务相同。
+
 | 任务 | 内容 | 备注 |
 | --- | --- | --- |
-| `verify` | 冻结安装 → lint、格式、换名、类型 → 依赖方向与五层 → 测试 → `contract:check` → 构建 → `.env.example` 核对 → 密钥扫描、依赖审计、新增依赖发布时长 → `gates:selftest` → 状态文件核对 | 挂 PostgreSQL 17 与 Redis 7.4 两个服务容器，端口与账号同 `infra/compose/local.yml` |
+| `verify` | 静态检查：lint、格式、换名、页面不写色值 → 生成数据库客户端 → 类型、类型解析不靠提升 → 依赖方向与五层 → `prisma validate` → `contract:check`、登记表对账、状态机迁移表对照、接口侧注册表对账、设计生成物无差异（上传预览页）→ `.env.example` 核对、状态文件核对 | 不挂服务容器：这里的步骤都不连库 |
+| `test` | 生成数据库客户端 → 首版迁移的等价性证明（由底稿建参照库、空库跑全部迁移、系统目录比对、再跑一遍、上传报告）→ 枚举与库 CHECK 一致 → 起 MinIO、MinIO 驱动的用例 → 测试（`pnpm test --project '!infra'`：infra 以外的全部测试项目） | 挂 PostgreSQL 17 与 Redis 7.4；MinIO 用 compose 文件起 |
+| `test-infra` | 测试（`pnpm test --project infra`：本目录 `test/` 下的用例） | 挂 PostgreSQL 17：连库的几份用例自己建临时库 |
+| `test-isolation` | 生成数据库客户端 → 建迁移库 → 起 MinIO → `test:isolation` | 挂 PostgreSQL 17 与 Redis 7.4；MinIO 同上 |
+| `web` | 构建 → 后台与下载页的单测、构建、页面清单 → 后台冒烟（按受影响范围跑；浏览器有缓存）→ 上传截图 | 不挂服务容器 |
+| `gates` | 密钥扫描、依赖审计、新增依赖发布时长 → 建迁移库 → `gates:selftest` | 挂 PostgreSQL 17 |
 | `gate-classify` | 门禁改动分类；把清单写进 PR 描述顶部两个标记之间；有只增项就打 `gate-touch` | 只在 PR 上跑；只有它能写 PR |
-| `required` | 依赖上面全部任务；任何一个没成功即失败；出时长统计 | 业主在 main 的保护规则里只把它设为必过 |
+| `required` | 依赖上面全部任务；任何一个没成功（失败、被取消、被跳过）即失败；出时长统计 | 业主在 main 的保护规则里只把它设为必过 |
 
+- 一道检查只放在一个任务里，放哪个看它要什么：不连库的放 `verify`；要迁移库、Redis、MinIO 的放 `test`；本目录 `test/` 下的用例自动进 `test-infra`；前端的放 `web`；扫描、审计与门禁自测在 `gates`。一个任务没过，其余的照跑完，`required` 最后一起判。
+- 根上的 `pnpm test` 在 CI 里分两个任务跑：`test` 跑 infra 以外的全部测试项目（写成排除 `--project '!infra'`，以后新加的测试项目自动落在这一边），`test-infra` 跑 infra 项目，合起来是全量。本地照旧跑 `pnpm test`。两条命令由 `test/workflows.test.ts` 钉住。
+- 迁移库 `lyx_migrate_check` 由用到它的任务各建一份（`test`、`test-isolation`、`gates`），命令相同。数据库客户端也只在用到它的任务里生成（`verify` 的类型检查、`test`、`test-isolation`）；`test-infra`、`web`、`gates` 用不到。
 - PR 上按分支分组：同一个分支的新提交会取消在途的运行。推到 main 时一个提交一组：不取消，也不会因为排队被后一次合并顶掉，每次合并都跑完。
 - 执行机只写在 `ci.yml` 的一处（`verify` 的 `runs-on` 带锚点 `&runner`），`nightly.yml` 另有一处。改成自托管执行机时改这两处；自托管机器上要有 Docker 与 `gh`。
-- MinIO 不是服务容器（W0-19 加）：`verify` 在“测试”之前有两步，先用 compose 文件只起 `minio` 一个服务（镜像、端口、账号只写在 `infra/compose/local.yml` 一处），再带 `LYX_TEST_MINIO=required` 跑本地存储驱动的用例，MinIO 连不上即失败。不带这个变量时（“测试”一步、每晚任务、本机没起依赖）那份用例里要连 MinIO 的几组只跳过。每晚任务不起 MinIO。
+- MinIO 不是服务容器（W0-19 加）：`test` 在“测试”之前有两步，先用 compose 文件只起 `minio` 一个服务（镜像、端口、账号只写在 `infra/compose/local.yml` 一处），再带 `LYX_TEST_MINIO=required` 跑本地存储驱动的用例，MinIO 连不上即失败。不带这个变量时（“测试”一步、每晚任务、本机没起依赖）那份用例里要连 MinIO 的几组只跳过。`test-isolation` 同样先起 MinIO，两个会话里那份用例照跑。每晚任务不起 MinIO。
 - 格式那一步跑的是 `pnpm format:check --ignore-path .prettierignore`：忽略项只认 `.prettierignore`（门禁文件）。Prettier 缺省把 `.gitignore` 也当忽略文件读，往 `.gitignore` 加一行就能让已入库的文件不查格式，而 `.gitignore` 不是门禁文件。本地直接跑 `pnpm format:check` 仍会读 `.gitignore`（本机的 `.vscode/` 之类不用查）；两者只在“已入库又被 `.gitignore` 盖住”的文件上有差别，以 CI 为准。
-- `contract:check`（W0-08）排在“测试”之后，两步都在必过里，缺一不可。`contract:check` 先重新生成、再 `git diff --exit-code`：`git diff` 看不到未跟踪的文件，新增一种生成物却忘了 `git add` 时它不会红；这由契约自测里问 git 索引的那一条拦，所以 `pnpm test` 要在 git 检出里跑。契约自测另有一条拿提交的生成物与现生成的逐字节比对，要赶在 `contract:check` 把文件重新写出来之前跑。
+- `contract:check`（W0-08）在 `verify` 里，`pnpm test` 在 `test`、`test-infra` 里，都在必过里，缺一不可。`contract:check` 先重新生成、再 `git diff --exit-code`：`git diff` 看不到未跟踪的文件，新增一种生成物却忘了 `git add` 时它不会红；这由契约自测里问 git 索引的那一条拦，所以 `pnpm test` 要在 git 检出里跑。契约自测另有一条拿提交的生成物与现生成的逐字节比对：它与 `contract:check` 不在同一个任务里，各用各的检出，谁先谁后不相干（在同一份检出里跑时，要赶在 `contract:check` 把文件重新写出来之前）。
 - 工作流的写法有约束，`test/workflows.test.ts` 按行读、认不出就失败：顶格的键与任务下面四格缩进的键不带引号；`jobs:` 逐字一行；任务编号写成两格缩进的 `<编号>:`，冒号后面不带注释；每个任务恰好一行 `name: <编号>`，检查名与任务编号相同。必过检查名 `required` 在全部工作流里只有一个。哪个工作流都不给令牌 `checks`、`statuses` 的写权限（有了它能经接口造出任意名字的检查）。
 - 第三方 Action 固定到提交 SHA，行尾注明版本；升级单独成 PR。
 - CI 里不放密钥。工作流里的连接串是本地开发的固定值，只对当次运行的服务容器有效。
-- 时长：`required` 的运行摘要与产物 `ci-duration.json` 列出各必过任务的耗时与合计。预算 15 分钟，超了只标出、不阻断（M0 退出时由 W0-30 核对）。
-- 设计地基（W0-26）在 `verify` 里加了三步：换名检查之后的“页面不写色值”（`pnpm lint:colors`）；测试之后的“设计生成物无差异”（`pnpm design:check`）与“上传设计预览页”。预览页是产物 `design-preview`（`packages/shared/dist/design-preview/`，不入库），目录里没有文件时上传那一步失败；业主合并前在运行页面的 Artifacts 里下载来看。
-- 首版迁移（W0-05）在 `verify` 里加了七步。“类型”之前一步：生成数据库客户端（`pnpm db:generate`；客户端不入库）。“依赖方向与五层”之后、“起 MinIO”之前六步：`prisma validate`；由底稿建参照库 `lyx_schema_check`（校验工具按自己的锁文件用 npm 装，带 `NPM_CONFIG_IGNORE_SCRIPTS` 不执行安装脚本，再跑 `check.py --keep`）；空库 `lyx_migrate_check` 上跑全部迁移；系统目录比对；再跑一遍迁移与比对；上传比对报告（产物 `db-catalog-diff`，比对没过时也传）。排在“测试”之前，是因为 `pnpm test` 里 `packages/db` 的用例要连迁移库。用法与口径见 [packages/db/README.md](../../packages/db/README.md) 第 6 节。
-- 后台与下载页骨架（W0-28）在 `verify` 的“构建”之后加了七步：“后台与下载页单测”（`pnpm --filter @liyoxi/admin --filter @liyoxi/portal test`；根上的 `pnpm test` 不含这两个应用，它们的单测与构建共用各自的 `vite.config.ts`）；“后台与下载页构建”（`pnpm admin:build && pnpm portal:build`，产物检查在各自的 `build` 脚本里）；“页面清单无差异”；“后台冒烟要不要跑”（`apps/admin/scripts/e2e-affected.mjs`，结论写进步骤输出）；它后面三步带条件，只在结论为要跑时执行：装浏览器、“后台冒烟”（`pnpm admin:e2e`）、“上传后台冒烟截图”。截图是产物 `admin-e2e-shots`（都是 1440 × 900：01–04 是外壳与三种骨架，05–12 是空、出错、处理后、冲突、上传失败、二次确认、403、已处理的事项几个状态；用例失败时另有现场），业主合并前在运行页面的 Artifacts 里下载来看。冒烟不跑的 PR（没改到后台的受影响范围）没有这个产物。写法由 `test/admin-ci.test.ts` 钉住。
-- x01 名称登记与枚举（W0-09a）在 `verify` 里加了两步，都排在 `contract:check` 之后。“登记表对账”（`pnpm registry:check`）：由契约的登记数据重新生成归属表 `docs/plan/x01-map.md` 后 `git diff --exit-code`，再拿登记数据与 x01 对账；不连库。“枚举与库 CHECK 一致”（`pnpm enums:check`）：读前面建的 `lyx_migrate_check`，只读。两个检查脚本在 `packages/contract/scripts/`，不在本目录：`infra/` 不在工作区里，按包名引不到契约。归属表是单个文件，`generated` 口径只认“目录/**”（第 5.1 节），所以它按“算门禁路径、不逐行判”登记（条目的 `except` 盖住它自己）：重新生成不进 PR 顶部的清单，删掉它分类也不报；它与登记数据一致由 `registry:check` 与契约自测（`pnpm test`）把关。
-- 每晚任务（`nightly.yml` 的 `node26`）跟着补了四步，都是新增的整步。“类型”之前一步：生成数据库客户端（`pnpm db:generate`）。“类型”与“测试”之间三步：起 PostgreSQL 与 Redis；把连接参数（`APP_ENV`、`DATABASE_URL`、`REDIS_URL`，取值与 `verify` 的相同）写进 `$GITHUB_ENV`，后面的“测试”读得到；空库 `lyx_migrate_check` 上跑全部迁移。它不挂服务容器：往已有的任务里加 `services`、`env` 算放松类改动（第 5 节），所以库用 compose 文件起，与 `verify` 的“起 MinIO”同一种写法，镜像、端口、账号取 `infra/compose/local.yml`。`verify` 里的 `prisma validate`、由底稿建参照库、系统目录比对它不跑：那是首版迁移的等价性证明，`pnpm test` 用不到参照库 `lyx_schema_check`。执行机上要有 Docker（带 compose）与 `psql`，与 `verify` 相同。往每晚任务加一步时，在 `test/workflows.test.ts`“nightly.yml”一组的命令清单里同一位置加一行（只增）。
-- 状态机迁移表（W0-12）在 `verify` 里加了一步，排在“枚举与库 CHECK 一致”之后：“状态机迁移表对照”（`pnpm machines:check`）。拿 `packages/shared/src/machines` 的 25 张迁移表与数据模型分组文档的状态机表逐行对照（当前状态、事件码、新状态、有无守卫），并核对状态机与状态列的清单与契约登记、01 分组 第 3.2 节、`catalogue.json` 一致；只读文件，不连库，本机约 1 秒。脚本在 `packages/shared/scripts/machines-check.ts`，不在本目录，理由同 W0-09a 那一条；口径写在脚本开头的注释与 [packages/shared/src/machines/README.md](../../packages/shared/src/machines/README.md) 第 4 节。脚本与迁移表都没有登记成门禁文件（照 W0-09a 两个对账脚本的先例）：对照被削弱由门禁自测的反例拦，改迁移表的 PR 靠这一步保证分组文档同步改了。覆盖检查（`pnpm machines:coverage`）现在只出报告，不在 `verify` 里，M1 起才进门禁（计划 第 5.5 节）。
-- 接口侧注册表（W0-09b）在 `verify` 里加了一步，排在“枚举与库 CHECK 一致”之后。“接口侧注册表对账”（`pnpm api-registries:check`）：拿契约里的领域错误码、权限点、能力点、资源登记、通知场景、订阅点位、埋点事件与登记文档、`docs/api/working/` 的底稿逐字段比；只读文件，不连库，约 2 秒。检查脚本在 `packages/contract/scripts/`，理由同 W0-09a 那一条。数量不写在脚本与反例里：取登记文档各节标题里写的数，同表格行数、契约条数三方比。场景键、埋点事件名两种写法另并进 W0-09a 的 `pnpm enums:check`，同库里的 CHECK 正则逐字比。
-- “类型”之后有一步“类型解析不靠提升”（`pnpm check:type-hoist`）。它不看类型检查这一次过没过，看的是结果会不会随 pnpm 提升了哪一份而变，所以两步都要。来历、口径与失败了怎么办见第 7 节。每晚任务没有加这一步：它查的是结果会不会随安装变，与 Node 版本无关。它的用例（`test/type-hoist.test.ts`）只摆小树，不对本仓库再跑一遍。
-- 路由元数据接管（W0-10）在 `verify` 里加了六步，排在“接口侧注册表对账”之后，五步检查加一步上传，都只读，合计几秒：“路由元数据对账”（`pnpm contract:docs-check`，脚本在 `packages/contract/scripts/`，理由同 W0-09a 那一条）；“api-check”；“natural 幂等的约束名核对”；“待落地数只减不增”；“里程碑归属与计划 第 8.2 节的表”；“上传里程碑归属汇总与待落地清单”（产物 `route-milestones`，两份 Markdown，写在 `packages/contract/dist/`，不入库）。第二、三步读前面“空库跑全部迁移”建的 `lyx_migrate_check`：任务书原定给 api-check 另建一个 `lyx_api_check`，为省时长改成共用，两个库的内容相同。口径见第 7 节。
+- 时长：`required` 的运行摘要与产物 `ci-duration.json` 列出各必过任务的耗时，另给两个数。跨度（`wallSeconds`）是从最早开始到最晚结束，也就是一个 PR 要等多久；合计（`totalSeconds`）是各任务耗时之和，也就是占用的执行机时间。预算 15 分钟比的是跨度（`overBudget`），超了只标出、不阻断（M0 退出时由 W0-30 核对）；任务书验收里写的“`ci-duration.json` 的合计 ≤15 分钟”，拆成并行任务之后按跨度核对。合计不设预算：每个任务各付一遍检出、装依赖、起容器的开销，拆得越细它越大，等的时间却越短。
+- 设计地基（W0-26）在 `verify` 里有三步：换名检查之后的“页面不写色值”（`pnpm lint:colors`）；“设计生成物无差异”（`pnpm design:check`）与紧跟着的“上传设计预览页”。预览页是产物 `design-preview`（`packages/shared/dist/design-preview/`，不入库），目录里没有文件时上传那一步失败；业主合并前在运行页面的 Artifacts 里下载来看。
+- 首版迁移（W0-05）的七步分在两处。生成数据库客户端（`pnpm db:generate`；客户端不入库）：`verify` 的“类型”之前、`test` 与 `test-isolation` 的开头各一步。`prisma validate` 在 `verify`（不连库）。其余五步在 `test` 的“测试”之前：由底稿建参照库 `lyx_schema_check`（校验工具按自己的锁文件用 npm 装，带 `NPM_CONFIG_IGNORE_SCRIPTS` 不执行安装脚本，再跑 `check.py --keep`）；空库 `lyx_migrate_check` 上跑全部迁移；系统目录比对；再跑一遍迁移与比对；上传比对报告（产物 `db-catalog-diff`，比对没过时也传）。排在“测试”之前，是因为 `packages/db` 的用例要连迁移库。用法与口径见 [packages/db/README.md](../../packages/db/README.md) 第 6 节。
+- 后台与下载页骨架（W0-28）的七步在 `web` 的“构建”之后：“后台与下载页单测”（`pnpm --filter @liyoxi/admin --filter @liyoxi/portal test`；根上的 `pnpm test` 不含这两个应用，它们的单测与构建共用各自的 `vite.config.ts`）；“后台与下载页构建”（`pnpm admin:build && pnpm portal:build`，产物检查在各自的 `build` 脚本里）；“页面清单无差异”；“后台冒烟要不要跑”（`apps/admin/scripts/e2e-affected.mjs`，结论写进步骤输出）；它后面几步带条件，只在结论为要跑时执行：装浏览器、“后台冒烟”（`pnpm admin:e2e`）、“上传后台冒烟截图”，以及装浏览器之前的两步缓存（取 Playwright 的版本当键、`actions/cache` 缓存 `~/.cache/ms-playwright`：命中时装浏览器那一步不再下载，只补系统依赖）。截图是产物 `admin-e2e-shots`（都是 1440 × 900：01–04 是外壳与三种骨架，05–12 是空、出错、处理后、冲突、上传失败、二次确认、403、已处理的事项几个状态；用例失败时另有现场），业主合并前在运行页面的 Artifacts 里下载来看。冒烟不跑的 PR（没改到后台的受影响范围）没有这个产物。写法由 `test/admin-ci.test.ts` 钉住。
+- x01 名称登记与枚举（W0-09a）的两步分在两个任务里。“登记表对账”（`pnpm registry:check`）在 `verify`，排在 `contract:check` 之后：由契约的登记数据重新生成归属表 `docs/plan/x01-map.md` 后 `git diff --exit-code`，再拿登记数据与 x01 对账；不连库。“枚举与库 CHECK 一致”（`pnpm enums:check`）在 `test`：读前面“空库跑全部迁移”一步建的 `lyx_migrate_check`，只读。两个检查脚本在 `packages/contract/scripts/`，不在本目录：`infra/` 不在工作区里，按包名引不到契约。归属表是单个文件，`generated` 口径只认“目录/**”（第 5.1 节），所以它按“算门禁路径、不逐行判”登记（条目的 `except` 盖住它自己）：重新生成不进 PR 顶部的清单，删掉它分类也不报；它与登记数据一致由 `registry:check` 与契约自测（`pnpm test`）把关。
+- 每晚任务（`nightly.yml` 的 `node26`）跟着补了四步，都是新增的整步。“类型”之前一步：生成数据库客户端（`pnpm db:generate`）。“类型”与“测试”之间三步：起 PostgreSQL 与 Redis；把连接参数（`APP_ENV`、`DATABASE_URL`、`REDIS_URL`，取值与 `ci.yml` 顶层的相同）写进 `$GITHUB_ENV`，后面的“测试”读得到；空库 `lyx_migrate_check` 上跑全部迁移。它不挂服务容器：往已有的任务里加 `services`、`env` 算放松类改动（第 5 节），所以库用 compose 文件起，与 `test` 的“起 MinIO”同一种写法，镜像、端口、账号取 `infra/compose/local.yml`。`ci.yml` 里的 `prisma validate`、由底稿建参照库、系统目录比对它不跑：那是首版迁移的等价性证明，`pnpm test` 用不到参照库 `lyx_schema_check`。执行机上要有 Docker（带 compose）与 `psql`，与 `test` 相同。往每晚任务加一步时，在 `test/workflows.test.ts`“nightly.yml”一组的命令清单里同一位置加一行（只增）。
+- 状态机迁移表（W0-12）在 `verify` 里有一步，排在“登记表对账”之后：“状态机迁移表对照”（`pnpm machines:check`）。拿 `packages/shared/src/machines` 的 25 张迁移表与数据模型分组文档的状态机表逐行对照（当前状态、事件码、新状态、有无守卫），并核对状态机与状态列的清单与契约登记、01 分组 第 3.2 节、`catalogue.json` 一致；只读文件，不连库，本机约 1 秒。脚本在 `packages/shared/scripts/machines-check.ts`，不在本目录，理由同 W0-09a 那一条；口径写在脚本开头的注释与 [packages/shared/src/machines/README.md](../../packages/shared/src/machines/README.md) 第 4 节。脚本与迁移表都没有登记成门禁文件（照 W0-09a 两个对账脚本的先例）：对照被削弱由门禁自测的反例拦，改迁移表的 PR 靠这一步保证分组文档同步改了。覆盖检查（`pnpm machines:coverage`）现在只出报告，不在 `verify` 里，M1 起才进门禁（计划 第 5.5 节）。
+- 接口侧注册表（W0-09b）在 `verify` 里有一步，排在“状态机迁移表对照”之后。“接口侧注册表对账”（`pnpm api-registries:check`）：拿契约里的领域错误码、权限点、能力点、资源登记、通知场景、订阅点位、埋点事件与登记文档、`docs/api/working/` 的底稿逐字段比；只读文件，不连库，约 2 秒。检查脚本在 `packages/contract/scripts/`，理由同 W0-09a 那一条。数量不写在脚本与反例里：取登记文档各节标题里写的数，同表格行数、契约条数三方比。场景键、埋点事件名两种写法另并进 W0-09a 的 `pnpm enums:check`，同库里的 CHECK 正则逐字比。
+- `verify` 的“类型”之后有一步“类型解析不靠提升”（`pnpm check:type-hoist`）。它不看类型检查这一次过没过，看的是结果会不会随 pnpm 提升了哪一份而变，所以两步都要。来历、口径与失败了怎么办见第 7 节。每晚任务没有加这一步：它查的是结果会不会随安装变，与 Node 版本无关。它的用例（`test/type-hoist.test.ts`）只摆小树，不对本仓库再跑一遍。
+- 路由元数据接管（W0-10）的六步分在两个任务里，五步检查加一步上传，都只读，合计几秒。“路由元数据对账”（`pnpm contract:docs-check`，脚本在 `packages/contract/scripts/`，理由同 W0-09a 那一条）在 `verify`，排在“接口侧注册表对账”之后：不连库。其余五步在 `test` 的“测试”之后：“api-check”；“natural 幂等的约束名核对”；“待落地数只减不增”；“里程碑归属与计划 第 8.2 节的表”；“上传里程碑归属汇总与待落地清单”（产物 `route-milestones`，两份 Markdown，写在 `packages/contract/dist/`，不入库）。前两步读前面“空库跑全部迁移”建的 `lyx_migrate_check`：任务书原定给 api-check 另建一个 `lyx_api_check`，为省时长改成共用，两个库的内容相同。后两步不连库，放在 `test` 是因为“待落地数只减不增”要排在“测试”之后（已挂载处理器的清单 `apps/api/dist/mounted-operations.json` 由 `apps/api` 的测试装配导出，W0-22 接上），它出的清单又与“里程碑归属”那一步的由同一步上传。约束名核对的用例（`test/routes-gates.test.ts`）只读迁移库，所以 `test-infra` 在“测试”之前也建一份。口径见第 7 节。
 
 ## 3. 怎么加一步检查
 
 1. 检查脚本放本目录，新增文件；用例放 `test/`。
-2. 在 `ci.yml` 的 `verify` 里新增一个完整的步骤（`- name:` 开头的一整段）。要单独成任务时，新增一个完整的任务，并在 `required` 的 `needs` 里加一行。`needs` 一行一个，不要写成方括号的行内列表。任务照已有的写：两格缩进的 `<编号>:`，下面一行 `name: <编号>`，键不带引号（第 2 节）。
+2. 在 `ci.yml` 里用得上它的那个任务里新增一个完整的步骤（`- name:` 开头的一整段）。放哪个任务见第 2 节：不连库的放 `verify`，要迁移库、Redis、MinIO 的放 `test`，前端的放 `web`；放在任务末尾，或挨着同类的步骤。要单独成任务时，新增一个完整的任务，并在 `required` 的 `needs` 里加一行；新任务照已有的自己检出、装依赖，要连库就自己挂服务容器。`needs` 一行一个，不要写成方括号的行内列表。任务照已有的写：两格缩进的 `<编号>:`，下面一行 `name: <编号>`，键不带引号（第 2 节）。
 3. 同一个 PR 里加一个反例（第 4 节）。CLAUDE.md 第 8 节：每加一道门禁，同包加一个反例进 `gates:selftest`。
 4. 新的门禁文件不在 `gate-files.json` 已有条目的范围内时，登记进去（第 5 节）。
 5. 根脚本要加命令时只新增，不改已有的；命令补进 `CLAUDE.md` 第 9 节。
 
 这些都是“只增”类改动：CI 打 `gate-touch`，差异列在 PR 描述顶部。不要在已有的步骤里加行、改行，也不要改已有的检查脚本与反例（加一行也算）：那会被判成放松，要改就走单独的 `gate-change` PR。
 
-`test/workflows.test.ts` 的“verify 的步骤齐全”一条逐条列了 `verify` 里的命令：往 `verify` 加一步时，在那张清单的同一位置加一行，否则 `pnpm test` 会红。只加这一行是“只增”（用例按 `append` 判）。
+`test/workflows.test.ts` 里每个任务各有一张命令清单（`STEPS`），逐条列了那个任务里的命令：往哪个任务加一步，就在它那张清单的同一位置加一行，否则 `pnpm test` 会红；新增任务时加一张清单。只加行是“只增”（用例按 `append` 判）。
 
 ## 4. 怎么加一个反例
 
