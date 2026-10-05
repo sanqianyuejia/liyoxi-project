@@ -1,36 +1,23 @@
-// 敏感字段三件套的注入点，与测试专用的假实现（W0-25）。
+// 敏感字段三件套的注入点，与测试用的缺省实现（W0-25；KF-1 把缺省从假三件套换成 W0-14 的真三件套）。
 //
 // 工厂写手机号、统一社会信用代码这些列时不自己拼密文，调注入进来的 seal（createFactories 的 seal 选项）。
-// 形状照 W0-14 的 security 模块：sealPhone(keyring, column, phone)、sealUscc(…)、encryptField(…) 去掉 keyring 一参。
-// 缺省是下面的假三件套：W0-14 还没合并，本包的基上没有真的。它合并后把缺省换成真的（状态文件记了这件事），
-// 在那之前要真密文的用例自己注入：
-//   createFactories({ db, clock, seal: {
-//     phone: (column, phone) => sealPhone(keyring, column, phone),
-//     uscc: (column, uscc) => sealUscc(keyring, column, uscc),
-//     text: (column, plaintext) => encryptField(keyring, column, plaintext),
-//   } })
-//
-// 假三件套：密文是 fake-v0:<base64url(列名 + 换行 + 明文)>，一眼看得出不是真的，openFakeSealed 能解回来；
-// 盲索引是 SHA-256(用途 + 归一化的值)，32 字节，同值同索引，过得了库里的长度检查与唯一索引；
-// 脱敏串调 shared 的纯函数，与真的一样。没有密钥，不能拿去验加密本身。
-import { createHash } from "node:crypto";
+// 缺省是 testSealer：security 模块的真实现（sealPhone、sealUscc、encryptField），配一把测试密钥环 TEST_KEYRING。
+// 密文是 v1:<kid>:… 的真密文，盲索引是真的 HMAC：被测代码按同一把密钥环解密、按盲索引等值查找，都对得上。
+//   - 用例里的被测代码要用密钥环时，传 TEST_KEYRING（或者自己造一把，连同 sealerOf(自己的密钥环) 一起注入）；
+//   - 断言密文里是什么：openSealed(列, 密文)。
+// 测试密钥环照 security/__fixtures__/keys.ts 的办法：固定字节现造，不读任何文件，不是任何环境在用的密钥
+// （CLAUDE.md 硬性规则 1）。填充字节与那边的不同：两处的密文互相解不开，不会串用。
+import {
+  createKeyring,
+  encryptField,
+  openField,
+  sealPhone,
+  sealUscc,
+} from "../../security/index.js";
+import type { Keyring, SealedField, SealedPhone, SensitiveColumn } from "../../security/index.js";
 
-import { maskPhone, maskUscc } from "@liyoxi/shared/mask";
-
-/** 密文所在的列，写成 表名.列名（如 merchant_user.phone_enc） */
-export type SensitiveColumn = `${string}.${string}`;
-
-/** 三件套：密文、盲索引、脱敏串 */
-export interface SealedField {
-  readonly enc: string;
-  readonly bidx: Buffer<ArrayBuffer>;
-  readonly mask: string;
-}
-
-/** 手机号的三件套，另带后四位 */
-export interface SealedPhone extends SealedField {
-  readonly last4: string;
-}
+// 三个类型就是 security 模块的那三个；从这里再给一遍，引 testing 的用例不用另开一条引入
+export type { SealedField, SealedPhone, SensitiveColumn };
 
 export interface FactorySealer {
   phone(column: SensitiveColumn, phone: string): SealedPhone;
@@ -39,46 +26,24 @@ export interface FactorySealer {
   text(column: SensitiveColumn, plaintext: string): string;
 }
 
-const FAKE_PREFIX = "fake-v0:";
+const testKey = (fill: number): Buffer => Buffer.alloc(32, fill);
 
-const fakeEnc = (column: SensitiveColumn, plaintext: string): string =>
-  `${FAKE_PREFIX}${Buffer.from(`${column}\n${plaintext}`, "utf8").toString("base64url")}`;
+/** 测试密钥环：一把数据密钥（kid 是 test）、两个用途各一把盲索引密钥，都是固定字节 */
+export const TEST_KEYRING: Keyring = createKeyring({
+  data: { current: "test", keys: { test: testKey(0x51) } },
+  bidx: { phone: testKey(0x52), uscc: testKey(0x53) },
+});
 
-const fakeBidx = (purpose: string, normalized: string): Buffer<ArrayBuffer> =>
-  Buffer.from(createHash("sha256").update(`lyx-fake-bidx\n${purpose}\n${normalized}`).digest());
+/** 用一把密钥环做成工厂要的三件套：就是 security 的三个函数去掉 keyring 一参 */
+export const sealerOf = (keyring: Keyring): FactorySealer => ({
+  phone: (column, phone) => sealPhone(keyring, column, phone),
+  uscc: (column, uscc) => sealUscc(keyring, column, uscc),
+  text: (column, plaintext) => encryptField(keyring, column, plaintext),
+});
 
-/** 只留数字，去掉 +86 */
-const normalizePhone = (phone: string): string => {
-  const digits = phone.replace(/\D/g, "");
-  return digits.length === 13 && digits.startsWith("86") ? digits.slice(2) : digits;
-};
+/** createFactories 的缺省三件套：真实现加测试密钥环 */
+export const testSealer: FactorySealer = sealerOf(TEST_KEYRING);
 
-/** 测试专用的假三件套。W0-14 合并后 createFactories 的缺省换成真的 */
-export const fakeSealer: FactorySealer = {
-  phone(column, phone) {
-    const normalized = normalizePhone(phone);
-    return {
-      enc: fakeEnc(column, normalized),
-      bidx: fakeBidx("phone", normalized),
-      mask: maskPhone(normalized),
-      last4: normalized.slice(-4),
-    };
-  },
-  uscc(column, uscc) {
-    const normalized = uscc.replace(/\s/g, "").toUpperCase();
-    return {
-      enc: fakeEnc(column, normalized),
-      bidx: fakeBidx("uscc", normalized),
-      mask: maskUscc(normalized),
-    };
-  },
-  text: fakeEnc,
-};
-
-/** 解开假密文：给出当初的列名与明文。不是假三件套写的即抛错 */
-export function openFakeSealed(enc: string): { column: string; plaintext: string } {
-  if (!enc.startsWith(FAKE_PREFIX)) throw new Error("不是假三件套写的密文（不以 fake-v0: 开头）");
-  const text = Buffer.from(enc.slice(FAKE_PREFIX.length), "base64url").toString("utf8");
-  const cut = text.indexOf("\n");
-  return { column: text.slice(0, cut), plaintext: text.slice(cut + 1) };
-}
+/** 解开缺省三件套写的密文。column 要与写入时的相同（它进了密文的附加认证数据），不同即抛错 */
+export const openSealed = (column: SensitiveColumn, enc: string): string =>
+  openField(TEST_KEYRING, column, enc);
