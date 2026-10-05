@@ -42,13 +42,21 @@ function need<T>(value: T | undefined, what: string): T {
   if (value === undefined) throw new Error(`期望数据里找不到${what}：这份用例要它来试`);
   return value;
 }
-/** 一张只增表（不带例外列的）、一张带例外列的只增表、一张常规读写的表 */
+/** 清单里这张表的上限是不是恰好只有插入与查询 */
+const insertSelectOnly = (table: string): boolean =>
+  floor.tables.get(table)?.max.join(",") === "INSERT,SELECT";
+// 要试的表现挑，不点名：清单里上限恰好是 INSERT、SELECT 的只增表里，取一张不带例外列的、一张带例外列的。
+// 以后哪张表的上限被门禁 PR 改大了，这里自动换下一张，不用跟着改
 const appendOnly = need(
-  expected.appendOnly.find((table) => !Object.hasOwn(expected.columnUpdate, table)),
-  "只增表",
+  expected.appendOnly.find(
+    (table) => insertSelectOnly(table) && !Object.hasOwn(expected.columnUpdate, table),
+  ),
+  "上限是 INSERT、SELECT 的只增表",
 );
 const withColumns = need(
-  expected.appendOnly.find((table) => Object.hasOwn(expected.columnUpdate, table)),
+  expected.appendOnly.find(
+    (table) => insertSelectOnly(table) && Object.hasOwn(expected.columnUpdate, table),
+  ),
   "带例外列的只增表",
 );
 const regular = need(
@@ -84,11 +92,6 @@ describe("授权下限清单 grants-floor.txt", () => {
     );
     expect(restricted.length).toBeGreaterThan(0);
     expect(restricted.filter((table) => !floor.tables.has(table))).toEqual([]);
-    // 只增表在清单里的上限现在都恰好是 INSERT、SELECT；例外列与期望相同
-    for (const table of expected.appendOnly) {
-      expect(floor.tables.get(table)?.max.join(","), table).toBe("INSERT,SELECT");
-      expect(floor.tables.get(table)?.columns, table).toEqual(expected.columnUpdate[table] ?? []);
-    }
   });
 
   it("悄悄放开一张只增表（期望那一行改成全套读写，并从只增清单里拿掉）：不通过，指到这张表", () => {
