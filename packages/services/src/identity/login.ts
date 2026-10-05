@@ -20,6 +20,7 @@ import type {
 } from "@liyoxi/contract";
 import type { SourceType } from "@liyoxi/contract/enums";
 import { maskName } from "@liyoxi/shared/mask";
+import { calendarDate } from "@liyoxi/shared/time";
 
 import { record as recordAudit, recordAuthEvent } from "../audit/index.js";
 import type { Config } from "../config/index.js";
@@ -185,7 +186,7 @@ export async function silentLogin(
         merchantUserId: true,
         silentLoginEnabled: true,
         unionid: true,
-        merchantUser: { select: { status: true } },
+        merchantUser: { select: { status: true, lastActiveAt: true } },
       },
     });
     if (
@@ -197,10 +198,13 @@ export async function silentLogin(
       return needPhone;
     }
 
-    await tx.merchantUser.update({
-      where: { id: found.merchantUserId },
-      data: { lastActiveAt: now, updatedAt: now },
-    });
+    // 账号的活跃时间同一天（北京时间）只写一次
+    if (calendarDate(identity.merchantUser.lastActiveAt) !== calendarDate(now)) {
+      await tx.merchantUser.update({
+        where: { id: found.merchantUserId },
+        data: { lastActiveAt: now, updatedAt: now },
+      });
+    }
     await tx.wechatIdentity.update({
       where: { id: found.id },
       data: {
@@ -374,7 +378,11 @@ export async function phoneLogin(
         where: { appid_openid: { appid: deps.appid, openid: session.openid } },
         select: { id: true, merchantUserId: true, unionid: true },
       });
-      if (bound !== null) await lockRows(tx, "wechat_identity", [bound.id], "update");
+      if (bound !== null) {
+        // 等锁期间这一行被删了（另一个登录正把它改绑走）：少见，让端上重试，重试时按库里的新状态走
+        const [locked] = await lockRows(tx, "wechat_identity", [bound.id], "update");
+        if (locked === undefined) throw new AppError("BUSY");
+      }
       const newBinding = bound === null || bound.merchantUserId !== account.id;
       if (
         newBinding &&
