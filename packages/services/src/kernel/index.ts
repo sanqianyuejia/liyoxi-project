@@ -121,3 +121,7 @@ export type {
 
 // W0-23 队列封装：连接、入队、消费者工厂、Redis 可用性探测
 export * from "./queue/index.js";
+
+// KF-1 数据库错误的原因：语句执行时与提交时（延迟约束、提交时判出的序列化失败）两种形状统一从这里取
+export { dbErrorCause } from "./tx.js";
+export type { DbErrorCause } from "./tx.js";

@@ -2,7 +2,7 @@
 // 依据：D7 第 3.1 节“防漏用”；01 分组 第 2.1 节；15 分组 第 5.3 节；约定 第 7 节 C47。
 import type { AppEnv } from "./env.js";
 import type { IdempotencyContext } from "./idempotency.js";
-import { KernelViolation, sqlStateOf } from "./tx.js";
+import { dbErrorCause, KernelViolation, sqlStateOf } from "./tx.js";
 import type { Tx } from "./tx.js";
 
 export interface IdempotencyGuardOptions {
@@ -59,10 +59,8 @@ export async function purgeExpiredIdempotencyRecords(
  */
 export function isUniqueViolation(error: unknown, constraints: readonly string[]): boolean {
   if (sqlStateOf(error) !== "23505") return false;
-  const cause = (
-    error as { meta: { driverAdapterError: { cause: { originalMessage?: unknown } } } }
-  ).meta.driverAdapterError.cause;
-  // 驱动适配器不单给约束名，它在数据库的原始报错里。按“一整个标识符”找，不看引号：引号的写法随库的语言设置变
-  const words = String(cause.originalMessage).split(/[^A-Za-z0-9_]+/);
+  // 驱动适配器不单给约束名，它在数据库的原始报错里。按“一整个标识符”找，不看引号：引号的写法随库的语言设置变。
+  // 原因从哪取随错误出在语句执行时还是提交时（延迟的唯一约束）而不同，统一走 dbErrorCause
+  const words = String(dbErrorCause(error)?.originalMessage).split(/[^A-Za-z0-9_]+/);
   return constraints.some((name) => words.includes(name));
 }

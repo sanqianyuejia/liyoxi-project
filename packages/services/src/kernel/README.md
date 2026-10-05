@@ -6,7 +6,7 @@
 
 | 文件 | 内容 |
 | --- | --- |
-| `tx.ts` | `createTxRunner`（`run`）、事务句柄 `Tx`、`savepoint`、`assertNotInTransaction`、`isInTransaction`、`sqlStateOf`、`isRetryableDbError`、`KernelViolation` |
+| `tx.ts` | `createTxRunner`（`run`）、事务句柄 `Tx`、`savepoint`、`assertNotInTransaction`、`isInTransaction`、`sqlStateOf`、`dbErrorCause`、`isRetryableDbError`、`KernelViolation` |
 | `errors.ts` | `AppError`：服务层的业务错误，只带契约里的错误符号名 |
 | `lock-order.ts` | 加锁顺序常量 `LOCK_ORDER`（照 06 第 5 节逐行写）、锁序断言 `assertLockOrder`。门禁文件 |
 | `lock.ts` | 加锁函数 `lockRows` |
@@ -44,6 +44,8 @@ export async function submitOrder(input: Input) {
 | 语句超时 `57014` | 不重试 | `AppError("UPSTREAM_TIMEOUT")` |
 | 事务已被中止 `25P02` | 不重试 | 普通 `Error`，是代码缺陷：接数据库错误要用保存点 |
 | 其余（业务错误、唯一约束冲突等） | 不重试 | 原样抛出 |
+
+错误出在提交那一刻（延迟到提交时检查的约束、可串行化事务提交时才判出的序列化失败、提交时的死锁）也按上表办。这时 Prisma 抛出来的是驱动适配器的 `DriverAdapterError` 本身，不是包过一层的 Prisma 错误（没有 `code`、`meta`）：读 SQLSTATE 一律用 `sqlStateOf(error)`，读数据库的原始报错用 `dbErrorCause(error)?.originalMessage`，不要自己去翻 `error.meta`。两种形状由 `tx.commit.concurrency.test.ts` 连真库钉住。
 
 ## 3. 保存点
 
