@@ -19,6 +19,7 @@
 | `global-setup.ts` | 转导出上面那个 globalSetup，给本包与应用层挂 |
 | `assembly.ts` | `assembleForTest`：测试装配（W0-07b） |
 | `data/` | 测试数据支撑（W0-25）：带种子的干净库 `useSeededDatabase`、造数据的工厂 `createFactories`、表快照比较器、假 Provider 支架。说明在 [data/README.md](data/README.md) |
+| `m0-chain.ts` | M0 的样例链路（W0-30）：样例登记、样例写用例与“从头走一遍”的 `runM0Chain`；`pnpm demo:m0` 与用例共用。见第 12 节 |
 
 ## 2. 测试库
 
@@ -189,3 +190,45 @@ sample.control.failing.add("lyxtest.onPlacedPlain"); // 让它被调到即抛错
 
 样例处理器的业务副作用是 `biz_sequence` 里的一行计数，用例据此断言“恰好一次”。订阅者不做幂等（恰好一次由派发序号与行锁保证）；定时器与周期任务的样例处理器照真实处理器的规矩自己守。`control` 另可让定时器返回 `skipped`、在业务写的前后插一脚（卡住处理器、安排进程中断）。名字与 W0-15、W0-17 的样例登记相同，不能与它们同时装配。
 
+## 12. M0 的样例链路（W0-30）
+
+把 M0 各包交的内核件拼成一条走得通的链路（计划 第 6.3 节“退出：演示”）：
+
+```
+测试装配 → 带幂等键的写用例（登记幂等键 → flow.transition：加锁、守卫、改状态、状态历史、审计、出站事件 → 登记定时器）
+→ 同键重放 → 中继展开 → 派发入队 → 订阅者执行 → 定时器到点 → 扫描入队 → 处理器执行 → 全量不变量
+```
+
+```ts
+import { runM0Chain, useSeededDatabase, useTestRedis } from "@liyoxi/services/testing";
+
+const db = useSeededDatabase("services"); // 要种子：样例员工的角色在种子里
+const redis = useTestRedis();
+
+const report = await runM0Chain({
+  prisma: await db.prisma(),
+  redisUrl: process.env.REDIS_URL,
+  redisPrefix: redis.prefix, // 队列的键落在本 worker 的前缀下
+  say: (title, lines) => console.log(title, lines), // 每一步做了什么；不给即不出声
+});
+// report.rows = { history: 1, audit: 1, events: 1 }；report.runs = { subscriber: 1, timer: 1 }
+```
+
+- 不新造业务：迁移的是真实的状态机表 `staff`（停用一名工厂造的样例员工），事件、订阅者、定时器用 `lyxtest` 的样例名字（`M0_CHAIN`），只在测试装配里挂。与 `createSampleFlow` 的样例登记可以并存；与 `sampleTimerRegistration`、`createWorkerSample` 的定时器 kind 同名，不能同时装配。
+- 每一步核对库里的结果，有一步不符即抛 `M0ChainError`，说明里写着是哪一步、差在哪。同一个库上可以反复跑：每次造新的样例员工，核对只看这一次的行与计数的增量。
+- 要自己拼步骤（只调写用例、换入参）用 `createM0Chain({ prisma, channel })`：给出 `disableStaff`、`idemFor`、任务进程一侧的 `worker`（中继、派发、扫描）与 `runFullInvariants`。
+- 定时器到没到点，扫描按**数据库时间**判（`timers/scan.ts`），拨业务时钟没有用：所以这条链路的业务时钟从“现在”起步，定时器只晚一两秒（`timerDelayMs`），真等它到点。别的用例把 `fireAt` 写成按可拨时钟的缺省起点（2026-01-05）算的时刻，在库看来都早已到点。
+- 这里不注入故障。重复投递、进程中断、Redis 不可用下的“恰好一次”由 `apps/worker/test/fault/` 管；整套故障注入用例一条命令 `pnpm test:fault`，清单在 [docs/plan/m0-exit.md](../../../../docs/plan/m0-exit.md) 第 4 节。
+- 经 HTTP 的写请求重放（`Idempotency-Key` 请求头、`Idempotent-Replayed` 应答头）不在这条链路里，由 `apps/api/test/idempotency.test.ts` 管。M1 的接口级端到端脚本（W1-21）在 `apps/api/test/e2e/` 自建运行器；任务进程一侧“中继 → 派发 → 消费 → 扫描”怎么一步一步推，可以照 `runM0Chain` 的写法。
+
+### 命令：`pnpm demo:m0`
+
+```sh
+APP_ENV=test DATABASE_URL=… REDIS_URL=… pnpm demo:m0          # 连接参数见 CLAUDE.md 第 9 节
+… pnpm demo:m0 --keep                                          # 跑完不删演示库
+```
+
+- 建演示库 `lyx_test_demo_m0_<进程号>`（`lyx_` 开头，也过测试库的守卫），跑全部迁移与种子，走一遍 `runM0Chain` 并逐步打印，末尾打印演示的核对结果与四个计数（`infra/ci/four-counts.mjs`）。约一两分钟，多数花在建库与跑迁移上。
+- 跑完删掉演示库与自己在 Redis 里的键（前缀 `lyx:test:demo<进程号>:0:`，只用 SCAN 加 UNLINK）。中途被打断留下的库用 `pnpm test:db:prune --all` 清（先确认没有别的会话在跑测试），或自己删那一个库。
+- 退出码：0 走通且各步与预期相符；1 有一步不符；2 环境变量缺、库或 Redis 连不上。连接串与口令不打印。
+- 入口是 `packages/services/scripts/demo-m0.ts`。每晚任务（`.github/workflows/nightly.yml`）末尾重放一遍；必过检查里不跑它，同一条链路的用例 `m0-chain.db.test.ts` 在 `pnpm test` 里。

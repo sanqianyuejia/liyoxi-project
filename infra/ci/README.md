@@ -38,6 +38,8 @@
 | `draft-freeze.mjs`、`draft-freeze.sha256` | 草稿冻结守卫（W0-06b）：`docs/data-model/schema.prisma` 与 `constraints/` 的 sha256 等于登记值。登记值按 `frozen` 登记，改它走单独的 `gate-change` PR。不连库 | `pnpm db:draft-freeze:check`；CI |
 | `check-mp-size.mjs` | 小程序体积门禁（W0-27a）：主包 ≤1,500KB、各分包 ≤800KB；分包取产物里 `app.json` 的声明，主包是总量减各分包；打印各包体积 | `pnpm weapp:build` 的最后一步；CI 的“小程序体积门禁”一步 |
 | `apps/weapp/scripts/shots-affected.mjs`（不在本目录） | 小程序截图的受影响范围判断：PR 改到小程序或页面上看得见的设计变量才跑，推到 main 一律跑。截图是页面证据，不是门禁 | CI 的“小程序截图要不要跑”一步 |
+| `plan-summaries.mjs`、`plan-ledger-lib.mjs` | 台账三张汇总（W0-30）：读 `docs/plan/stubs/`、`changes/`、`external-verification/` 下的单项文件，核对合不合规（模板里的键、状态取值、回补里程碑），各生成一份 `SUMMARY.md`（不入库，要看时现生成）。后一份是单项文件的读法，与四个计数共用，自己不是命令 | CI 用 `--check` 只核对单项文件；`pnpm plan:summaries` 在本地现生成（第 6 节） |
+| `four-counts.mjs` | 四个计数的报表（W0-30；计划 第 5.7、10.2 节）：已落地接口数、待落地数（取 `landed.mjs --report`）、留桩数、未实现页面数（取页面清单），另出 x01 归属的未落地清单（取 x01 归属表，按名字在源码与用例里出现与否判）；`--require <里程碑>` 时那几个里程碑有一样没清零即失败 | `pnpm counts:report`；CI 的“四个计数”一步（`--require M0`）；`pnpm demo:m0` 的末尾 |
 
 工作流在 `.github/workflows/`：`ci.yml`（每个 PR 与推到 main）、`nightly.yml`（每晚，Node 26，失败只告警）。
 
@@ -80,6 +82,7 @@
 - 结构防漂移（W0-06b）的六步分在两个任务里。连库的四步在 `test`，排在“上传系统目录比对报告”之后、“枚举与库 CHECK 一致”之前。“结构快照无差异”（`pnpm db:snapshot:check`）：另建一个临时库跑完全部迁移，重新生成快照后 `git diff --exit-code`，再查快照目录下没有未跟踪的文件。“约束清单比对”（`pnpm db:constraints:check`）与“分区断言”（`pnpm db:partitions:assert`）：读前面建的 `lyx_migrate_check`，只读。“分组文档字段表与迁移后的库一致（schema-check）”（`python3 tools/schema-check/check.py --existing lyx_migrate_check`）：只读；这个工具只认 `PG*` 环境变量，在步骤里写明。不连库的两步在 `verify`，排在 `prisma validate` 之后：“迁移规范”（`pnpm db:migration-lint --base "$BASE"`）与“草稿冻结守卫”（`pnpm db:draft-freeze:check`）；基线 PR 取目标分支，推到 main 取推之前的提交，写法同“新增依赖发布时长”一步。六步本机合计十几秒，大头是快照那一步里的建库跑迁移。口径、怎么跟、已知的限度见第 8 节。
 - 任务进程骨架（W0-23）的两步在 `test` 的末尾：“worker 产物自检”（`node apps/worker/dist/index.js --check`，只做装配与自检，读 `lyx_migrate_check`，不连 Redis）与“redis:compat”（`pnpm redis:compat --jobs 500 --idle-minutes 0.05`，在本任务的 Redis 上跑）。两步跑的都是任务进程的构建产物，而“构建”一步在 `web`，产物过不了任务，所以自检之前有一步“构建任务进程（产物自检用）”（`pnpm --filter @liyoxi/worker build`，只构建这一个包）。任务进程用 esbuild 打包，要把生成的数据库客户端打进产物：`web` 的“构建”连它一起构建，之前加了一步“生成数据库客户端（构建用）”；门禁自测里本包的两例跑的也是产物，`gates` 在 `gates:selftest` 之前加了“生成数据库客户端（门禁自测用）”“构建任务进程（门禁自测用）”两步。
 - 状态字典（W0-30a）在 `verify` 的末尾有一步：“状态字典键与契约枚举同名”（`pnpm status-tone:check`）。状态色调字典（`packages/shared/src/design/status-tone`）里写了“表.列”的条目，那一列要在契约里绑定了枚举，取值都在枚举的取值之内；没写“表.列”的条目（无枚举对应）不查，字典没收的枚举取值不算差异。库里确有这一列而契约还没有绑定枚举的（取值写在组合条件的 CHECK 里，`enums:check` 认不了），条目的说明以“契约未绑定枚举：”开头，检查只列出；契约补上之后检查会要求把这句去掉。只读文件，不连库，约 1 秒。脚本在 `packages/shared/scripts/status-tone-check.ts`，理由同 W0-09a 那一条；它不在本目录的条目之内，在 `gate-files.json` 里单独登记（`new-file`：改它算放松）。字典本身没有登记成门禁文件。
+- M0 合流（W0-30）加的两步都只读文件，各不到一秒。“台账单项文件核对”（`node infra/ci/plan-summaries.mjs --check`）在 `verify`：不连库。“四个计数”（`node infra/ci/four-counts.mjs --require M0`）在 `test` 的末尾：它读 `apps/api` 的用例写出的已挂载清单（不入库），要与“测试”在同一个任务里、排在它之后；`test` 以后分片时，这一步跟着跑 `apps/api` 用例的那一片。M0 的演示 `pnpm demo:m0` 不在必过里（要建库、跑全部迁移），在每晚任务的末尾；同一条链路的用例在“测试”里。
 
 ## 3. 怎么加一步检查
 
@@ -126,6 +129,7 @@ export default {
 - 名字以 `db-snapshot-`、`db-constraints-`、`db-partitions-` 开头的七例与 `schema-check-doc-column-type`（W0-06b）要本地那套 PostgreSQL 与连接参数，后一例另要 `python3` 与 `psql`。它们共用两个库（`selftest/lib/db-structure.mjs`）：头一个用到的反例建“基准库”（空库上跑完全部迁移），再拷一个“改过的库”，把几处一次改完，之后各例只认自己那一处的报错；两个库以 `lyx_selftest_struct_` 开头、带进程号，门禁自测退出时删掉。要动手脚的索引、列、触发器、月份都从库里现挑，不点名：加表、改索引的包不用改这些反例。`migration-lint-unmarked-drop-column`、`draft-freeze-one-byte` 不连库。
 - `worker-check-missing-aggregate-table`、`redis-compat-missing-url`（W0-23）跑的是任务进程的构建产物：要先 `pnpm --filter @liyoxi/worker build`（CI 里 `gates` 在门禁自测之前有“生成数据库客户端”“构建任务进程”两步）。前一例另要本地那套 PostgreSQL 与 `DATABASE_URL`，连的是实例自带的维护库 `postgres`，只读它的系统目录。产物不在、库连不上时这两例会红。
 - `status-tone-check-unknown-value`（W0-30a）在仓库外的副本里跑真的根脚本（`pnpm status-tone:check`），条件同 `contract-check-stale-generated`；不连库。改哪个条目的取值是现挑的（按文件名排序第一份字典里第一条有枚举对应的条目），字典随各域的包改动时不用改这个反例。
+- `plan-summaries-bad-stub-status`、`four-counts-milestone-stub-left`（W0-30）不连库，命令取自 `ci.yml` 里的那一步。前一例在仓库外摆一棵最小的 `docs/plan`，把一份留桩的状态改成表外的值。后一例把留桩目录换成仓库外的一份（真的那几份原样拷过去，再加一份“应在已退出的里程碑回补”的）；已挂载清单在全新检出里没有，按“要求的里程碑的接口都挂上了”另写一份，要求哪个里程碑取自 CI 那一步的 `--require`，不写死。
 
 ## 5. 门禁改动分类
 
@@ -211,6 +215,7 @@ node infra/ci/classify-gate-changes.mjs --base origin/main --labels gate-change
 - 状态汇总 `docs/plan/status/SUMMARY.md` 不入库（在 `.gitignore` 里）。要看时跑 `pnpm status:summary` 现生成；它是当前检出里那些状态文件的快照，换了分支、拉了 main 就重新跑。带不带 `--check`，状态文件不合规都一样失败。
 - 改了自己的状态文件（包括开 PR 后填 PR 编号），不用再生成、提交汇总。各 PR 只改自己的状态文件，互不冲突。
 - 规则见 [docs/plan/status/README.md](../../docs/plan/status/README.md) 第 5 节。
+- 留桩、计划变更、外部验证三张汇总照同一个办法（W0-30）：不入库，`pnpm plan:summaries` 现生成到各目录的 `SUMMARY.md`；CI 的“台账单项文件核对”一步跑 `node infra/ci/plan-summaries.mjs --check`，只查单项文件合不合规，不写文件。键与取值以 `docs/plan/templates/` 的三份模板为准；加键、改状态取值要同时改模板与 `plan-ledger-lib.mjs`（改已有的检查脚本，按门禁改动处理）。
 
 ## 7. 类型解析不靠提升（两个 React 大版本）
 
