@@ -3,3 +3,4 @@ export { dataAccessFiles, dataAccessRestrictedImports, dataAccessRules } from ".
 export { repoRestrictedImports, repoRules } from "./repo.js";
 export { scriptFiles, scriptRules, serverFiles, serverRules } from "./server.js";
 export { weappFiles, weappGlobals, weappRules } from "./weapp.js";
+export { txEntryFiles, txEntryRestrictedSyntax, txEntryRules } from "./tx.js";

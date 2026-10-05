@@ -14,6 +14,8 @@ import {
   scriptRules,
   serverFiles,
   serverRules,
+  txEntryFiles,
+  txEntryRules,
   weappFiles,
   weappGlobals,
   weappRules,
@@ -75,6 +77,11 @@ export default defineConfig(
     // 脚本与配置文件放宽 console
     files: scriptFiles,
     rules: scriptRules,
+  },
+  {
+    // 开事务只有 kernel 一个入口：kernel 之外不得出现 $transaction（W0-07）
+    files: txEntryFiles,
+    rules: txEntryRules,
   },
   prettier,
 );
