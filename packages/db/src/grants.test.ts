@@ -64,6 +64,8 @@ interface ExpectedGrants {
   columnUpdate: Record<string, string[]>;
   /** 以属主身份执行的函数 → 可以执行它的角色 */
   definerFunctions: Record<string, string[]>;
+  /** lyx_app 可以查询的视图、物化视图、外部表（现在没有） */
+  views: string[];
 }
 const EXPECTED = JSON.parse(
   readFileSync(join(pkg, "src/grants.expected.json"), "utf8"),
@@ -719,6 +721,21 @@ describe("授权没有漏表（任务书 第 7 节第 6 条）", () => {
     expect(grantable).toEqual([]);
   });
 
+  it("表与序列之外的关系（视图、物化视图、外部表）：lyx_app 只对清单 views 里的有 SELECT，PUBLIC 什么都没有", async () => {
+    // 属主建一张视图套在只增表上再授给应用，应用经视图就能删行：迁移里出现这种授权在这一句红
+    const granted = await query<{ entry: string }>(
+      owner,
+      `select c.relname || ' ' || case when x.grantee = 0 then 'PUBLIC' else x.grantee::regrole::text end
+              || ' ' || x.privilege_type as entry
+         from pg_class c, aclexplode(c.relacl) x
+        where c.relnamespace = 'public'::regnamespace and c.relkind in ('v', 'm', 'f')
+          and x.grantee in (0, 'lyx_app'::regrole) order by 1`,
+    );
+    expect(granted.map((row) => row.entry)).toEqual(
+      EXPECTED.views.map((name) => `${name} lyx_app SELECT`).sort(),
+    );
+  });
+
   it("以属主身份执行的函数恰是清单里的几个：PUBLIC 不能执行，能执行的角色与清单相同", async () => {
     const definers = await query<{ name: string; who: string }>(
       owner,
@@ -787,6 +804,29 @@ describe("lyx_readonly 与分区（任务书 第 11 节第 5、7 项）", () => 
     expect(await sqlState(exec(readonly, "UPDATE store SET id = id"))).toBe(DENIED);
     expect(await sqlState(exec(readonly, "DELETE FROM timer"))).toBe(DENIED);
     expect(await sqlState(exec(readonly, "select nextval('audit_no_seq')"))).toBe(DENIED);
+  });
+
+  it("缺省授权恰好两条：跑迁移的账号以后在 public 里建的表与序列对 lyx_readonly 只读，别的一条都没有", async () => {
+    // 多一条（比如以后的表自动给 lyx_app）、少一条（序列那条）、带转授权、挂在别的账号名下，都在这一句红
+    const defaults = await query<Record<string, unknown>>(
+      owner,
+      `select d.defaclrole::regrole::text = current_user::text as mine,
+              d.defaclnamespace::regnamespace::text as schema, d.defaclobjtype::text as kind,
+              case when x.grantee = 0 then 'PUBLIC' else x.grantee::regrole::text end as grantee,
+              x.privilege_type::text as privilege, x.is_grantable as grantable
+         from pg_default_acl d, aclexplode(d.defaclacl) x`,
+    );
+    const entry = (kind: string) => ({
+      mine: true,
+      schema: "public",
+      kind,
+      grantee: "lyx_readonly",
+      privilege: "SELECT",
+      grantable: false,
+    });
+    expect(defaults.sort((a, b) => String(a.kind).localeCompare(String(b.kind)))).toEqual(
+      [entry("r"), entry("S")].sort((a, b) => a.kind.localeCompare(b.kind)),
+    );
   });
 
   it("属主新建一个月的分区：lyx_app 经父表写得进、不能直接碰子表；lyx_readonly 自动读得到；lyx_app 自己建不了分区", async () => {
