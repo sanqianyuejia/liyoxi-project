@@ -26,8 +26,6 @@ let h: Harness;
 
 beforeAll(async () => {
   h = await createHarness(db, redis);
-  // 支架第一次用到这个前缀时会先清一遍上一轮的残留：放在这里做掉，用例里那一次清的就只是在途任务
-  await redis.flush();
 }, SLOW);
 
 describe("清空 Redis（验收 3）", () => {

@@ -56,6 +56,9 @@ export interface TimerState {
 }
 
 export async function createHarness(db: TestDatabase, redis: TestRedis) {
+  // 先清一遍本前缀：支架从这一刻起才接管它（开头清掉上一轮的残留，文件跑完再清一遍）。
+  // 实例与队列只拿前缀自己建连接，不经支架的 client()、raw()，不调这一下的话键会留在共享的 Redis 上
+  await redis.flush();
   const prisma = await db.prisma();
   const databaseUrl = await db.url();
   // 造数据用的装配：只为拿到 emit 与开事务的入口，登记的名字与实例里的样例相同

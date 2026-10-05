@@ -17,6 +17,9 @@ let prisma: PrismaClient;
 const opened: QueueChannel[] = [];
 
 beforeAll(async () => {
+  // 先清一遍本前缀，支架从这一刻起接管它（文件跑完再清一遍）：通道只拿前缀自己建连接，
+  // 不调这一下的话键会留在共享的 Redis 上，下一轮同名的任务号会被上一轮留下的任务吞掉
+  await redis.flush();
   prisma = await db.prisma();
 }, SLOW);
 afterEach(async () => {
