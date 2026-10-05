@@ -30,4 +30,4 @@
 | [constraints/](constraints/) | 手写约束：`00-common.sql`（扩展与公共触发器函数）与各分组的 CHECK、部分唯一索引、排他约束、触发器；按文件名顺序执行 |
 | [working/](working/README.md) | 建模过程的工作底稿与裁决记录 |
 
-校验方法见 [tools/schema-check](../../tools/schema-check/README.md)。
+校验方法见 [tools/schema-check](../../tools/schema-check/README.md)：`python3 tools/schema-check/check.py` 拿分组文档的字段表与跑完全部迁移的库逐列比。草稿（`schema.prisma` 与 `constraints/`）已冻结，结构以 `packages/db` 的迁移为准；分组文档跟着迁移改。
