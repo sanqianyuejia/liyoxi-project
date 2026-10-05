@@ -48,12 +48,12 @@
 
 ## 4. 故障注入套件
 
-一条命令：`pnpm test:fault`（要本地的 PostgreSQL 与 Redis，连接参数同 `pnpm test`）。它按文件名圈用例，不列名单：`*.concurrency.test.ts`、`*.property.test.ts`、路径里带 `fault` 的、幂等与租约的用例。以后的包照这个约定起名就自动进来。这些用例本来就在 `pnpm test` 里，这条命令只是单拎出来跑。性质测试的轮次与种子用 `LYX_FC_RUNS`、`LYX_FC_SEED` 调。
+一条命令：`pnpm test:fault`（要本地的 PostgreSQL 与 Redis，连接参数同 `pnpm test`）。它按文件名圈用例，不列名单：`*.concurrency.test.ts`、`*.property.test.ts`、名字是 `fault` 的目录与文件（`fault/` 下的、`fault-*.test.ts`、`fault.test.ts`）、幂等与租约的用例（文件名带 `idempotency`、`lease.test`）。以后的包照这个约定起名就自动进来。这些用例本来就在 `pnpm test` 里，这条命令只是单拎出来跑。性质测试的轮次与种子用 `LYX_FC_RUNS`、`LYX_FC_SEED` 调。
 
 | 造什么 | 看什么 | 用例 |
 | --- | --- | --- |
 | 事务撞上死锁、锁等待超时 | `tx.run` 的重试与错误映射 | `packages/services/src/kernel/tx.retry.concurrency.test.ts` |
-| 同一个幂等键重放、并发提交、换入参 | 用例函数只执行一次，后到的拿到同一份结果 | `packages/services/src/kernel/idempotency.test.ts`、`packages/services/src/kernel/idempotency.concurrency.test.ts`、`apps/api/test/idempotency.test.ts`、`packages/services/src/testing/m0-chain.db.test.ts` |
+| 同一个幂等键重放、并发提交、换入参 | 用例函数只执行一次，后到的拿到同一份结果 | `packages/services/src/kernel/idempotency.test.ts`、`packages/services/src/kernel/idempotency.concurrency.test.ts`、`apps/api/test/idempotency.test.ts` |
 | 三段式在外部调用之前、之中、之后中断；占用被接管 | 同键再来时续做，三段各自的结果对得上 | `packages/services/src/kernel/three-phase/fault-before.test.ts`、`packages/services/src/kernel/three-phase/fault-during.test.ts`、`packages/services/src/kernel/three-phase/fault-after.test.ts`、`packages/services/src/kernel/three-phase/takeover.concurrency.test.ts`、`packages/services/src/kernel/three-phase/three-phase.property.test.ts` |
 | 两条连接同时展开出站事件 | 投递行不重不漏 | `packages/services/src/events/expand.concurrency.test.ts` |
 | 重复投递：租约过期重派、队列重复送达 | 业务副作用 1 次 | `apps/worker/test/fault/redelivery.test.ts` |
