@@ -12,3 +12,6 @@ export * from "./redis.js";
 
 // W0-07b：测试装配（真实模块的登记之外追加样例登记）
 export * from "./assembly.js";
+
+// W0-17：五个端口的样例实现（记下收到的调用）
+export * from "./ports.js";
