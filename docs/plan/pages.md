@@ -5,7 +5,7 @@
 | 项 | 内容 |
 | --- | --- |
 | 用途 | 三个前端的逐页清单：一页一行，写里程碑、工作包与是否已实现。CI 由它统计“应实现未实现页面数”，每个里程碑退出时为 0（[计划](../08-development-plan.md) 第 5.7 节“页面”行、第 8.3 节） |
-| 来源 | 运营管理后台：`apps/admin/src/lib/menu/`（菜单登记表，一个模块一个文件）；电脑端下载页：`apps/portal/src/pages.ts` |
+| 来源 | 运营管理后台：`apps/admin/src/lib/menu/`（菜单登记表，一个模块一个文件）；电脑端下载页：`apps/portal/src/pages.ts`；商家端小程序：`apps/weapp/src/pages.ts` |
 | 怎么改 | 改登记文件，再跑 `node infra/ci/pages/generate.mjs`，与登记文件同一个 PR 提交。页面包合并时把自己那一页的“已实现”改成 true；改里程碑归属另在 `docs/plan/changes/` 记一条（计划 第 5.7 节） |
 | 还没有的 | 商家端小程序的部分由 W0-27a 加数据源（`infra/ci/pages/sources/`） |
 
@@ -15,6 +15,7 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | 运营管理后台 | 80 | 67 | 0 | 67 | 13 | 2 |
 | 电脑端下载页 | 8 | 7 | 0 | 7 | 1 | 0 |
+| 商家端小程序 | 49 | 48 | 0 | 48 | 1 | 0 |
 
 应实现未实现页面数，按里程碑：
 
@@ -22,6 +23,7 @@
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 运营管理后台 | 18 | 12 | 6 | 14 | 1 | 4 | 12 |
 | 电脑端下载页 | 0 | 0 | 0 | 0 | 0 | 7 | 0 |
+| 商家端小程序 | 25 | 8 | 5 | 4 | 3 | 1 | 2 |
 
 “入口隐藏”的页面照做、外壳不给入口（规范 第 14 节第 12 项），计入应实现，不算留桩。
 
@@ -144,3 +146,63 @@
 | 扫一扫落地页 | `/a` | 否 | M6 | G6-B | 否 | 用微信“扫一扫”而不是小程序里的按钮扫了码时的提示页 |
 | 授权书验真页 | `/v` | 否 | M6 | G6-B | 否 | 地址 /v?code=<验真码>&rev=<版次>（p01 第 3.15 节） |
 | 电脑端上传 | — | 是 | V1.1 | — | 否 | V1.1，只登记 |
+
+## 4. 商家端小程序
+
+路由 49 个：主包 6 页，分包 9 个（D7 第 4.1 节）。V1.0 不做的 1 个只登记。全局配置的页面、分包、预下载由这份清单拼出，只输出已建的页。
+
+“已实现”指页面包已交付。M0 的占位页（4 个，进构建、能打开）不算已实现，在“备注”里标出。“工作包”一栏：已拆包的写编号，未拆包的写工作包组（如 G2-B），拆包 PR 改成编号。
+
+### 4.1 页面（49）
+
+| 包 | 页面 | 路由 | 画板 | 编号 | 工作包 | 里程碑 | 已实现 | 备注 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 主包 | 首页 | `pages/home/index` | Main | M02 | W1-18 | M1 | 否 | M0 占位页 |
+| 主包 | 短剧商城 | `pages/mall/index` | Mall | M04 | W1-18 | M1 | 否 | M0 占位页 |
+| 主包 | 选剧单 | `pages/cart/index` | Cart | M08 | W1-18 | M1 | 否 | M0 占位页 |
+| 主包 | 我的 | `pages/mine/index` | Mine | M32 | W1-05 | M1 | 否 | M0 占位页 |
+| 主包 | 登录 | `pages/login/index` | Login | M01 | W1-05 | M1 | 否 |  |
+| 主包 | 协议正文 | `pages/agreement/index` | — | — | W1-05 | M1 | 否 | 新增页：登录前可读 |
+| `sub/catalog` | 搜索 | `sub/catalog/search/index` | Search | M03 | G3-B | M3 | 否 |  |
+| `sub/catalog` | 预告片模式 | `sub/catalog/trailer/index` | Trailer | M05 | — | V1.0 不做 | 否 | V1.0 不做（规范 第 11 节） |
+| `sub/catalog` | 短剧详情 | `sub/catalog/detail/index` | Detail | M06 | W1-18 | M1 | 否 |  |
+| `sub/order` | 确认订购 | `sub/order/checkout/index` | Checkout | M09 | W1-18 | M1 | 否 |  |
+| `sub/order` | 结果页 | `sub/order/result/index` | PayResult | M11 | W1-12 | M1 | 否 | 订购成功与付款成功共用，?type=order\|payment |
+| `sub/order` | 订单列表 | `sub/order/orders/index` | Orders | M20 | W1-18 | M1 | 否 |  |
+| `sub/order` | 订单详情 | `sub/order/order-detail/index` | OrderDetail | M21 | W1-18 | M1 | 否 |  |
+| `sub/order` | 方案确认 | `sub/order/plan/index` | Plan | M22 | W1-20 | M1 | 否 |  |
+| `sub/order` | 样片确认 | `sub/order/sample/index` | Sample | M23 | W1-20 | M1 | 否 |  |
+| `sub/order` | 上线记录 | `sub/order/launch-record/index` | LaunchRecord | M24 | W1-20 | M1 | 否 |  |
+| `sub/order` | 我的短剧 | `sub/order/my-dramas/index` | MyDramas | M33 | G5-A | M5 | 否 |  |
+| `sub/publish` | 发布任务 | `sub/publish/tasks/index` | Publish | M28 | W1-20 | M1 | 否 |  |
+| `sub/publish` | 逐集下载 | `sub/publish/downloads/index` | — | — | W1-20 | M1 | 否 | 新增页：逐集下载管理与“扫码在电脑上下载”入口 |
+| `sub/publish` | 发布账号 | `sub/publish/accounts/index` | Accounts | M26 | W1-18 | M1 | 否 | 含 M27 弹层 |
+| `sub/publish` | 扫码确认 | `sub/publish/portal-approve/index` | — | — | G6-B | M6 | 否 | 新增页：下载页扫码后的确认页 |
+| `sub/billing` | 钱包 | `sub/billing/wallet/index` | Wallet、WalletExpired | M43 | W1-12 | M1 | 否 | 一页两态 |
+| `sub/billing` | 套餐选择 | `sub/billing/plan-pick/index` | PlanPick | M44 | W1-12 | M1 | 否 | 含 M10 对公转账弹层与付款结果 |
+| `sub/billing` | 积分充值 | `sub/billing/topup/index` | TopUp | M45 | G4-C | M4 | 否 |  |
+| `sub/billing` | 积分流水 | `sub/billing/ledger/index` | Ledger | M46 | G4-C | M4 | 否 |  |
+| `sub/billing` | 发票 | `sub/billing/invoices/index` | Invoices | M35 | G4-C | M4 | 否 |  |
+| `sub/billing` | 合同 | `sub/billing/contracts/index` | Contracts | M34 | G4-C | M4 | 否 |  |
+| `sub/profile` | 建档首页 | `sub/profile/profile/index` | Profile | M12 | W1-09 | M1 | 否 |  |
+| `sub/profile` | 基础信息 | `sub/profile/basic/index` | ProfileBasic | M13 | W1-09 | M1 | 否 |  |
+| `sub/profile` | 门店环境 | `sub/profile/store/index` | ProfileStore | M14 | W1-09 | M1 | 否 |  |
+| `sub/profile` | 主推服务 | `sub/profile/service/index` | ProfileService | M15 | W1-09 | M1 | 否 |  |
+| `sub/profile` | 证照 | `sub/profile/cert/index` | ProfileCert | M16 | W1-09 | M1 | 否 |  |
+| `sub/profile` | 审核进度 | `sub/profile/review/index` | ProfileReview | M17 | W1-09 | M1 | 否 |  |
+| `sub/profile` | 门店管理 | `sub/profile/stores/index` | Stores | M48 | G2-B | M2 | 否 |  |
+| `sub/profile` | 新增门店 | `sub/profile/store-add/index` | StoreAdd | M49 | G2-B | M2 | 否 |  |
+| `sub/profile` | 店员档案 | `sub/profile/staff-profile/index` | StaffProfile | M56 | G2-B | M2 | 否 | 仅店员 |
+| `sub/asset` | 素材库 | `sub/asset/lib/index` | AssetLib | M50 | G3-C | M3 | 否 |  |
+| `sub/asset` | 上传素材 | `sub/asset/upload/index` | AssetUpload | M51 | G3-C | M3 | 否 |  |
+| `sub/asset` | 素材详情 | `sub/asset/detail/index` | AssetDetail | M52 | G3-C | M3 | 否 |  |
+| `sub/asset` | 上传中心 | `sub/asset/uploader/index` | — | — | G3-C | M3 | 否 | 新增页：大文件上传 |
+| `sub/ad` | 广告 | `sub/ad/ads/index` | Ads | M18 | G5-B | M5 | 否 | 含 M42 弹层 |
+| `sub/ad` | 广告详情 | `sub/ad/ad-detail/index` | AdDetail | M19 | G5-B | M5 | 否 |  |
+| `sub/service` | 客服中心 | `sub/service/service/index` | Service | M29 | G7-A | M7 | 否 | 含 M30 弹层 |
+| `sub/service` | 工单 | `sub/service/ticket/index` | Ticket、TicketDone | M31 | G7-A | M7 | 否 | 一页两态 |
+| `sub/service` | 消息 | `sub/service/messages/index` | Messages | M36 | G2-C | M2 | 否 |  |
+| `sub/service` | 设置 | `sub/service/settings/index` | — | — | G2-B | M2 | 否 | 新增页：退出登录、注销、隐私协议、通知设置、已授权的电脑 |
+| `sub/member` | 成员 | `sub/member/members/index` | Members | M53 | G2-B | M2 | 否 |  |
+| `sub/member` | 邀请店员 | `sub/member/invite/index` | Invite | M54 | G2-B | M2 | 否 |  |
+| `sub/member` | 加入门店 | `sub/member/join/index` | Join | M55 | G2-B | M2 | 否 | 游客可进 |
