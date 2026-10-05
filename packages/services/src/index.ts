@@ -124,3 +124,12 @@ export type { Notices, NoticesDeps } from "./config/index.js";
 // W1-03 演示种子：协议的占位版本（运行器 demo-seed.ts 由 W1-01a 起头，W1-07 在里面加这一步）
 export { seedPlaceholderAgreementVersions } from "./docs/index.js";
 export type { PlaceholderFile, PlaceholderSeedInput } from "./docs/index.js";
+// W1-01a 后台鉴权链：判定与数据范围按模块名取用（authz.authorize(…)、authz.storeScope(scope)，见 authz/README.md）；
+// 凭据与会话的用例经进程运行时取（runtime.staffAuth），其余函数与常量按模块名取用（staff.staffCookieNames(…)、
+// staff.buildStaffMe(…)，见 staff/README.md）；演示种子的运行器（用法见 demo-seed.ts 开头的注释）
+export * as authz from "./authz/index.js";
+export * as staff from "./staff/index.js";
+export type { DataScope, StaffContext } from "./authz/index.js";
+export type { AuthNext, SignedIn, StaffAuth, StaffPrincipal } from "./staff/index.js";
+export { DEMO_SEED_STEPS, DemoSeedRefusedError, runDemoSeed } from "./demo-seed.js";
+export type { DemoSeedDeps, DemoSeedReport, DemoSeedState, DemoSeedStep } from "./demo-seed.js";

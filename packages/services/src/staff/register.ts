@@ -11,6 +11,7 @@ import type { MachineBinding } from "../flow/index.js";
 import { defineRegistration, implementKeyed, runSqlAssertion } from "../kernel/index.js";
 import type { CleanupContext, InvariantViolation, Tx } from "../kernel/index.js";
 import { BOOTSTRAP_JOB } from "./bootstrap.js";
+import { DEMO_SEED_JOB } from "./demo-seed.js";
 import { staffSeedAssertions } from "./invariants.js";
 import { hasActiveSuperAdmin } from "./repo.js";
 
@@ -29,9 +30,13 @@ export const staffStatusBinding: MachineBinding = {
       facts.ctx.actor.type === "system" &&
       facts.ctx.actor.job === BOOTSTRAP_JOB &&
       !(await hasActiveSuperAdmin(tx, facts.subjectId)),
-    // 新增（立即启用、暂不启用）：操作人是员工。权限点 sys.staff.manage 由路由的鉴权链判；手机号未占用由 uq_staff_phone_bidx 兜底
+    // 新增（立即启用、暂不启用）：操作人是员工。权限点 sys.staff.manage 由路由的鉴权链判；手机号未占用由 uq_staff_phone_bidx 兜底。
+    // “立即启用”一行另认演示种子（系统任务 cli.db.seed.demo；它自己在 prod 下拒绝执行）
     [rowKey("03:218", "staff.create")]: (_tx, facts) =>
-      Promise.resolve(facts.ctx.actor.type === "staff"),
+      Promise.resolve(
+        facts.ctx.actor.type === "staff" ||
+          (facts.ctx.actor.type === "system" && facts.ctx.actor.job === DEMO_SEED_JOB),
+      ),
     [rowKey("03:219", "staff.create")]: (_tx, facts) =>
       Promise.resolve(facts.ctx.actor.type === "staff"),
   },

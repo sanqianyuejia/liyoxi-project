@@ -1,6 +1,6 @@
 # staff：员工的凭据与会话
 
-后台登录的服务层，由 W1-01a 的第二个 PR 交付。依据：[a01](../../../../docs/api/a01-system.md) 第 2.3、2.4、3.1–3.8、3.11 节；[约定](../../../../docs/api/00-conventions.md) C4；[03 分组](../../../../docs/data-model/03-staff-authz-audit.md) 第 2.2–2.5、2.11 节；D4 第 6.2–6.5 节。判权（模块等级、权限点、数据范围、再验证的窗口判断）在 `authz`；接口、中间件、命令行入口 `staff:bootstrap` 随第三个 PR。
+后台登录的服务层，由 W1-01a 的第二个 PR 交付；第三个 PR 接上接口、命令行与演示员工（第 8 节）。依据：[a01](../../../../docs/api/a01-system.md) 第 2.3、2.4、3.1–3.8、3.11 节；[约定](../../../../docs/api/00-conventions.md) C4；[03 分组](../../../../docs/data-model/03-staff-authz-audit.md) 第 2.2–2.5、2.11 节；D4 第 6.2–6.5 节。判权（模块等级、权限点、数据范围、再验证的窗口判断）在 `authz`；接口与中间件在 `apps/api`（它的说明第 7 节）。
 
 ## 1. 这里有什么
 
@@ -17,6 +17,8 @@
 | `service.ts` | 装配入口 `createStaffAuth` |
 | `register.ts` | `staff.status` 的守卫与随迁列；三条清理项 |
 | `seed.ts` | 8 个角色（W0-21）与各自的默认组 |
+| `me.ts` | 已登录的员工 → 判权用的上下文 `staffContextOf`、当前员工 `buildStaffMe`、员工摘要 `staffBriefOf` |
+| `demo-seed.ts` | 7 位演示员工（只进本地、测试与预发） |
 
 ## 2. 装配与用法
 
@@ -24,7 +26,7 @@
 const authKeys = security.loadAuthKeys(env); // 票据、设备 Cookie、MFA 三把密钥，启动时加载并自检
 const staff = createStaffAuth({
   tx, db: prisma, clock, keyring, authKeys, flow, alerts: alertsOf(assembly),
-}); // api、worker 启动时各一次
+}); // 进程运行时里已经装好：应用层取 runtime.staffAuth（第一次取时才加载密钥并装配）
 
 // 登录两步
 const first = await staff.login({ phone, password, deviceCookie, meta }); // AuthNext：mfa 或 enroll_totp 票据
@@ -101,9 +103,53 @@ totpNow(secret, t.clock); // 按时钟算当下的动态口令
 
 ## 7. 已知的限度
 
-- `StaffMe` 没在这里拼：生效的权限点、模块等级、数据范围要 `authz` 规整，开关要 `config` 求值，由接口层（第三个 PR）拿 `StaffPrincipal` 去拼。
+- `StaffPrincipal` 里的角色行是库里的原样；规整与 `StaffMe` 的拼装在 `me.ts`（`staffContextOf`、`buildStaffMe`），会话中间件每请求调一次前者。
 - 再验证的窗口判断（权限点标了再验证且 `stepup_at` 超过 10 分钟）在 `authz`；这里只管写 `stepup_at` 与给出 `stepUpValidUntil`。10 分钟这个数只有 `authz` 的那一个常量（`STEP_UP_TTL_MS`），本模块引它并原样再导出。
 - 再验证失败不计入登录失败桶，也没有自己的计数：穷举靠 `admin.login` 档的限流（W0-22b）。
 - 登录失败不论账号存不存在都写一行 `auth_event`：量由按 IP 的限流封顶。
 - 耗时只对齐了 scrypt 这一大头；几条失败路之后写库的语句数不同，差在毫秒以内。
 - 激活码短信不发（M2）：引导命令只在终端输出，其余下发入口随 G2-A。
+
+## 8. 接进进程、命令行与演示员工（第三个 PR）
+
+- 进程运行时：`runtime.staffAuth` 就是 `createStaffAuth` 的结果，第一次取时才加载三份密钥并装配。密钥没配全即抛 `SecurityError`：本地与用例里不配密钥进程也起得来，只是后台登录用不了。启动自检：字段加密的两份照旧（`security.crypto`）；后台登录的一份只有 api 进程查（`security.auth_keys`），`stg`、`prod` 下没配即起不来。
+- 包入口：`import { staff, authz } from "@liyoxi/services"`，按模块名取用（`staff.staffCookieNames(env)`、`staff.buildStaffMe(deps, principal, ctx)`、`staff.staffContextOf(principal)`）。
+- 接口层用的两个函数：
+
+```ts
+const ctx = staff.staffContextOf(principal); // authz 的员工上下文：模块等级、生效的权限点、数据范围、再验证时刻
+const me = await staff.buildStaffMe({ config: runtime.config, clock: runtime.clock }, principal, ctx); // a01 第 2.3 节 StaffMe
+```
+
+### 8.1 建第一位超级管理员
+
+```sh
+# 库要先跑完迁移与 pnpm db:seed；三份密钥文件各放一份自己生成的（写法见仓库根的环境变量样例），不入库
+APP_ENV=local DATABASE_URL=… REDIS_URL=… DATA_KEYS_FILE=… BIDX_KEYS_FILE=… AUTH_KEYS_FILE=… \
+  pnpm staff:bootstrap --name 张三 --phone 13800000000
+# 服务器上（server 镜像里）：node apps/worker/dist/staff-bootstrap.js --name … --phone …
+```
+
+- 只在库里没有启用的超级管理员时可执行：第二次执行被拒绝。建出来是“待激活”（启用、没有口令），激活码只在终端输出这一次，24 小时内有效；到后台的激活页用手机号加激活码设密码、绑动态口令。激活码 24 小时内没用就过期，而这位管理员已经算“启用”，引导命令不会再执行：M1 还没有重新生成激活码的入口（接口随 G2-A），所以引导之后要在一天内完成激活。
+- 退出码：0 建好了；1 被拒绝（已有启用的超级管理员、手机号被占用、姓名或手机号不合规、参数不对）；2 环境变量或密钥不对、连不上库。连接串、口令、密钥不打印。
+- 入口 `apps/worker/src/cli/staff-bootstrap.ts`（本体在同目录的 `staff-bootstrap-command.ts`），随 worker 的构建产物。
+
+### 8.2 演示员工
+
+`pnpm db:seed:demo` 跑演示种子的运行器（`../demo-seed.ts`），第一步就是这里的 `seedDemoStaff`：
+
+| 键 | 姓名 | 角色 | 主管 | 分配池 | 登录手机号 |
+| --- | --- | --- | --- | --- | --- |
+| `cs` | 演示客服 | 客服 | 否 | — | 19900000001 |
+| `delivery_manager` | 演示交付经理 | 交付经理 | 是 | `delivery_manager`（不限城市） | 19900000002 |
+| `editor` | 演示剪辑师 | 剪辑师 | 否 | `editor` | 19900000003 |
+| `publisher` | 演示发布专员 | 发布专员 | 否 | `publisher` | 19900000004 |
+| `content_ops` | 演示内容运营 | 内容运营 | 否 | — | 19900000005 |
+| `finance_lead` | 演示财务主管 | 财务 | 是 | — | 19900000006 |
+| `finance` | 演示财务 | 财务 | 否 | — | 19900000007 |
+
+- 都建成待激活，各出一枚激活码，终端只显示一次；仓库里没有任何固定口令。演示全程也可以只用引导出来的超级管理员。
+- 可以反复跑：按登录手机号认人，已有的不重建、不重发码。只进本地、测试与预发，`APP_ENV=prod` 拒绝。
+- 每位员工一个事务，经 `flow.transition` 写状态历史、ops 审计（操作人是系统任务 `cli.db.seed.demo`）、`staff.created`；`staff.status`“新增（立即启用）”一行的守卫除了员工，另认这个系统任务。
+- 发布专员的数据范围：角色的代码默认是“本人”，演示里要他看得到全部门店的核验队列，所以新建这位员工时把库里发布专员那一行角色的 `data_scope` 改成 `all`（代码默认配置不动；之后在后台改回去的，再跑不覆盖）。
+- 别的模块的演示种子按键取人：`staff.demoStaffId(state.staff, "content_ops")`。

@@ -9,6 +9,7 @@ import { createRuntime, DB_POOLS, runStartupChecks, StartupCheckError } from "./
 import type { RuntimeOptions } from "./runtime.js";
 import {
   createFakeProviders,
+  fakeKeyEnv,
   SAMPLE_PROVIDER_INPUTS,
   useTestDatabase,
   useTestRedis,
@@ -73,6 +74,8 @@ describe("createRuntime", () => {
         "audit.target_type",
         "events.aggregate_types",
         "flow.state_columns",
+        // W1-01a：后台登录的三把密钥，只有 api 进程查
+        "security.auth_keys",
       ]);
       expect(runtime.assembly.entry).toBe("api");
       expect(await runtime.config.params.get("work.start")).toBe("09:00");
@@ -187,7 +190,7 @@ describe("createRuntime：进程装配接齐（KF-1）", () => {
     }
   });
 
-  it("预发没配密钥：启动自检不过，只报 security.crypto 一条", TIMEOUT, async () => {
+  it("预发没配密钥：启动自检不过，字段加密与后台登录的密钥各报一条", TIMEOUT, async () => {
     const { runtime } = await start({ APP_ENV: "stg" });
     try {
       const failure = await runStartupChecks(runtime.startupChecks).catch(
@@ -196,11 +199,59 @@ describe("createRuntime：进程装配接齐（KF-1）", () => {
       expect(failure).toBeInstanceOf(StartupCheckError);
       expect((failure as StartupCheckError).issues).toEqual([
         expect.stringMatching(/^security\.crypto：没有配置密钥/),
+        expect.stringMatching(/^security\.auth_keys：没有配置后台登录的密钥/),
       ]);
     } finally {
       await runtime.close();
     }
   });
+
+  it(
+    "后台登录与会话（W1-01a）：没配密钥时取 staffAuth 即抛，进程照样起得来；配了就装得起来，自检照跑",
+    TIMEOUT,
+    async () => {
+      const bare = await start();
+      try {
+        expect(() => bare.runtime.staffAuth).toThrow(/没有配置/);
+        // local、test 下放行，记一条告警
+        await expect(runStartupChecks(bare.runtime.startupChecks)).resolves.toBeUndefined();
+        expect(
+          bare.lines.filter((line) => String(line.msg).includes("AUTH_KEYS_FILE")),
+        ).toHaveLength(1);
+      } finally {
+        await bare.runtime.close();
+      }
+      const keyed = await start({ ...fakeKeyEnv(), APP_ENV: "stg" });
+      try {
+        await expect(runStartupChecks(keyed.runtime.startupChecks)).resolves.toBeUndefined();
+        expect(keyed.runtime.staffAuth).toBe(keyed.runtime.staffAuth);
+        expect(typeof keyed.runtime.flow.transition).toBe("function");
+        // worker 进程不签票据、不建会话：清单里没有这一项
+        const worker = createRuntime({
+          entry: "worker",
+          env: keyed.runtime.env,
+          version: "sha-test",
+          redisKeyPrefix: redis.prefix,
+          logger: createLogger({
+            svc: "worker",
+            env: "stg",
+            level: "error",
+            version: "sha-test",
+            destination: { write: () => undefined },
+          }),
+        });
+        try {
+          expect(worker.startupChecks.map((check) => check.name)).not.toContain(
+            "security.auth_keys",
+          );
+        } finally {
+          await worker.close();
+        }
+      } finally {
+        await keyed.runtime.close();
+      }
+    },
+  );
 });
 
 describe("runStartupChecks", () => {

@@ -956,6 +956,7 @@ describe("会话、再验证、退出（验收 6、7）", { timeout: SLOW }, () 
     expect(signedIn.headers).toEqual({
       cookie: `lyx_admin=${signedIn.sessionToken}`,
       "x-lyx-admin": "1",
+      origin: "http://localhost",
     });
     const principal = await t.staff.authenticate(signedIn.sessionToken);
     expect(principal).toMatchObject({

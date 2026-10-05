@@ -38,3 +38,15 @@ export type { PasswordRule } from "./password.js";
 export { lockStaff } from "./repo.js";
 // 本模块的登记：staff.I8 进不变量框架（W0-24）；staff.status 的守卫与随迁列，三条清理项（W1-01a）
 export { registration } from "./register.js";
+// W1-01a 的第三个 PR：员工上下文与 StaffMe 的拼装（接口层用）；演示员工（演示种子的运行器调）
+export { buildStaffMe, staffBriefOf, staffContextOf } from "./me.js";
+export type { StaffMeDeps } from "./me.js";
+export { DEMO_SEED_JOB, DEMO_STAFF, demoStaffId, seedDemoStaff } from "./demo-seed.js";
+export type {
+  DemoStaffDef,
+  DemoStaffDeps,
+  DemoStaffKey,
+  DemoStaffMember,
+  DemoStaffResult,
+} from "./demo-seed.js";
+export { BOOTSTRAP_JOB } from "./bootstrap.js";

@@ -11,6 +11,9 @@
 // KF-1 接齐的三样：十二个 Provider 经 kernel 的 assembleProviders 装配（驱动的入口只许 kernel 引，D7 第 2.2 节 D8；
 // 外呼前钩子在那里接上，事务内外呼有人拦）；events、timers 在这里各建一次（构造时对照契约校验订阅者、定时器处理器、
 // 周期任务的登记，对不上进程起不来）；启动自检用 ops 的清单（两个进程共用）。
+// W1-01a 接进来的两样：flow（状态迁移，装配之后、events 之上建一次）与 staffAuth（后台登录与会话的用例）。
+// staffAuth 第一次取时才加载密钥并装配：本地与用例里不配密钥文件进程也起得来，只是后台登录用不了；
+// stg、prod 下三份密钥缺了由启动自检拦（security.crypto 两份；api 进程另有 security.auth_keys）。
 import { createPrismaClient } from "@liyoxi/db";
 import { Redis } from "ioredis";
 
@@ -19,7 +22,10 @@ import { createConfig } from "./config/index.js";
 import type { Config } from "./config/index.js";
 import { createEvents } from "./events/index.js";
 import type { Events } from "./events/index.js";
+import { createFlow } from "./flow/index.js";
+import type { Flow } from "./flow/index.js";
 import {
+  alertsOf,
   assembleProviders,
   createBizNoIssuer,
   createTxRunner,
@@ -41,6 +47,9 @@ import type { Health, StartupCheck } from "./ops/index.js";
 import type { Providers } from "./providers/types.js";
 import { createRateLimiter } from "./rate-limit.js";
 import type { RateLimiter } from "./rate-limit.js";
+import { loadAuthKeys, loadKeyring } from "./security/index.js";
+import { createStaffAuth } from "./staff/index.js";
+import type { StaffAuth } from "./staff/index.js";
 import { createTimers } from "./timers/index.js";
 import type { Timers } from "./timers/index.js";
 
@@ -126,6 +135,13 @@ export interface Runtime {
   readonly startupChecks: readonly StartupCheck[];
   /** 断开数据库与 Redis。进程退出前调一次 */
   close(): Promise<void>;
+  /** 状态迁移（W1-01a 接进来）：改状态机表的状态只经 flow.transition */
+  readonly flow: Flow;
+  /**
+   * 后台登录与会话的用例（W1-01a）：登录两步、激活四步、再验证、每请求的会话校验、退出、命令行引导。
+   * 第一次取时才加载密钥并装配；三份密钥文件（DATA_KEYS_FILE、BIDX_KEYS_FILE、AUTH_KEYS_FILE）没配全即抛 SecurityError
+   */
+  readonly staffAuth: StaffAuth;
 }
 
 /**
@@ -191,6 +207,8 @@ export function createRuntime(options: RuntimeOptions): Runtime {
   const providers = options.providers ?? assembleProviders({ appEnv: env.APP_ENV, logger });
   const events = createEvents({ assembly, clock, tx });
   const timers = createTimers({ assembly });
+  const flow = createFlow({ assembly, clock, events });
+  let staffAuth: StaffAuth | undefined;
 
   // 连库一项加移交表第 1 行的四个自检：security 的加解密与盲索引、审计 target_type 对表名单、聚合类型对表名单、
   // machine 与 state_field 对库里的表与列
@@ -200,6 +218,24 @@ export function createRuntime(options: RuntimeOptions): Runtime {
     keys: env,
     warn: (message) => logger.warn({ evt: "startup.check_skipped" }, message),
   });
+  // 后台登录的三把密钥（W1-01a）：只有 api 进程签票据、建会话。没配：stg、prod 下不过；local、test 下放行并记一条告警
+  if (entry === "api") {
+    startupChecks.push({
+      name: "security.auth_keys",
+      run() {
+        if (env.AUTH_KEYS === undefined && (env.APP_ENV === "local" || env.APP_ENV === "test")) {
+          logger.warn(
+            { evt: "startup.check_skipped" },
+            "没有配置后台登录的密钥（AUTH_KEYS_FILE）：密钥的启动自检没跑，后台登录用不了",
+          );
+          return Promise.resolve([]);
+        }
+        // 没配、不合格、自检不过都抛 SecurityError：消息只说哪一项不合格，不带密钥内容
+        loadAuthKeys(env);
+        return Promise.resolve([]);
+      },
+    });
+  }
 
   return {
     entry,
@@ -222,6 +258,19 @@ export function createRuntime(options: RuntimeOptions): Runtime {
       unbindOps();
       redis.disconnect();
       await prisma.$disconnect();
+    },
+    flow,
+    get staffAuth() {
+      staffAuth ??= createStaffAuth({
+        tx,
+        db: prisma,
+        clock,
+        keyring: loadKeyring(env),
+        authKeys: loadAuthKeys(env),
+        flow,
+        alerts: alertsOf(assembly),
+      });
+      return staffAuth;
     },
   };
 }

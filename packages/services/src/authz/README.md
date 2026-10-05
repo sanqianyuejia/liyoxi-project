@@ -131,6 +131,6 @@ pnpm --filter @liyoxi/services exec vitest run src/authz/
 
 ## 6. 还没有的
 
-- 角色与本组成员的加载与缓存、会话、`signInAsStaff`：W1-01a 的第二个 PR（`staff` 模块）。
-- 权限中间件、`defineAdminHandler`、权限矩阵回放与黄金文件、从包入口给出 `authz`：W1-01a 的第三个 PR。
+- 角色与本组成员的加载与缓存、会话、`signInAsStaff` 在 `staff` 模块；权限中间件、`defineAdminHandler`、权限矩阵回放与黄金文件在 `apps/api`（它的说明第 7 节）。包入口已给出本模块：`import { authz } from "@liyoxi/services"`。
+- “本人任务”（`o`）的写操作用哪个范围，只在 `defineAdminHandler` 给处理器的 `taskScope` 一处定（等级是 `o` 时即 `ownTaskScope`），处理器与仓储不各自判断等级。
 - 原生 SQL 用的范围片段（D4 第 7.3 节的 `scopeSql`）：没有做，第一个要写带范围的原生查询的包（报表）来加，与这里的谓词放在一处。
