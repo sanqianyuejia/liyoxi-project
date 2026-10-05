@@ -2,7 +2,7 @@
 // 登记键以字符串字面量写在这里：“已落地”的判定按它认“有接口层测试”。
 //   落地 3 条："hooks.healthz.get"、"hooks.readyz.get"、"hooks.health.get"
 //   只有框架 2 条（留桩）："hooks.internalHealth.finance.get"、"hooks.internalHealth.flow.get"
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { allRegistryOnly } from "@liyoxi/contract";
@@ -113,10 +113,10 @@ describe("已挂载清单", () => {
       // “已落地”的判定（node infra/ci/landed.mjs）读这份文件：JSON 字符串数组，取生产的处理器清单
       const dist = fileURLToPath(new URL("../dist/", import.meta.url));
       mkdirSync(dist, { recursive: true });
-      writeFileSync(
-        `${dist}mounted-operations.json`,
-        `${JSON.stringify(api.mountedOperations, null, 2)}\n`,
-      );
+      // 先写临时文件再改名：两轮测试同时跑时，读的一方看不到写了一半的文件
+      const draft = `${dist}mounted-operations.${process.pid}.tmp`;
+      writeFileSync(draft, `${JSON.stringify(api.mountedOperations, null, 2)}\n`);
+      renameSync(draft, `${dist}mounted-operations.json`);
     },
   );
 });

@@ -1,10 +1,11 @@
 // 构建产物可启动（任务书 W0-22 第 7 节第 5 条）：现打一份产物，用 node 把它起起来，探活通了再发 SIGTERM。
 // 产物里 @liyoxi/* 是内联的、第三方包留给运行时解析：少声明一个依赖，这里就起不来。
 // 起的是独立的进程：连本文件的测试库（迁移齐全），Redis 用共享的那份，只读不写。
+// 产物打到 dist 下本次专用的目录里，跑完删掉：两轮测试同时跑（pnpm test:isolation）时各用各的。
 import { execFile, spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { once } from "node:events";
-import { existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -16,10 +17,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const db = useTestDatabase("api");
 const TIMEOUT = { timeout: 180_000 };
+/** 本次的输出目录：在本包之内，产物才解析得到 apps/api/node_modules 里的第三方包 */
+const out = `dist/test-build-${process.pid}-${Date.now().toString(36)}`;
 
 const children: ChildProcess[] = [];
 afterAll(() => {
   for (const child of children) if (child.exitCode === null) child.kill("SIGKILL");
+  rmSync(`${root}${out}`, { recursive: true, force: true });
 });
 
 interface Started {
@@ -30,11 +34,15 @@ interface Started {
 }
 
 function startServer(env: Record<string, string>): Started {
-  const child = spawn(process.execPath, ["dist/server.js", "--port", "0", "--host", "127.0.0.1"], {
-    cwd: root,
-    env: { ...process.env, ...env },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  const child = spawn(
+    process.execPath,
+    [`${out}/server.js`, "--port", "0", "--host", "127.0.0.1"],
+    {
+      cwd: root,
+      env: { ...process.env, ...env },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
   children.push(child);
   const lines: Record<string, unknown>[] = [];
   const waiters: { evt: string; resolve: (line: Record<string, unknown>) => void }[] = [];
@@ -63,12 +71,14 @@ function startServer(env: Record<string, string>): Started {
 
 describe("构建产物", () => {
   beforeAll(async () => {
-    await promisify(execFile)(process.execPath, ["scripts/build.mjs"], { cwd: root });
+    await promisify(execFile)(process.execPath, ["scripts/build.mjs", "--outdir", out], {
+      cwd: root,
+    });
   }, TIMEOUT.timeout);
 
   it("出了两个入口：server.js 与 check-env.js", () => {
-    expect(existsSync(`${root}dist/server.js`)).toBe(true);
-    expect(existsSync(`${root}dist/check-env.js`)).toBe(true);
+    expect(existsSync(`${root}${out}/server.js`)).toBe(true);
+    expect(existsSync(`${root}${out}/check-env.js`)).toBe(true);
   });
 
   it("起得来：探活通，收到 SIGTERM 后排空并以 0 退出", TIMEOUT, async () => {
@@ -107,7 +117,7 @@ describe("构建产物", () => {
 
   it("check-env.js：环境变量齐全退出码 0，缺 APP_ENV 退出码 1", TIMEOUT, async () => {
     const run = (env: NodeJS.ProcessEnv) =>
-      promisify(execFile)(process.execPath, ["dist/check-env.js"], { cwd: root, env }).then(
+      promisify(execFile)(process.execPath, [`${out}/check-env.js`], { cwd: root, env }).then(
         () => 0,
         (error: { code?: number }) => error.code,
       );
