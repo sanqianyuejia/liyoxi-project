@@ -1,5 +1,10 @@
 // 账本内核的共用类型与内部错误（W1-10）。
-import type { EnumValue, POINT_BUCKET, POINT_LOT_KIND } from "@liyoxi/contract/enums";
+import type {
+  EnumValue,
+  POINT_BUCKET,
+  POINT_HOLD_STATUS,
+  POINT_LOT_KIND,
+} from "@liyoxi/contract/enums";
 import type { PrismaClient } from "@liyoxi/db";
 
 import type { Events } from "../../events/index.js";
@@ -22,6 +27,11 @@ export const LEDGER_STEPS = [
   "term.update",
   "subscription_event.insert",
   "event.emit",
+  // 冻结单一族（第二个 PR）：新建冻结单、转为加购的新批次、分摊行、冻结单的状态与累计数量
+  "hold.insert",
+  "lot.convert",
+  "alloc.write",
+  "hold.update",
 ] as const;
 export type LedgerStep = (typeof LEDGER_STEPS)[number];
 
@@ -43,10 +53,12 @@ export type LedgerRefusal =
   | "op_key_conflict"
   /** 预约周期没有接在上一期的止点上 */
   | "term_chain"
+  /** 冻结时取不到剧目积分价：没有热度等级又没有生效的单剧修订，或该等级没有模板价（上架的剧不该这样） */
+  | "price_unavailable"
   /** 写入时自检不一致：回滚，不上报、不自愈 */
   | "self_check";
 
-/** 账本的内部错误：都是代码缺陷或数据异常，不是用户输入的问题，接口层按 500 处理。业务上的拒绝走 AppError */
+/** 账本的内部错误：都是代码缺陷或数据异常，不是用户输入的问题，接口层按 500 处理。业务上的拒绝走 AppError 与 HoldStateError */
 export class LedgerError extends Error {
   readonly reason: LedgerRefusal;
   readonly details: Readonly<Record<string, unknown>>;
@@ -56,5 +68,39 @@ export class LedgerError extends Error {
     this.name = "LedgerError";
     this.reason = reason;
     this.details = details;
+  }
+}
+
+export type HoldStatus = EnumValue<typeof POINT_HOLD_STATUS>;
+
+/**
+ * 冻结单不在这个操作要求的状态。不是内部错误：调用方认得出、要自己决定怎么办——
+ * 开工扣减时发现已释放（not_held）→ 整单回滚并告警；取消时发现已扣减（not_held）→ 改走退回；
+ * 退回时还没扣减（not_captured）→ 改走释放；退回数超过可退（exceeds_refundable）→ 重新试算。
+ */
+export class HoldStateError extends Error {
+  readonly reason: "not_held" | "not_captured" | "exceeds_refundable";
+  readonly operation: "capture" | "release" | "refund";
+  readonly pointHoldId: string;
+  /** 冻结单此刻的状态 */
+  readonly status: HoldStatus;
+  /** 此刻还能退回的数量：应扣 − 已退回 − 不予退回（还没扣减的为 0） */
+  readonly refundableQty: number;
+
+  constructor(
+    operation: HoldStateError["operation"],
+    reason: HoldStateError["reason"],
+    hold: { id: string; status: string; qty: number; returnedQty: number; forfeitedQty: number },
+  ) {
+    super(`冻结单 ${hold.id} 现在是 ${hold.status}，不能 ${operation}（${reason}）`);
+    this.name = "HoldStateError";
+    this.operation = operation;
+    this.reason = reason;
+    this.pointHoldId = hold.id;
+    this.status = hold.status as HoldStatus;
+    this.refundableQty =
+      hold.status === "captured" || hold.status === "refunded_partial"
+        ? hold.qty - hold.returnedQty - hold.forfeitedQty
+        : 0;
   }
 }

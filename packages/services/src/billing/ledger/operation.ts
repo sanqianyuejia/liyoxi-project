@@ -1,7 +1,7 @@
 // 一次账本操作的登记与落库（W1-10）。依据：07 分组 第 2.15 节“写入顺序”、第 2.16、3.3、3.4 节；D1 第 7.1 节。
 // 账本的写只有这一个出口：先在内存里算完桶移动与操作后的余额，再按固定顺序写——
-//   新批次 →（发放计划改成已发放）→ 操作行 → 已有批次的桶、逐批次的流水 → 账户缓存与 last_op_at。
-// 冻结单与分摊（写入顺序第 2、6、7 步的另一半）随冻结一族加进来。
+//   新冻结单 → 新批次 →（发放计划改成已发放）→ 操作行 → 已有批次的桶、逐批次的流水
+//   → 转为加购的新批次与它的入账流水 → 分摊行、冻结单的状态与累计数量 → 账户缓存与 last_op_at。
 import { parseLedgerTitleArgs } from "@liyoxi/contract";
 import type { LedgerTitleArgs, LedgerTitleCode } from "@liyoxi/contract";
 import type {
@@ -9,9 +9,10 @@ import type {
   EnumValue,
   LEDGER_OPERATION_OP_TYPE,
   LEDGER_OPERATION_REF_TYPE,
+  POINT_HOLD_PURPOSE,
   POINT_LOT_SOURCE_TYPE,
 } from "@liyoxi/contract/enums";
-import type { LedgerOperation } from "@liyoxi/db";
+import type { LedgerOperation, Prisma } from "@liyoxi/db";
 import type { LocalDate } from "@liyoxi/shared/time";
 
 import { actorColumns, uuidv7 } from "../../kernel/index.js";
@@ -19,7 +20,7 @@ import type { IdentityContext, Tx } from "../../kernel/index.js";
 import { toDateColumn } from "./context.js";
 import type { LedgerClock } from "./context.js";
 import { LedgerError } from "./types.js";
-import type { Bucket, LedgerDeps, LedgerStep, LotKind } from "./types.js";
+import type { Bucket, HoldStatus, LedgerDeps, LedgerStep, LotKind } from "./types.js";
 
 /** 账户行里账本要读写的列。进入时读一次，之后随每次写同步更新 */
 export interface AccountState {
@@ -66,6 +67,44 @@ export interface BucketMove {
   readonly pointHoldId?: string | null;
 }
 
+/** 原周期已结束、按加购积分退回：原批次的“冻结”或“已消耗”转出，另建一个加购批次指回这条转出流水 */
+export interface Conversion {
+  readonly lot: LotRef;
+  readonly from: "held" | "consumed";
+  readonly qty: number;
+}
+
+/** 一次操作对冻结单的写入。批次上的移动另在 moves、conversions 里，流水带这张冻结单 */
+export interface HoldWrite {
+  readonly id: string;
+  /** 给了即新建冻结单（状态 held，快照已生成）：先于批次与操作行插入 */
+  readonly insert?: {
+    readonly storeId: string;
+    readonly purpose: EnumValue<typeof POINT_HOLD_PURPOSE>;
+    readonly refId: string;
+    readonly groupRef: string | null;
+    readonly qty: number;
+    readonly pricingSnapshot: Prisma.InputJsonValue;
+    readonly subscriptionTermId: string;
+  };
+  /** 新建的分摊行：顺序号 = 扣减顺序 */
+  readonly allocs?: readonly { readonly lot: LotRef; readonly qty: number }[];
+  /** 已有分摊行上累计数量的增量（退回、不予退回） */
+  readonly allocDeltas?: readonly {
+    readonly allocNo: number;
+    readonly returnedQty: number;
+    readonly forfeitedQty: number;
+  }[];
+  /** 冻结单的新状态；累计数量给的是增量 */
+  readonly update?: {
+    readonly status: HoldStatus;
+    readonly returnedQty?: number;
+    readonly forfeitedQty?: number;
+    readonly capturedAt?: Date;
+    readonly closedAt?: Date;
+  };
+}
+
 export type OperationTitle = {
   [C in LedgerTitleCode]: { readonly code: C; readonly args: LedgerTitleArgs<C> };
 }[LedgerTitleCode];
@@ -80,8 +119,12 @@ export interface OperationDraft {
   readonly title: OperationTitle | null;
   /** 操作人与请求号 */
   readonly ctx: IdentityContext;
+  /** 门店级操作（冻结单一族）带门店；主体级操作不带 */
+  readonly storeId?: string | null;
   readonly newLots?: readonly NewLot[];
   readonly moves?: readonly BucketMove[];
+  readonly conversions?: readonly Conversion[];
+  readonly hold?: HoldWrite;
   /** 新批次插入之后、操作行之前：发放计划在这里改成已发放并指向批次 */
   readonly afterLots?: (lotIds: readonly string[]) => Promise<void>;
   /** 随这次操作一起改的账户列：订阅状态与当前周期（同一条 UPDATE，库里有 CHECK）、最近一次清零 */
@@ -98,6 +141,10 @@ export interface OperationDraft {
 export interface WrittenOperation {
   readonly id: string;
   readonly lotIds: readonly string[];
+  /** 转为加购的新批次，与 conversions 同序 */
+  readonly conversionLotIds: readonly string[];
+  /** 这次操作涉及的冻结单：自检连它的分摊一起核对 */
+  readonly pointHoldId: string | null;
   readonly planDeltaQty: number;
   readonly addonDeltaQty: number;
   readonly spendableAfterQty: number;
@@ -166,6 +213,8 @@ export async function writeOperation(
 ): Promise<WrittenOperation> {
   const newLots = draft.newLots ?? [];
   const moves = draft.moves ?? [];
+  const conversions = draft.conversions ?? [];
+  const hold = draft.hold;
   // 套餐可用只算当前周期的批次（07 分组 第 2.8 节）
   const inPlanCache = (lot: Pick<LotRef, "kind" | "subscriptionTermId">): boolean =>
     lot.kind === "plan" && lot.subscriptionTermId === account.currentSubscriptionTermId;
@@ -180,7 +229,12 @@ export async function writeOperation(
   };
   for (const lot of newLots) available(lot, positive(lot.qty, "入账数量"));
   const perLot = new Map<string, Partial<Record<(typeof COLUMN)[keyof typeof COLUMN], number>>>();
-  for (const move of moves) {
+  // 转为加购：原批次上是一次到“转加购转出”的移动；新加购批次的可用另计
+  const allMoves: BucketMove[] = [
+    ...moves,
+    ...conversions.map((item) => ({ ...item, to: "converted_out" as const })),
+  ];
+  for (const move of allMoves) {
     positive(move.qty, "移动数量");
     if (move.from === "available") available(move.lot, -move.qty);
     if (move.to === "available") available(move.lot, move.qty);
@@ -191,6 +245,7 @@ export async function writeOperation(
     delta[COLUMN[move.to]] = (delta[COLUMN[move.to]] ?? 0) + move.qty;
     perLot.set(move.lot.id, delta);
   }
+  for (const item of conversions) addonDelta += item.qty;
   const planAfter = account.planAvailableQty + planDelta;
   const addonAfter = account.addonAvailableQty + addonDelta;
   const heldAfter = account.heldTotalQty + heldDelta;
@@ -202,6 +257,27 @@ export async function writeOperation(
   const operationId = uuidv7();
   const stamp = { occurredAt: draft.occurredAt, bizDate: toDateColumn(draft.bizDate) };
   const createdAt = clock.now;
+
+  // 2. 新冻结单（状态 held，快照已生成）
+  if (hold?.insert) {
+    const { purpose, ...row } = hold.insert;
+    await tx.pointHold.create({
+      data: {
+        id: hold.id,
+        entityId: account.entityId,
+        ...row,
+        purpose,
+        // V1.0 用途与业务引用的类型同一组取值（07 分组 第 3.1 节）
+        refType: purpose,
+        status: "held",
+        heldAt: clock.now,
+        ...actorColumns(draft.ctx.actor),
+        createdAt,
+        updatedAt: createdAt,
+      },
+    });
+    await reached(deps, "hold.insert");
+  }
 
   // 3. 新入账的批次（可用 = 入账数量）
   const lots = newLots.map((lot) => ({ ...lot, id: uuidv7() }));
@@ -238,8 +314,10 @@ export async function writeOperation(
       opKey: draft.opKey,
       opType: draft.opType,
       entityId: account.entityId,
+      storeId: draft.storeId ?? null,
       refType: draft.ref.type,
       refId: draft.ref.id,
+      pointHoldId: hold?.id ?? null,
       ...stamp,
       planDeltaQty: planDelta,
       addonDeltaQty: addonDelta,
@@ -261,12 +339,12 @@ export async function writeOperation(
     await tx.pointLot.update({ where: { id }, data: { ...data, updatedAt: createdAt } });
   }
   if (perLot.size > 0) await reached(deps, "lot.update");
-  const entry = (lot: LotRef, from: Bucket, to: Bucket, qty: number, hold?: string | null) => ({
+  const entry = (lot: LotRef, from: Bucket, to: Bucket, qty: number, holdId?: string | null) => ({
     id: uuidv7(),
     ledgerOperationId: operationId,
     entityId: account.entityId,
     pointLotId: lot.id,
-    pointHoldId: hold ?? null,
+    pointHoldId: holdId ?? null,
     lotKind: lot.kind,
     planId: lot.planId,
     fromBucket: from,
@@ -275,16 +353,101 @@ export async function writeOperation(
     ...stamp,
     createdAt,
   });
+  // 涉及“冻结”“已消耗”两个桶的移动带冻结单（库里有 CHECK）
+  const holdOf = (move: BucketMove): string | null =>
+    move.pointHoldId ??
+    ([move.from, move.to].some((bucket) => bucket === "held" || bucket === "consumed")
+      ? (hold?.id ?? null)
+      : null);
+  const convertedOut = conversions.map((item) =>
+    entry(item.lot, item.from, "converted_out", item.qty, hold?.id),
+  );
   const entries = [
     ...lots.map((lot) => entry(lot, "external", "available", lot.qty)),
-    ...moves.map((move) => entry(move.lot, move.from, move.to, move.qty, move.pointHoldId)),
+    ...moves.map((move) => entry(move.lot, move.from, move.to, move.qty, holdOf(move))),
+    ...convertedOut,
   ];
   if (entries.length > 0) {
     await tx.pointLedgerEntry.createMany({ data: entries });
     await reached(deps, "entry.insert");
   }
 
-  // 7. 账户缓存与 last_op_at
+  // 6. 转为加购积分：原批次的转出流水已在上一步；这里建新的加购批次（指回那条流水，来源 = 本操作），再插它的入账流水
+  const converted = conversions.map((item, index) => ({
+    id: uuidv7(),
+    kind: "addon",
+    planId: null,
+    subscriptionTermId: null,
+    qty: item.qty,
+    originLotId: item.lot.id,
+    originEntryId: (convertedOut[index] as { id: string }).id,
+  }));
+  if (converted.length > 0) {
+    await tx.pointLot.createMany({
+      data: converted.map((lot, index) => ({
+        id: lot.id,
+        entityId: account.entityId,
+        kind: lot.kind,
+        sourceType: "conversion",
+        sourceId: operationId,
+        sourceNo: index + 1,
+        originPointLotId: lot.originLotId,
+        originPointLedgerEntryId: lot.originEntryId,
+        grantedAt: stamp.occurredAt,
+        bizDate: stamp.bizDate,
+        originalQty: lot.qty,
+        availableQty: lot.qty,
+        createdAt,
+        updatedAt: createdAt,
+      })),
+    });
+    await tx.pointLedgerEntry.createMany({
+      data: converted.map((lot) => entry(lot, "external", "available", lot.qty)),
+    });
+    await reached(deps, "lot.convert");
+  }
+
+  // 7. 分摊行；冻结单的状态与累计数量
+  if (hold?.allocs && hold.allocs.length > 0) {
+    await tx.pointHoldAlloc.createMany({
+      data: hold.allocs.map((alloc, index) => ({
+        pointHoldId: hold.id,
+        allocNo: index + 1,
+        pointLotId: alloc.lot.id,
+        lotKind: alloc.lot.kind,
+        qty: positive(alloc.qty, "分摊数量"),
+        createdAt,
+        updatedAt: createdAt,
+      })),
+    });
+    await reached(deps, "alloc.write");
+  }
+  for (const delta of hold?.allocDeltas ?? []) {
+    await tx.pointHoldAlloc.update({
+      where: { pointHoldId_allocNo: { pointHoldId: hold?.id as string, allocNo: delta.allocNo } },
+      data: {
+        returnedQty: { increment: delta.returnedQty },
+        forfeitedQty: { increment: delta.forfeitedQty },
+        updatedAt: createdAt,
+      },
+    });
+  }
+  if (hold?.allocDeltas && hold.allocDeltas.length > 0) await reached(deps, "alloc.write");
+  if (hold?.update) {
+    const { returnedQty = 0, forfeitedQty = 0, ...rest } = hold.update;
+    await tx.pointHold.update({
+      where: { id: hold.id },
+      data: {
+        ...rest,
+        returnedQty: { increment: returnedQty },
+        forfeitedQty: { increment: forfeitedQty },
+        updatedAt: createdAt,
+      },
+    });
+    await reached(deps, "hold.update");
+  }
+
+  // 账户缓存与 last_op_at
   await tx.billingAccount.update({
     where: { entityId: account.entityId },
     data: {
@@ -306,6 +469,8 @@ export async function writeOperation(
   return {
     id: operationId,
     lotIds: lots.map((lot) => lot.id),
+    conversionLotIds: converted.map((lot) => lot.id),
+    pointHoldId: hold?.id ?? null,
     planDeltaQty: planDelta,
     addonDeltaQty: addonDelta,
     spendableAfterQty: spendableAfter,

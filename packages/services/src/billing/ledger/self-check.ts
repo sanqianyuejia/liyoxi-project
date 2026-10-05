@@ -20,6 +20,15 @@ interface Recomputed {
   refund_marks: number;
 }
 
+interface HoldSums {
+  qty: number;
+  returned_qty: number;
+  forfeited_qty: number;
+  alloc_qty: number;
+  alloc_returned: number;
+  alloc_forfeited: number;
+}
+
 /**
  * 重算并比对。last 给了就连同它一起比：刚写的操作行上的“操作后可花、操作后冻结”要与重算的结果一致。
  * 前提：已持有账户锁、已 advance（所以已到期的套餐批次不该还有可用）。
@@ -27,7 +36,8 @@ interface Recomputed {
 export async function selfCheck(
   tx: Tx,
   clock: LedgerClock,
-  last?: Pick<WrittenOperation, "spendableAfterQty" | "heldAfterQty">,
+  last?: Pick<WrittenOperation, "spendableAfterQty" | "heldAfterQty"> &
+    Partial<Pick<WrittenOperation, "pointHoldId">>,
 ): Promise<void> {
   const [row] = await tx.$queryRaw<Recomputed[]>`
     SELECT a.sub_status,
@@ -66,11 +76,32 @@ export async function selfCheck(
   if (row.hold_sum !== row.held_sum) problems.push("冻结中的冻结单合计 ≠ 批次冻结之和");
   if (last && last.heldAfterQty !== row.held_sum) problems.push("操作行的操作后冻结 ≠ 重算值");
   if (last && last.spendableAfterQty !== spendable) problems.push("操作行的操作后可花 ≠ 重算值");
+  // 这次操作涉及的冻结单：应扣 = 分摊之和；累计退回、不予退回 = 分摊行对应列之和
+  let holdRow: HoldSums | undefined;
+  if (last?.pointHoldId) {
+    [holdRow] = await tx.$queryRaw<HoldSums[]>`
+      SELECT h.qty, h.returned_qty, h.forfeited_qty,
+             COALESCE(sum(a.qty), 0)::int AS alloc_qty,
+             COALESCE(sum(a.returned_qty), 0)::int AS alloc_returned,
+             COALESCE(sum(a.forfeited_qty), 0)::int AS alloc_forfeited
+      FROM point_hold h LEFT JOIN point_hold_alloc a ON a.point_hold_id = h.id
+      WHERE h.id = ${last.pointHoldId}::uuid
+      GROUP BY h.id`;
+    if (
+      !holdRow ||
+      holdRow.qty !== holdRow.alloc_qty ||
+      holdRow.returned_qty !== holdRow.alloc_returned ||
+      holdRow.forfeited_qty !== holdRow.alloc_forfeited
+    ) {
+      problems.push("冻结单的应扣、累计退回、不予退回 ≠ 分摊行之和");
+    }
+  }
   if (problems.length > 0) {
     throw new LedgerError("self_check", `写入时自检不一致：${problems.join("；")}`, {
       entityId: clock.entityId,
       ...row,
       ...(last ? { last } : {}),
+      ...(holdRow ? { hold: holdRow } : {}),
     });
   }
 }
