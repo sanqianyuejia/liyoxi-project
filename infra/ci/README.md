@@ -228,7 +228,7 @@ DATABASE_URL=<同上> pnpm db:partitions:assert --db <库名>
 
 本包之前写死的数量还有几处，第一个改结构的包会撞上，要先用一个单独的 `gate-change` PR 处理（任务书 第 11 节第 9 项说的“届时”）：
 
-- `db-lib.mjs` 的 `EXPECTED_COUNTS`（首版迁移的数量，七项）被两处用着。`db-verify-managed.mjs` 拿它核对“空库上跑完全部迁移”的数量：改成读快照的“计数”一节（`db-structure-lib.mjs` 的 `readSnapshot().counts` 与它同形），`test/db-verify-managed.test.ts` 里两行写死的数跟着改。`db-catalog-diff.mjs` 拿它核对首版迁移：见下一条。
+- `db-lib.mjs` 的 `EXPECTED_COUNTS`（首版迁移的数量，七项）被两处用着。`db-verify-managed.mjs` 拿它核对“空库上跑完全部迁移”的数量：改成读快照的“计数”一节（`db-structure-lib.mjs` 的 `readSnapshot().counts` 与它同形），`test/db-verify-managed.test.ts` 里三处写死的数跟着改。`db-catalog-diff.mjs` 拿它核对首版迁移：见下一条。
 - `pnpm db:catalog-diff` 是首版迁移的等价性证明。它的第 1 段拿草稿的 `schema.prisma` 与 `packages/db` 的逐字节比，模型一改就红；第 3 段的数量同上。草稿冻结、首版迁移不能改之后，“首版迁移与草稿等价”是一个不会再变的事实：届时把 CI 里那几步撤下，或固定成“草稿（`check.py --from-draft`）对只跑首版迁移的库”。
 - `packages/db` 里不是门禁文件的几处随结构变更包自己改：`scripts/build-init-migration.mjs` 现在拿 `prisma/schema.prisma` 重拼首版迁移（模型一改就对不上，要改成读冻结的草稿）；`src/grants.test.ts` 里的几个数。
 
