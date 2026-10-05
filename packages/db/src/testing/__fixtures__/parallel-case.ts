@@ -19,8 +19,7 @@ export function defineParallelCase(tag: string): void {
 
   it(`${tag}：四个 worker 同时在场，各连各的库`, { timeout: DEADLINE_MS + 30_000 }, async () => {
     await db.url();
-    // 不切角色，用 DATABASE_URL 的账号（role: null）：下面要建表，还要在 pg_stat_activity 里看别的会话的
-    // application_name；应用角色没有模式的 CREATE，别人的会话它也只看得到库名
+    // 建表是属主的事（应用角色没有模式的 CREATE）：role: null 不切角色，用 DATABASE_URL 的账号
     const client = await connectTestDatabase(db.name, { role: null });
     try {
       const prefix = `lyx-par:${resolveTestSession()}:`;

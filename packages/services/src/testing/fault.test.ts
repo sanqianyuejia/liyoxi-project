@@ -150,7 +150,7 @@ describe("进程中断", () => {
       const databaseUrl = await db.url();
       const prisma = await db.prisma();
       // 看别的会话处在什么状态，要 DATABASE_URL 的账号（role: null 不切角色）：缺省的应用角色 lyx_app
-      // 在 pg_stat_activity 里只看得到别人的会话在哪个库，看不到状态。子进程与下面数行数的连接仍是应用角色
+      // 在 pg_stat_activity 里看得到别人的会话，但 state 一列是空的。子进程与下面数行数的连接仍是应用角色
       const monitor = await connectTestDatabase(db.name, { role: null });
       onTestFinished(() => monitor.end());
       const openTransactions = async () => {
