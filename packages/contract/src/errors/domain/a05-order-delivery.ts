@@ -1,0 +1,97 @@
+// a05-order-delivery 定义的领域错误码（docs/api/a05-order-delivery.md 的错误码表；登记文档 docs/api/registry-errors.md 第 2 节）。
+// 符号、数值、HTTP、可重试、是否带 details 与文档对账（pnpm api-registries:check）；默认文案是本仓库写的，可以改。
+// 新码在本文档的取号区间内取号（裁决 A70）；别的文档要用这里的码，只引符号名，不重新定义（约定 C28）。
+import { def, defineDomainErrors } from "../define.js";
+
+export const errors = defineDomainErrors("a05-order-delivery", [[45300, 45499]], {
+  CANCEL_ITEM_NOT_ALLOWED: def(
+    45301,
+    409,
+    false,
+    "选中的订单项不能取消，或没有可取消的订单项",
+    "details",
+  ),
+  AD_NOT_CANCELLABLE: def(
+    45302,
+    409,
+    false,
+    "广告已确认、已取消，或仍被在办订单使用，不能取消",
+    "details",
+  ),
+  CANCEL_QUOTE_CHANGED: def(45303, 409, false, "退回的积分有变化，请重新试算后再发起", "details"),
+  PLAN_CONTENT_INVALID: def(
+    45304,
+    409,
+    false,
+    "方案内容有不符合要求的地方，请按提示修改",
+    "details",
+  ),
+  PLAN_CHANGE_WINDOW_CLOSED: def(
+    45305,
+    409,
+    false,
+    "已超出该剧的方案变更时限，不能再修订",
+    "details",
+  ),
+  LAUNCH_DATE_OUT_OF_RANGE: def(
+    45306,
+    400,
+    false,
+    "约定上线日不在允许的范围内，请重新选择",
+    "details",
+  ),
+  LAUNCH_DATE_LOCKED: def(
+    45307,
+    409,
+    false,
+    "已有账号核验上线，或订单项不在制作中、待上线，不能改期",
+    "details",
+  ),
+  ASSIGNEE_INVALID: def(45308, 409, false, "所选接收人不可用，请重新选择", "details"),
+  REMIND_NOT_APPLICABLE: def(45309, 409, false, "当前状态不需要催办", "details"),
+  CORRECTION_NOT_ALLOWED: def(45310, 409, false, "不能这样纠偏，请核对后重试", "details"),
+  QC_SELF_INSPECTION: def(45311, 409, false, "不能质检自己上传的内容，请换一位同事质检"),
+  PRODUCTION_NOT_READY: def(
+    45312,
+    409,
+    false,
+    "制作文件还没有入库或未通过检测，暂不能质检或登记",
+    "details",
+  ),
+  PREVIEW_OFFLINE_NOT_SENT: def(45313, 409, false, "选了企业微信查看方式，请先登记“已发送”"),
+  AD_FREE_REVISION_EXHAUSTED: def(
+    45314,
+    409,
+    false,
+    "免费修改次数已用完，不能代录修改意见",
+    "details",
+  ),
+  EPISODE_REGISTER_NOT_ALLOWED: def(
+    45315,
+    409,
+    false,
+    "当前步骤不能登记成片，或集号不在补发范围内",
+    "details",
+  ),
+  EPISODE_NOT_LATEST: def(45316, 409, false, "只能质检该集最新的一版，请刷新后重试", "details"),
+  PACKAGE_PUSH_BLOCKED: def(
+    45317,
+    409,
+    false,
+    "还有未满足的条件，暂不能推送，请按提示处理",
+    "details",
+  ),
+  REISSUE_NOT_ALLOWED: def(45318, 409, false, "当前不能发起补发", "details"),
+  REISSUE_INCOMPLETE: def(45319, 409, false, "补发单里还有集没有质检通过的替换文件", "details"),
+  MATERIAL_NOT_AVAILABLE: def(45320, 409, false, "要下载的制作素材不可用", "details"),
+  LICENSE_LETTER_UNCHANGED: def(45321, 409, false, "授权书内容与最新版次相同，无需更正", "details"),
+  AD_WAITING_QUALIFICATION: def(45322, 409, false, "门店资质未通过，广告暂不能指派", "details"),
+  AD_VERSION_SPEC_INVALID: def(
+    45323,
+    409,
+    false,
+    "广告版本规格不符，请上传竖屏 9:16、1080×1920 且时长相符的视频",
+    "details",
+  ),
+  PRODUCTION_ACTION_NOT_ALLOWED: def(45324, 409, false, "制作文件当前不能规格化或补标", "details"),
+});

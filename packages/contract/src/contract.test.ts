@@ -610,11 +610,14 @@ describe("验收 6：纯常量子路径不带 Zod", () => {
     expect(target.default).toBe("./src/errors/index.ts");
     expect(target.types).toBe(target.default);
     const scan = importsReachableFrom(join(packageDir, target.default!));
-    expect(scan.files.map((file) => file.slice(packageDir.length + 1)).sort()).toEqual([
-      "src/errors/common.ts",
-      "src/errors/index.ts",
-      "src/errors/types.ts",
-    ]);
+    // 可达的恰好是 src/errors 下的全部源文件（W0-09b 加了领域错误码：define.ts、registry.ts、domain/ 下一个文档一个文件）
+    const sources = readdirSync(join(packageDir, "src/errors"), { recursive: true })
+      .map((name) => `src/errors/${String(name)}`)
+      .filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"))
+      .sort();
+    expect(sources).toContain("src/errors/common.ts");
+    expect(sources).toContain("src/errors/domain/m01-account.ts");
+    expect(scan.files.map((file) => file.slice(packageDir.length + 1)).sort()).toEqual(sources);
     expect(scan.packages).toEqual([]);
     // 参数不是字面量的动态 import 扫描跟不过去：纯常量子路径里一处都不许有
     expect(scan.unresolved).toEqual([]);

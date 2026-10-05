@@ -1,0 +1,97 @@
+// a01-system 定义的领域错误码（docs/api/a01-system.md 的错误码表；登记文档 docs/api/registry-errors.md 第 2 节）。
+// 符号、数值、HTTP、可重试、是否带 details 与文档对账（pnpm api-registries:check）；默认文案是本仓库写的，可以改。
+// 新码在本文档的取号区间内取号（裁决 A70）；别的文档要用这里的码，只引符号名，不重新定义（约定 C28）。
+import { def, defineDomainErrors } from "../define.js";
+
+export const errors = defineDomainErrors(
+  "a01-system",
+  [
+    [48000, 48199],
+    [46400, 46499],
+    [47300, 47399],
+  ],
+  {
+    AUTH_TICKET_INVALID: def(48001, 401, false, "操作已超时，请重新登录或重新激活"),
+    TOTP_ALREADY_ENROLLED: def(
+      48002,
+      409,
+      false,
+      "已绑定动态口令，不能用激活码重新绑定；如需更换请联系超级管理员重置",
+    ),
+    PASSWORD_POLICY_VIOLATED: def(
+      48003,
+      400,
+      false,
+      "密码至少 10 位，须同时包含字母与数字，不能包含手机号或使用常见密码",
+      "details",
+    ),
+    PASSWORD_INCORRECT: def(48004, 400, false, "当前密码不正确，请重新输入"),
+    MFA_CODE_INVALID: def(48005, 400, false, "动态口令不正确，请等待下一个口令后重试"),
+    CANNOT_DISABLE_SELF: def(48006, 409, false, "不能禁用当前登录的账号"),
+    SELF_OPERATION_FORBIDDEN: def(48007, 409, false, "不能对自己执行这个操作"),
+    LAST_SUPER_ADMIN: def(48008, 409, false, "至少要保留一名启用的超级管理员"),
+    OPEN_WORK_EXISTS: def(
+      48009,
+      409,
+      false,
+      "该员工名下还有在办事项，请先移交再修改角色",
+      "details",
+    ),
+    NO_HANDOVER_CANDIDATE: def(
+      48010,
+      409,
+      false,
+      "没有可接收在办事项的同岗位员工，请先新增一名再操作",
+      "details",
+    ),
+    LEAD_REMOVAL_ACK_REQUIRED: def(
+      48012,
+      409,
+      false,
+      "修改后该组将没有主管，请确认后再保存",
+      "details",
+    ),
+    STAFF_PHONE_TAKEN: def(48013, 409, false, "该手机号已被其他员工使用"),
+    WECOM_USERID_TAKEN: def(48014, 409, false, "该企业微信账号已绑定其他员工", "details"),
+    WECOM_CODE_INVALID: def(48015, 400, false, "扫码已失效，请重新扫码"),
+    ROLE_LOCKED: def(48016, 409, false, "超级管理员角色不可修改"),
+    POOL_ROLE_MISMATCH: def(48017, 409, false, "员工的岗位与分配池不符，或员工未启用", "details"),
+    FILE_CATEGORY_NOT_ALLOWED: def(46401, 400, false, "该类文件不能在这里上传或下载", "details"),
+    PRODUCTION_CONTEXT_REQUIRED: def(46402, 400, false, "请填写制作信息与 AI 使用声明", "details"),
+    FILE_NOT_AVAILABLE: def(
+      46403,
+      409,
+      false,
+      "文件暂不可用，可能尚未入库、已清除或已被拦截",
+      "details",
+    ),
+    FILE_RESTORE_WINDOW_PASSED: def(46404, 409, false, "已超过可恢复期限，不能恢复", "details"),
+    FILE_IN_USE: def(46405, 409, false, "文件仍在使用中，请先在业务中移除", "details"),
+    MEDIA_JOB_NOT_RETRYABLE: def(46406, 409, false, "该任务对应的业务已不需要重试", "details"),
+    DICT_TYPE_NOT_EDITABLE: def(47301, 409, false, "该字典类型不支持新增"),
+    DICT_NAME_DUPLICATED: def(47302, 409, false, "同一层级下已有同名选项，请换一个名称"),
+    DICT_ITEM_IN_USE: def(47303, 409, false, "已有业务在用该选项，不能停用", "details"),
+    DICT_ITEM_LOCKED: def(47304, 409, false, "该选项不允许此操作", "details"),
+    PARAM_WITHDRAW_TOO_LATE: def(
+      47305,
+      409,
+      false,
+      "即将生效或已生效的参数不能撤销，请保存新值",
+      "details",
+    ),
+    CHECKLIST_VERSION_STALE: def(
+      47306,
+      409,
+      false,
+      "核对清单已更新，请刷新后按新清单检查",
+      "details",
+    ),
+    CHECKLIST_NOT_PASSED: def(
+      47307,
+      400,
+      false,
+      "清单没有全部通过，请补全结论并处理不通过的条目",
+      "details",
+    ),
+  },
+);
