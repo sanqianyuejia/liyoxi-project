@@ -42,7 +42,10 @@ interface Rules {
   CATALOG_SQL: string;
   FLOOR_FILE: string;
   MIN_VERSION_NUM: number;
-  parseFloor(text: string): { tables: Map<string, unknown>; problems: string[] };
+  parseFloor(text: string): {
+    tables: Map<string, { max: string[]; columns: string[] }>;
+    problems: string[];
+  };
   judge(
     catalog: Catalog,
     expected: unknown,
@@ -113,15 +116,21 @@ const regular = need(
   tableNames.find((table) => expected.tables[table] === FULL),
   "常规读写的表",
 );
+/** 下限清单里这张表的上限是不是恰好只有插入与查询（哪张表的上限以后被改大了，下面自动换一张） */
+const insertSelectOnly = (table: string): boolean =>
+  floor.tables.get(table)?.max.join(",") === "INSERT,SELECT";
 const appendOnly = need(
-  expected.appendOnly.find((table) => tableNames.includes(table)),
+  expected.appendOnly.find((table) => tableNames.includes(table) && insertSelectOnly(table)),
   "只增表",
 );
 const noDelete = tableNames.filter((table) => !privilegesOf(table).includes("DELETE")).sort();
 const restrictedOther = tableNames.find(
   (table) => expected.tables[table] !== FULL && !expected.appendOnly.includes(table),
 );
-const [columnTable, columnList] = need(Object.entries(expected.columnUpdate)[0], "例外列");
+const [columnTable, columnList] = need(
+  Object.entries(expected.columnUpdate).find(([table]) => insertSelectOnly(table)),
+  "例外列",
+);
 const exceptionColumn = need(columnList[0], "例外列");
 
 const one = (db: string, sql: string): string =>
