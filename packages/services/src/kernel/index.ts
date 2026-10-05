@@ -121,3 +121,5 @@ export type {
 
 // W0-23 队列封装：连接、入队、消费者工厂、Redis 可用性探测
 export * from "./queue/index.js";
+// W1-01a 后台登录的密钥文件的内容类型（loadEnv 读出来的形状；加载与自检在 security 的 auth-keys）
+export type { AuthKeysConfig } from "./env.js";

@@ -5,10 +5,12 @@
 import type { EventName } from "../registry/index.js";
 import type { z } from "../zod.js";
 import { payloads as sla } from "./sla.js";
+import { payloads as staff } from "./staff.js";
 
 /** 已交 schema 的事件：事件名 → 载荷 schema。键必须是事件目录里的名字 */
 export const EVENT_PAYLOAD_SCHEMAS = {
   ...sla,
+  ...staff,
 } as const satisfies Partial<Record<EventName, z.ZodType>>;
 
 /** 已交 schema 的事件名 */

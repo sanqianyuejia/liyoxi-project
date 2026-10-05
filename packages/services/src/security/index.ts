@@ -9,3 +9,5 @@ export type { BlindIndex } from "./bidx.js";
 export { openField, phoneBidx, sealBankAccount, sealPhone, sealUscc, usccBidx } from "./pii.js";
 export type { SealedField, SealedPhone } from "./pii.js";
 export { loadKeyring, selfCheck } from "./selfcheck.js";
+// W1-01a：后台登录的三把密钥（票据、设备 Cookie、MFA）的加载与自检，MFA 密钥的加解密
+export * from "./auth-keys.js";
