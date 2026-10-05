@@ -6,41 +6,42 @@
 // 用法：DATABASE_URL=<一个 lyx_ 开头、跑完全部迁移的库> node infra/ci/db-verify-grants.mjs
 //   根脚本是 pnpm db:verify-grants（单独跑）。
 // 只读系统目录，不切换角色：托管库上的管理账号往往不是超级用户，切不到别的角色（见本包的 ADR）。
-// 唯一的写入是往埋点事件表插一行再回滚，库里不留数据。期望的权限只写了文档点名的那几条（16 张只增表与它们的例外列、
-// file_object 不给删除）；166 张表逐张的清单在 packages/db/src/grants.test.ts。
+// 唯一的写入是往埋点事件表插一行再回滚，库里不留数据。
+// 期望的授权不写在本脚本里：读 packages/db/src/grants.expected.json，与权限测试 packages/db/src/grants.test.ts 共用一份。
+// 逻辑表逐张拿 lyx_app 的表级权限与期望比；序列、分区子表、lyx_readonly、PUBLIC、转授权按规则核对，库里有多少核多少。
+// 以后加表、加例外列、加以属主身份执行的函数：往那份数据里加一行，本脚本与它的用例都不用改（packages/db/README.md 第 9 节）。
 // 连接串只取环境变量 DATABASE_URL，不打印：输出里只有库名；数据库的报错先抹掉主机、端口、账号、口令。
 // 退出码：0 通过；1 有一项没过；2 用法或环境错误。本脚本不引依赖，要本机有 psql。
 
+import { readFileSync } from "node:fs";
+
 import { pgEnv, psql } from "./db-lib.mjs";
 
-/** 只增表（06 第 4 节“只增”为“是”的 16 张）→ 另授列级 UPDATE 的列 */
-const APPEND_ONLY = {
-  outbox_event: ["published_at"],
-  status_transition: [],
-  assignment_history: [
-    ...["contact_due_at", "sla_snapshot", "contacted_at"],
-    ...["contacted_by_staff_id", "contact_voided_at", "updated_at"],
-  ],
-  audit_log: [],
-  auth_event: [],
-  drama_copyright_revision: [],
-  price_tier_revision: [],
-  subscription_event: [],
-  ledger_operation: [],
-  point_ledger_entry: [],
-  finance_config_revision: ["effective_at"],
-  delivery_download_log: ["client_ack", "client_ack_at"],
-  manual_reminder_log: [],
-  agreement_consent: [],
-  param_value: ["cancelled_at"],
-  analytics_event: [],
-};
+const EXPECTED_FILE = "packages/db/src/grants.expected.json";
 const ROLES = ["lyx_app", "lyx_readonly"];
-const WRITES = ["INSERT", "UPDATE", "DELETE", "TRUNCATE"];
+const [APP, READONLY] = ROLES;
+/** 常规读写的表上 lyx_app 的权限；期望里不是它的表算“受限的表”（只增、不给删除、不给改） */
+const FULL = "DELETE,INSERT,SELECT,UPDATE";
+const KIND = {
+  table: "表",
+  column: "列",
+  sequence: "序列",
+  function: "函数",
+  schema: "模式",
+  database: "库",
+};
 
 function stop(code, message) {
   console.error(`角色与授权核对：${message}`);
   process.exit(code);
+}
+
+/** 期望的授权：tables、appendOnly、columnUpdate、definerFunctions 四项，含义见那份文件开头的“说明” */
+let expected;
+try {
+  expected = JSON.parse(readFileSync(new URL(`../../${EXPECTED_FILE}`, import.meta.url), "utf8"));
+} catch (error) {
+  stop(2, `读不了期望的授权 ${EXPECTED_FILE}：${error.message}`);
 }
 
 let env;
@@ -77,37 +78,51 @@ function query(sql) {
   return result.lines;
 }
 
-const privilegesOf = (role, kind, list) =>
-  `(select coalesce(string_agg(p, ',' order by p), '') from unnest(array['${list.join("','")}']) p
-     where has_${kind}_privilege('${role}', c.oid, p))`;
-const TABLE_PRIVILEGES = ["SELECT", ...WRITES, "REFERENCES", "TRIGGER"];
-// 有效权限（含经 PUBLIC 得到的）。列级 UPDATE 只在没有表级 UPDATE 的表上才有意义
+/** 一类对象的访问控制列表逐条展开：种类、对象名、被授权者（owned 表示就是属主自己）、权限、是否带转授权 */
+const aclOf = (kind, name, owner, acl, from) =>
+  `select ${kind} as kind, ${name} as name, x.grantee = ${owner} as owned,
+          case when x.grantee = 0 then 'PUBLIC' else x.grantee::regrole::text end as grantee,
+          x.privilege_type as privilege, x.is_grantable as grantable
+     from ${from}, aclexplode(${acl}) x`;
+const IN_PUBLIC = "= 'public'::regnamespace";
+// 一条语句把授权读成一个 JSON 文档。acl 里是写明了的授权（不按“有效权限”问）：这样 MAINTAIN 这类新权限、转授权、
+// 授给别的角色的都看得见。两个角色不是别的角色的成员（前面核对过），所以它们的有效权限就是自己名下的加 PUBLIC 的。
+// 以属主身份执行的函数、模式、库没有写明授权时按缺省的算（函数缺省所有人可执行）。schema 里问的是有效权限。
 const CATALOG_SQL = `
 select json_build_object(
   'me', (select json_build_object('super', r.rolsuper, 'createrole', r.rolcreaterole,
-           'set_app', pg_has_role('lyx_app', 'SET'),
+           'set_app', pg_has_role('${APP}', 'SET'),
            'owner', (select bool_and(c.relowner = r.oid) from pg_class c
-                      where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')))
+                      where c.relnamespace ${IN_PUBLIC} and c.relkind in ('r', 'p')))
            from pg_roles r where r.rolname = current_user),
-  'tables', (select json_agg(json_build_object('name', c.relname,
-      'logical', not c.relispartition and c.relname <> '_prisma_migrations',
-      'app', ${privilegesOf("lyx_app", "table", TABLE_PRIVILEGES)},
-      'readonly', ${privilegesOf("lyx_readonly", "table", TABLE_PRIVILEGES)},
-      'public', ${privilegesOf("public", "table", TABLE_PRIVILEGES)},
-      'app_columns', (select coalesce(json_agg(a.attname order by a.attname), '[]') from pg_attribute a
-                       where a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
-                         and has_column_privilege('lyx_app', c.oid, a.attnum, 'UPDATE'))) order by c.relname)
-    from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')),
-  'sequences', (select json_agg(json_build_object('name', c.relname,
-      'app', ${privilegesOf("lyx_app", "sequence", ["USAGE", "UPDATE"])},
-      'readonly', ${privilegesOf("lyx_readonly", "sequence", ["SELECT", "USAGE", "UPDATE"])}) order by c.relname)
-    from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'S'),
-  'definers', (select coalesce(json_agg(json_build_object('name', c.proname,
-      'who', (select coalesce(string_agg(g, ',' order by g), '') from unnest(array['lyx_app', 'lyx_readonly', 'public']) g
-               where has_function_privilege(g, c.oid, 'EXECUTE'))) order by c.proname), '[]')
-    from pg_proc c where c.pronamespace = 'public'::regnamespace and c.prosecdef),
+  'tables', (select coalesce(json_agg(json_build_object('name', c.relname, 'owner', c.relowner::regrole::text,
+      'logical', not c.relispartition and c.relname <> '_prisma_migrations') order by c.relname), '[]')
+    from pg_class c where c.relnamespace ${IN_PUBLIC} and c.relkind in ('r', 'p')),
+  'sequences', (select coalesce(json_agg(c.relname order by c.relname), '[]')
+    from pg_class c where c.relnamespace ${IN_PUBLIC} and c.relkind = 'S'),
+  'definers', (select coalesce(json_agg(p.proname order by p.proname), '[]')
+    from pg_proc p where p.pronamespace ${IN_PUBLIC} and p.prosecdef),
+  'schema', (select json_object_agg(r, json_build_object('usage', has_schema_privilege(r, 'public', 'USAGE'),
+      'create', has_schema_privilege(r, 'public', 'CREATE'),
+      'db_create', has_database_privilege(r, current_database(), 'CREATE')))
+    from unnest(array['${ROLES.join("', '")}']) r),
+  'acl', (select coalesce(json_agg(e), '[]') from (
+    ${aclOf("case c.relkind when 'S' then 'sequence' else 'table' end", "c.relname::text", "c.relowner", "c.relacl", "pg_class c")}
+     where c.relnamespace ${IN_PUBLIC} and c.relkind in ('r', 'p', 'S')
+    union all
+    ${aclOf("'column'", "c.relname || '.' || a.attname", "c.relowner", "a.attacl", "pg_class c join pg_attribute a on a.attrelid = c.oid")}
+     where c.relnamespace ${IN_PUBLIC} and c.relkind in ('r', 'p')
+    union all
+    ${aclOf("'function'", "p.proname::text", "p.proowner", "case when p.prosecdef then coalesce(p.proacl, acldefault('f', p.proowner)) else p.proacl end", "pg_proc p")}
+     where p.pronamespace ${IN_PUBLIC}
+    union all
+    ${aclOf("'schema'", "n.nspname::text", "n.nspowner", "coalesce(n.nspacl, acldefault('n', n.nspowner))", "pg_namespace n")}
+     where n.nspname = 'public'
+    union all
+    ${aclOf("'database'", "d.datname::text", "d.datdba", "coalesce(d.datacl, acldefault('d', d.datdba))", "pg_database d")}
+     where d.datname = current_database()) e),
   'defaults', (select count(*) from pg_default_acl d, aclexplode(d.defaclacl) x
-                where x.grantee = 'lyx_readonly'::regrole and x.privilege_type = 'SELECT'))`;
+                where x.grantee = '${READONLY}'::regrole and x.privilege_type = 'SELECT'))`;
 
 const problems = [];
 const note = (line) => console.log(`- ${line}`);
@@ -130,103 +145,175 @@ if (odd.length > 0)
 else note(`角色：${ROLES.join("、")} 都在，不可登录，没有特权属性，不是别的角色的成员`);
 
 const catalog = JSON.parse(query(CATALOG_SQL).join("\n"));
+const { me, tables, sequences } = catalog;
+if (tables.length === 0) {
+  console.log("- 表：库里一张表都没有\n\n结论：不通过。迁移还没有跑（先 pnpm db:deploy）");
+  process.exit(1);
+}
 const yes = (flag) => (flag ? "是" : "否");
-const { me } = catalog;
 note(
   `当前账号：超级用户 ${yes(me.super)}，可建角色 ${yes(me.createrole)}，是全部表的属主 ${yes(me.owner)}，可切换到 lyx_app ${yes(me.set_app)}`,
 );
 
-// 库里一张表都没有时聚合出来的是 null
-const tables = catalog.tables ?? [];
-const logical = tables.filter((table) => table.logical);
-const others = tables.filter((table) => !table.logical);
+/** 有不合的就记成一条问题（最多列 8 个）；返回是否全合 */
+function check(what, bad) {
+  const list = [...new Set(bad)];
+  if (list.length > 0)
+    problems.push(
+      `${what}：${list.slice(0, 8).join("、")}${list.length > 8 ? ` 等 ${list.length} 个` : ""}`,
+    );
+  return list.length === 0;
+}
+/** 属主以外的授权，按“种类、对象、被授权者”归拢 */
+const grants = new Map();
+for (const { kind, name, grantee, privilege } of catalog.acl.filter((entry) => !entry.owned)) {
+  const key = JSON.stringify([kind, name, grantee]);
+  const grant = grants.get(key) ?? { kind, name, grantee, privileges: [] };
+  grants.set(key, { ...grant, privileges: [...grant.privileges, privilege].sort() });
+}
+/** 某个对象上某个被授权者的权限集合：按字母序、逗号连接，与期望数据同一种写法 */
+const held = (kind, name, grantee) =>
+  (grants.get(JSON.stringify([kind, name, grantee]))?.privileges ?? []).join(",");
+
+// 模式与库：进得了 public，建不了对象
+const noUsage = check(
+  "进不了模式 public（没有 USAGE）的角色",
+  ROLES.filter((role) => !catalog.schema[role].usage),
+);
+const noCreate = check(
+  "能在模式 public 或库里建对象（有 CREATE）的角色",
+  ROLES.filter((role) => catalog.schema[role].create || catalog.schema[role].db_create),
+);
+if (noUsage && noCreate) note("模式 public：两个角色都有 USAGE，没有 CREATE；库上也没有 CREATE");
+
+// lyx_app：逻辑表逐张与期望比
+const want = expected.tables;
+const logical = tables.filter((table) => table.logical).map((table) => table.name);
+const others = tables.filter((table) => !table.logical).map((table) => table.name);
+const known = logical.filter((name) => Object.hasOwn(want, name));
+const tablesOk = [
+  check(
+    `库里有而期望清单（${EXPECTED_FILE}）里没有的表`,
+    logical.filter((name) => !Object.hasOwn(want, name)),
+  ),
+  check(
+    "期望清单里有而库里没有的表",
+    Object.keys(want).filter((name) => !logical.includes(name)),
+  ),
+  check(
+    "lyx_app 的表级权限与期望不符",
+    known
+      .filter((name) => held("table", name, APP) !== want[name])
+      .map((name) => `${name}（实际 ${held("table", name, APP) || "无"}，期望 ${want[name]}）`),
+  ),
+].every(Boolean);
 const bySet = new Map();
-for (const table of logical) bySet.set(table.app, (bySet.get(table.app) ?? 0) + 1);
+for (const name of logical) {
+  const set = held("table", name, APP) || "无";
+  bySet.set(set, (bySet.get(set) ?? 0) + 1);
+}
 note(
-  `lyx_app 的表级权限（${logical.length} 张逻辑表）：${[...bySet]
-    .sort((a, b) => b[1] - a[1])
-    .map(([set, count]) => `${set || "无"} ${count} 张`)
+  `lyx_app 的表级权限（${logical.length} 张逻辑表${tablesOk ? "，逐张与期望相同" : ""}）：${[
+    ...bySet,
+  ]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([set, count]) => `${set} ${count} 张`)
     .join("；")}`,
 );
-/** 一组表里不满足条件的，记成一条问题 */
-function expectAll(tables, ok, what) {
-  const bad = tables.filter((table) => !ok(table)).map((table) => table.name);
-  if (bad.length > 0)
-    problems.push(`${what}：${bad.slice(0, 8).join("、")}${bad.length > 8 ? " 等" : ""}`);
-  return bad.length === 0;
-}
-const has = (set, privilege) => set.split(",").includes(privilege);
-expectAll(
-  logical,
-  (t) => has(t.app, "SELECT") && has(t.app, "INSERT"),
-  "lyx_app 少了 SELECT 或 INSERT 的表",
+check(
+  "属主是 lyx_app 或 lyx_readonly 的表",
+  tables.filter((table) => ROLES.includes(table.owner)).map((table) => table.name),
 );
-expectAll(
-  tables,
-  (t) => !["TRUNCATE", "REFERENCES", "TRIGGER"].some((p) => has(t.app, p)),
-  "lyx_app 多出 TRUNCATE、REFERENCES 或 TRIGGER 的表",
-);
-expectAll(tables, (t) => t.public === "", "PUBLIC 有权限的表");
-if (expectAll(others, (t) => t.app === "", "lyx_app 能直接碰的分区子表或 _prisma_migrations"))
+if (
+  check(
+    "lyx_app 能直接碰的分区子表或 _prisma_migrations",
+    others.filter((name) => held("table", name, APP) !== ""),
+  )
+)
   note(`分区子表与 _prisma_migrations（${others.length} 张）：lyx_app 没有任何权限`);
 
-const appendOnly = Object.keys(APPEND_ONLY).map(
-  (name) =>
-    logical.find((table) => table.name === name) ?? {
-      name,
-      app: "（库里没有这张表）",
-      app_columns: [],
-    },
+// 列级授权：lyx_app 只有期望里写的那几列 UPDATE；lyx_readonly 与 PUBLIC 一列也没有
+const wantColumns = Object.entries(expected.columnUpdate).flatMap(([table, columns]) =>
+  columns.map((column) => `${table}.${column}`),
 );
-const tableOk = expectAll(
-  appendOnly,
-  (t) => t.app === "INSERT,SELECT",
+const columnsOk = [
+  check(
+    "lyx_app 少了列级 UPDATE 的列",
+    wantColumns.filter((name) => held("column", name, APP) !== "UPDATE"),
+  ),
+  check(
+    "期望之外的列级授权",
+    [...grants.values()]
+      .filter(({ kind, grantee }) => kind === "column" && [...ROLES, "PUBLIC"].includes(grantee))
+      .filter(({ name, grantee }) => grantee !== APP || !wantColumns.includes(name))
+      .map(({ name, grantee, privileges }) => `${name}（${grantee} ${privileges.join(",")}）`),
+  ),
+].every(Boolean);
+// 只增表：不管期望清单怎么写，表级权限必须恰好是 INSERT、SELECT
+const appendOk = check(
   "只增表上 lyx_app 的表级权限不是恰好 INSERT、SELECT",
+  expected.appendOnly.filter((name) => held("table", name, APP) !== "INSERT,SELECT"),
 );
-const columnOk = expectAll(
-  appendOnly,
-  (t) =>
-    has(t.app, "UPDATE") || t.app_columns.join(",") === [...APPEND_ONLY[t.name]].sort().join(","),
-  "只增表上 lyx_app 的列级 UPDATE 与清单不符",
-);
-if (tableOk && columnOk) {
-  const columns = Object.entries(APPEND_ONLY).flatMap(([t, list]) =>
-    list.map((column) => `${t}.${column}`),
-  );
+if (appendOk && columnsOk)
   note(
-    `只增表 ${appendOnly.length} 张：改、删、清空都没有权限；列级 UPDATE 只有 ${columns.length} 列（${columns.join("、")}）`,
+    `只增表 ${expected.appendOnly.length} 张：改、删、清空都没有权限；列级 UPDATE 只有 ${wantColumns.length} 列（${wantColumns.join("、")}）`,
   );
-}
-const fileObject = logical.find((table) => table.name === "file_object");
-if (fileObject && !has(fileObject.app, "DELETE"))
-  note(`file_object：${fileObject.app}，没有 DELETE`);
+const fileObject = held("table", "file_object", APP);
+if (logical.includes("file_object") && !fileObject.split(",").includes("DELETE"))
+  note(`file_object：${fileObject}，没有 DELETE`);
 else problems.push("file_object 上 lyx_app 有 DELETE，或库里没有这张表");
+check(
+  "PUBLIC 有权限的表、列或序列",
+  [...grants.values()]
+    .filter(({ kind, grantee }) => grantee === "PUBLIC" && /table|column|sequence/.test(kind))
+    .map(({ name }) => name),
+);
 
-const sequences = catalog.sequences ?? [];
-if (expectAll(sequences, (s) => s.app === "USAGE", "lyx_app 的权限不是恰好 USAGE 的序列"))
+if (
+  check(
+    "lyx_app 的权限不是恰好 USAGE 的序列",
+    sequences.filter((name) => held("sequence", name, APP) !== "USAGE"),
+  )
+)
   note(`序列 ${sequences.length} 个：lyx_app 都有 USAGE（取号），没有 UPDATE（改当前值）`);
 
-const purge = catalog.definers.find((fn) => fn.name === "lyx_03_purge_auth_event");
-const definersOk = expectAll(
-  catalog.definers,
-  (fn) => !/lyx_readonly|public/.test(fn.who),
-  "PUBLIC 或 lyx_readonly 可执行的属主身份函数",
-);
-if (purge?.who !== "lyx_app") problems.push("lyx_03_purge_auth_event 不是只有 lyx_app 可执行");
-else if (definersOk)
+// 以属主身份执行的函数：库里有哪些、各由谁执行，都要与期望相同；PUBLIC 可执行也算不符
+const wantFunctions = expected.definerFunctions;
+const executors = (name) =>
+  [...grants.values()]
+    .filter((grant) => grant.kind === "function" && grant.name === name)
+    .map((grant) => grant.grantee)
+    .sort()
+    .join(",");
+const functionNames = [...new Set([...catalog.definers, ...Object.keys(wantFunctions)])];
+if (
+  check(
+    "以属主身份执行的函数，库里的与期望清单不符",
+    functionNames
+      .map((name) => [name, executors(name), [...(wantFunctions[name] ?? [])].sort().join(",")])
+      .filter(
+        ([name, actual, wanted]) =>
+          !catalog.definers.includes(name) ||
+          actual !== wanted ||
+          !Object.hasOwn(wantFunctions, name),
+      )
+      .map(
+        ([name, actual, wanted]) =>
+          `${name}（${catalog.definers.includes(name) ? `可执行的是 ${actual || "无"}` : "库里没有"}，期望 ${wanted || "清单里没有它"}）`,
+      ),
+  )
+)
   note(
-    `以属主身份执行的函数 ${catalog.definers.length} 个（${catalog.definers.map((fn) => fn.name).join("、")}）：只有 lyx_app 可执行`,
+    `以属主身份执行的函数 ${catalog.definers.length} 个（${catalog.definers.join("、")}）：PUBLIC 不能执行，可执行的角色与期望相同`,
   );
 
-const readable = expectAll(
-  tables,
-  (t) => t.readonly === "SELECT",
+const readable = check(
   "lyx_readonly 的权限不是恰好 SELECT 的表",
+  tables.map((table) => table.name).filter((name) => held("table", name, READONLY) !== "SELECT"),
 );
-const seqReadable = expectAll(
-  sequences,
-  (s) => s.readonly === "SELECT",
+const seqReadable = check(
   "lyx_readonly 的权限不是恰好 SELECT 的序列",
+  sequences.filter((name) => held("sequence", name, READONLY) !== "SELECT"),
 );
 if (catalog.defaults < 2)
   problems.push("没有给 lyx_readonly 的缺省授权（表与序列各一条）：以后新建的分区它读不到");
@@ -234,6 +321,39 @@ if (readable && seqReadable && catalog.defaults >= 2)
   note(
     `lyx_readonly：${tables.length} 张表（含分区子表与 _prisma_migrations）、${sequences.length} 个序列都只读；缺省授权 ${catalog.defaults} 条`,
   );
+
+// 转授权：属主以外谁也不该带（带了就能把权限再授给别人）
+const label = ({ kind, name, grantee, privileges }) =>
+  `${KIND[kind]} ${name}（${grantee} ${privileges.join(",")}）`;
+const noGrantOption = check(
+  "带转授权（WITH GRANT OPTION）的授权",
+  catalog.acl
+    .filter((entry) => !entry.owned && entry.grantable)
+    .map((entry) => label({ ...entry, privileges: [entry.privilege] })),
+);
+// 别的角色：受限的表上不该有查询以外的权限；其余的只列出来
+const restricted = Object.keys(want).filter((name) => want[name] !== FULL);
+const strangers = [...grants.values()].filter(
+  ({ kind, grantee }) =>
+    /table|column|sequence/.test(kind) && ![...ROLES, "PUBLIC"].includes(grantee),
+);
+const noWriters = check(
+  "只增表或不给改、删的表上，别的角色有查询以外的权限",
+  strangers
+    .filter(({ kind, name }) => kind !== "sequence" && restricted.includes(name.split(".")[0]))
+    .filter(({ privileges }) => privileges.some((privilege) => privilege !== "SELECT"))
+    .map(label),
+);
+if (noGrantOption && noWriters) {
+  const who = [...new Set(strangers.map((grant) => grant.grantee))];
+  note(
+    `转授权：没有。属主以外在表、列、序列上有授权的角色：${
+      who.length === 0
+        ? "只有 lyx_app 与 lyx_readonly"
+        : `除这两个之外还有 ${who.join("、")}（不在受限的表上，或只有查询；请人工过目）`
+    }`,
+  );
+}
 
 // 分区表：以当前账号插一行、读回来、回滚
 const probe = run(`
@@ -244,7 +364,8 @@ insert into analytics_event (occurred_at, id, event_id, name, source, actor_type
 select count(*) from analytics_event where name = 'verify_grants';
 rollback;`);
 const [partition, count] = probe.lines;
-if (!probe.ok) problems.push(`分区表写入或查询没成：${probe.error}`);
+// 报错只留第一行：psql 后面跟的 LINE 1: 与指位置的那一行不进结论
+if (!probe.ok) problems.push(`分区表写入或查询没成：${probe.error.split("\n")[0]}`);
 else if (!/^analytics_event_y\d{4}m\d{2}$/.test(partition ?? "") || count !== "1")
   problems.push(`分区表：写入的行落在 ${partition}（应是当月的分区），读回 ${count} 行`);
 else note(`分区表：写入一行落在 ${partition}，经父表读得回；已回滚，库里不留数据`);
