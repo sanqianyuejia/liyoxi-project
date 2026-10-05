@@ -49,6 +49,7 @@
 - 后台与下载页骨架（W0-28）在 `verify` 的“构建”之后加了七步：“后台与下载页单测”（`pnpm --filter @liyoxi/admin --filter @liyoxi/portal test`；根上的 `pnpm test` 不含这两个应用，它们的单测与构建共用各自的 `vite.config.ts`）；“后台与下载页构建”（`pnpm admin:build && pnpm portal:build`，产物检查在各自的 `build` 脚本里）；“页面清单无差异”；“后台冒烟要不要跑”（`apps/admin/scripts/e2e-affected.mjs`，结论写进步骤输出）；它后面三步带条件，只在结论为要跑时执行：装浏览器、“后台冒烟”（`pnpm admin:e2e`）、“上传后台冒烟截图”。截图是产物 `admin-e2e-shots`（都是 1440 × 900：01–04 是外壳与三种骨架，05–12 是空、出错、处理后、冲突、上传失败、二次确认、403、已处理的事项几个状态；用例失败时另有现场），业主合并前在运行页面的 Artifacts 里下载来看。冒烟不跑的 PR（没改到后台的受影响范围）没有这个产物。写法由 `test/admin-ci.test.ts` 钉住。
 - x01 名称登记与枚举（W0-09a）在 `verify` 里加了两步，都排在 `contract:check` 之后。“登记表对账”（`pnpm registry:check`）：由契约的登记数据重新生成归属表 `docs/plan/x01-map.md` 后 `git diff --exit-code`，再拿登记数据与 x01 对账；不连库。“枚举与库 CHECK 一致”（`pnpm enums:check`）：读前面建的 `lyx_migrate_check`，只读。两个检查脚本在 `packages/contract/scripts/`，不在本目录：`infra/` 不在工作区里，按包名引不到契约。归属表是单个文件，`generated` 口径只认“目录/**”（第 5.1 节），所以它按“算门禁路径、不逐行判”登记（条目的 `except` 盖住它自己）：重新生成不进 PR 顶部的清单，删掉它分类也不报；它与登记数据一致由 `registry:check` 与契约自测（`pnpm test`）把关。
 - 每晚任务（`nightly.yml` 的 `node26`）跟着补了四步，都是新增的整步。“类型”之前一步：生成数据库客户端（`pnpm db:generate`）。“类型”与“测试”之间三步：起 PostgreSQL 与 Redis；把连接参数（`APP_ENV`、`DATABASE_URL`、`REDIS_URL`，取值与 `verify` 的相同）写进 `$GITHUB_ENV`，后面的“测试”读得到；空库 `lyx_migrate_check` 上跑全部迁移。它不挂服务容器：往已有的任务里加 `services`、`env` 算放松类改动（第 5 节），所以库用 compose 文件起，与 `verify` 的“起 MinIO”同一种写法，镜像、端口、账号取 `infra/compose/local.yml`。`verify` 里的 `prisma validate`、由底稿建参照库、系统目录比对它不跑：那是首版迁移的等价性证明，`pnpm test` 用不到参照库 `lyx_schema_check`。执行机上要有 Docker（带 compose）与 `psql`，与 `verify` 相同。往每晚任务加一步时，在 `test/workflows.test.ts`“nightly.yml”一组的命令清单里同一位置加一行（只增）。
+- 接口侧注册表（W0-09b）在 `verify` 里加了一步，排在“枚举与库 CHECK 一致”之后。“接口侧注册表对账”（`pnpm api-registries:check`）：拿契约里的领域错误码、权限点、能力点、资源登记、通知场景、订阅点位、埋点事件与登记文档、`docs/api/working/` 的底稿逐字段比；只读文件，不连库，约 2 秒。检查脚本在 `packages/contract/scripts/`，理由同 W0-09a 那一条。数量不写在脚本与反例里：取登记文档各节标题里写的数，同表格行数、契约条数三方比。场景键、埋点事件名两种写法另并进 W0-09a 的 `pnpm enums:check`，同库里的 CHECK 正则逐字比。
 
 ## 3. 怎么加一步检查
 
@@ -85,6 +86,7 @@ export default {
 - `db-catalog-diff-dropped-check`（W0-05）要本地那套 PostgreSQL 在运行（`pnpm infra:up`），并给出 `DATABASE_URL` 或 `PG*` 环境变量（`CLAUDE.md` 第 9 节）。它自己建两个 `lyx_selftest_` 开头的库，用完删掉；连不上时这一例会红。
 - `contract-check-stale-generated` 在仓库外的副本里跑真的 `pnpm contract:check`：要 pnpm 在 PATH 上、本仓库的依赖已安装（副本的依赖用符号链接指回 `packages/contract/node_modules`）。它改的是 `DictRef`：提交的生成物里只有 `DictRef`、`ErrorBody`、`SentryEnvelope` 三个组件，改别的结构生成物不变。
 - `registry-check-missing-subscriber`、`enums-check-extra-value`（W0-09a）同样在仓库外的副本里跑真的根脚本（`pnpm registry:check`、`pnpm enums:check`），条件同上一条。后一例另要本地那套 PostgreSQL 在运行、`lyx_migrate_check` 已跑过迁移（[packages/db/README.md](../../packages/db/README.md) 第 3 节），并给出 `DATABASE_URL` 或 `PG*` 环境变量；它只读那个库，不建库。连不上时这一例会红。
+- `api-registries-check-wrong-error-code`、`api-registries-check-missing-permission`（W0-09b）在仓库外的副本里跑真的根脚本（`pnpm api-registries:check`），条件同 `contract-check-stale-generated`；不连库。副本里要带对账读的那些文档：清单取自对账脚本导出的 `SOURCE_PATHS` 与 `FRAG_DIR`，脚本以后多读一份文档不用改反例。改哪个码、删哪个权限点也不写死，各取所在文件里登记的第一个。后一例引前一例导出的两个函数（造副本、取 CI 里那一步的命令）。
 
 ## 5. 门禁改动分类
 

@@ -201,6 +201,7 @@
 | `pnpm registry:generate` | 由契约的 x01 名称登记（`packages/contract/src/registry/`）重新生成条目归属表 `docs/plan/x01-map.md`。改了登记数据先跑它再提交；归属表不手改。用法见 [脚本](packages/contract/scripts/registry-map.ts) 开头的注释 |
 | `pnpm registry:check` | 登记表对账：重新生成归属表后 `git diff --exit-code`，再拿登记数据与 x01 正文、`docs/api/working/frag/x01-events-jobs.json` 对账（名称集合、数量、归属里程碑、名字的写法），一处不符即非 0 退出。不连库。口径见 [脚本](packages/contract/scripts/registry-check.ts) 开头的注释 |
 | `pnpm enums:check`（加 `-- --db <库名>` 换一个库） | 枚举与库 CHECK 一致：库里每条“列取值集合”形态的 CHECK 都有契约枚举（`packages/contract/src/enums/`）对应，取值集合相等；另核对名字写法的 CHECK 正则。只读；要 `DATABASE_URL`（或 `PG*`）与跑过迁移的 `lyx_migrate_check`（怎么建见 [README](packages/db/README.md) 第 3 节）。口径见 [脚本](packages/contract/scripts/enums-check.ts) 开头的注释 |
+| `pnpm api-registries:check` | 接口侧注册表对账：契约里的领域错误码、权限点、能力点、后台模块键、资源登记、通知场景、订阅点位、埋点事件，以及 07 第 7 节补登的参数键与开关键，与登记文档（`docs/api/registry-errors.md`、`registry-permissions.md`）、`docs/api/working/` 的底稿及各依据文档逐字段对账，一处不符即非 0 退出。只读文件，不连库。对谁比、不比什么，见 [脚本](packages/contract/scripts/api-registries-check.ts) 开头的注释 |
 
 本地连接参数：配置只经 `loadEnv`（`packages/services/src/kernel/env.ts`）读环境变量，会话与测试不建、不读 `.env`，在命令前或 shell 里给出。取值出处是 [local.yml](infra/compose/local.yml)，账号与口令是固定的开发值，只对本机这套容器有效；CI 的服务容器用同一组值。
 
