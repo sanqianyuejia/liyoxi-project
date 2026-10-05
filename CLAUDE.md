@@ -225,6 +225,7 @@
 | `pnpm --filter @liyoxi/services exec vitest run src/timers/ src/sla/ src/kernel/ports/` | 只跑定时器、时限与五个端口的用例：`arm` 的状态机表与并发登记、改期与按前缀取消、周期任务补登记与栅格时刻的性质测试、登记对照契约、跨节假日的时限与时限快照、端口没人实现时走空实现。除 `schedule`、`registry` 两份外都要本地的 PostgreSQL 与 `DATABASE_URL`。用法见 [timers](packages/services/src/timers/README.md)、[sla](packages/services/src/sla/README.md)、[ports](packages/services/src/kernel/ports/README.md) 三份 README |
 | `pnpm --filter @liyoxi/services exec vitest run src/flow/` | 只跑 flow（状态迁移）的用例：迁移表逐行驱动、同事务、非法迁移被拒、锁序、审计恰一行、事件的三个迁移键、工作分钟端口、`flow.I12` 与状态列自检，两条连接同迁一个对象的并发测试，随机事件序列的性质测试（固定种子、200 轮）。连真库。用法、状态机怎么登记、种子与轮次的改法见 [README](packages/services/src/flow/README.md) |
 | `pnpm db:seed` | 播种：对 `DATABASE_URL` 指的、跑完迁移的库，把缺的初始行插进去（8 个角色、通知场景与通道绑定、开关、字典、清单模板、协议清单、订阅槽位、短信模板、价目初始行、估值口径、工作日历、站点配置初始版），再跑六条配置类不变量的断言，有违规即非 0 退出。没有才插、已有的行不改，可以反复跑；测试库不带种子。用法见 [脚本](packages/services/scripts/seed.ts) 与 [运行器](packages/services/src/seed.ts) 开头的注释 |
+| `pnpm status-tone:check` | 状态字典键与契约枚举同名：状态色调字典（`packages/shared/src/design/status-tone`）里写了“表.列”的条目，那一列在契约里绑定了枚举，取值都在枚举的取值之内，一处不符即非 0 退出。只读文件，不连库。字典加条目、契约改枚举取值之后跑它。口径见 [脚本](packages/shared/scripts/status-tone-check.ts) 开头的注释 |
 
 本地连接参数：配置只经 `loadEnv`（`packages/services/src/kernel/env.ts`）读环境变量，会话与测试不建、不读 `.env`，在命令前或 shell 里给出。取值出处是 [local.yml](infra/compose/local.yml)，账号与口令是固定的开发值，只对本机这套容器有效；CI 的服务容器用同一组值。
 
