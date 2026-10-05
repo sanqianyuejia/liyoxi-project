@@ -76,7 +76,7 @@ export async function login(ctx: StaffAuthContext, input: LoginInput): Promise<A
     };
   }
 
-  // 失败：计数、锁定与事件写在独立的事务里；只有“密码错”计数
+  // 失败：计数、锁定与事件写在独立的事务里。只有“密码错”计数：锁定中没校验过密码，不能算它错
   const reason =
     staff === null
       ? "unknown_account"
@@ -84,10 +84,13 @@ export async function login(ctx: StaffAuthContext, input: LoginInput): Promise<A
         ? "not_active"
         : staff.passwordHash === null
           ? "not_activated"
-          : "bad_password";
+          : locked
+            ? "bucket_locked"
+            : "bad_password";
   const outcome = await ctx.tx.run(async (handle) => {
-    const row = staff === null ? null : await lockStaff(handle, staff.id);
-    if (row !== null && reason === "bad_password") {
+    const row =
+      staff !== null && reason === "bad_password" ? await lockStaff(handle, staff.id) : null;
+    if (row !== null) {
       return recordFailure(handle, row, {
         bucket,
         method: "password",
