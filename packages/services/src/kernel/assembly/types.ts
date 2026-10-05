@@ -78,6 +78,12 @@ export interface TimerHandlerRegistration extends EnvScoped {
 export interface RecurringRunContext {
   /** 本期的计划时刻（栅格时刻），不是“现在” */
   readonly scheduledFor: Date;
+  /** tx 模式才有：本期所在的事务，业务写与“已触发”同事务（W0-23） */
+  readonly tx?: Tx;
+  /** job 模式才有：续租发现这一期已被接管或取消时中止，处理器看到即收手（W0-23） */
+  readonly signal?: AbortSignal;
+  /** job 模式才有：处理器在事务外执行，要写库时用它自己开小事务（W0-23） */
+  readonly runTx?: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
 }
 
 /**

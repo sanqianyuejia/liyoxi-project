@@ -21,3 +21,26 @@ export {
   findMissingAggregateTables,
 } from "./aggregates.js";
 export { registration } from "./register.js";
+// W0-23：派发认领、消费与失败短事务（退避、死信）
+export {
+  claimDeliveries,
+  consumeDelivery,
+  DELIVERY_BACKOFF_SEC,
+  DELIVERY_LEASE_SEC,
+  DELIVERY_MAX_ATTEMPTS,
+  deliveryJobId,
+  dispatchDue,
+  DISPATCH_BATCH_SIZE,
+  errorSummary,
+  OUTBOX_QUEUE,
+  UNKNOWN_EVENT_DELAY_SEC,
+  UNKNOWN_EVENT_GIVE_UP_SEC,
+} from "./dispatch.js";
+export type {
+  ClaimedDelivery,
+  ClaimResult,
+  ConsumeOutcome,
+  DeliveryRef,
+  DispatchDeps,
+  DispatchResult,
+} from "./dispatch.js";

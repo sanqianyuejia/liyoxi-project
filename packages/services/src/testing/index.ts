@@ -21,3 +21,5 @@ export * from "./ports.js";
 export * from "./calendar.js";
 // W0-17：定时器的样例 kind、带样例的名字来源与样例登记
 export * from "./timers.js";
+// W0-23：任务进程的样例订阅者、定时器处理器、周期任务（带业务副作用，用例据此断言恰好一次）
+export * from "./worker.js";
