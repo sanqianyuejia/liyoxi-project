@@ -3,7 +3,7 @@
 // 不动本仓库的文件，也不写库：在仓库外造一份最小副本——根 package.json、pnpm-workspace.yaml、packages/contract
 //（不带 node_modules，依赖用符号链接指回本仓库装好的那份）、packages/config/tsconfig。副本里给操作人类型
 // actor_type 多加一个取值，照 CI 里那一步实际的命令跑；对的是跑过迁移的 lyx_migrate_check，只读。
-// CI 的 verify 里没有了 enums:check 那一步、或对账不再比取值集合时，这一例会红。
+// CI 里没有了 enums:check 那一步（它在 test 任务里，那里有迁移库）、或对账不再比取值集合时，这一例会红。
 // 要 pnpm 在 PATH 上、本仓库的依赖已安装；要本地那套 PostgreSQL 在运行、lyx_migrate_check 已跑过迁移
 //（packages/db/README.md 第 3 节），并给出 DATABASE_URL 或 PG* 环境变量。连不上时这一例会红，不会被悄悄跳过。
 import { cpSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
@@ -26,7 +26,7 @@ export default {
     const step = read(".github/workflows/ci.yml").match(
       /^ {6}- name: .+\n {8}run: (pnpm enums:check)$/m,
     );
-    if (!step) throw new Error("ci.yml 的 verify 里找不到“run: pnpm enums:check”那一步");
+    if (!step) throw new Error("ci.yml 里找不到“run: pnpm enums:check”那一步");
     const [tool, ...args] = step[1].split(" ");
 
     const dir = ctx.tempDir();

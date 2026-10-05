@@ -12,7 +12,10 @@
 //   --out       把统计另存成 JSON（CI 把它传成产物 ci-duration.json）
 //   --budget-seconds  时长预算，缺省 900
 // 判定：每个必过任务的结论都是 success（--may-skip 里的可以是 skipped），否则失败。
-// 时长：合计 = 各必过任务耗时之和；另给出从最早开始到最晚结束的跨度。超过预算只在摘要里标出，不失败。
+// 时长：必过任务是并行跑的，所以给两个数。
+//   跨度 = 从最早开始到最晚结束，也就是一个 PR 从开始跑到能看结论要等多久。预算比的是它。
+//   合计 = 各必过任务耗时之和，也就是占用的执行机时间。只列出，不拿它比预算（任务拆得越细它越大，等的时间却越短）。
+// 超过预算只在摘要里标出，不失败。跨度取不到（没拿到任务列表）时不判超不超。
 // 摘要写到标准输出；有环境变量 GITHUB_STEP_SUMMARY 时同时追加到它指的文件。
 // 退出码：0 全部通过；1 有必过任务没通过；2 用法错误。
 // 本脚本不引依赖。
@@ -97,7 +100,7 @@ const wallSeconds =
         (Math.max(...allSpans.map((s) => s.end)) - Math.min(...allSpans.map((s) => s.start))) /
           1000,
       );
-const overBudget = totalSeconds > options.budgetSeconds;
+const overBudget = wallSeconds !== null && wallSeconds > options.budgetSeconds;
 const failed = rows.filter((row) => !row.ok);
 
 const clock = (seconds) =>
@@ -114,7 +117,7 @@ const lines = [
   ),
   `| 合计 | ${failed.length === 0 ? "全部通过" : `${failed.length} 个未通过`} | ${known.length === 0 ? "未知" : clock(totalSeconds)} |`,
   "",
-  `预算 ${clock(options.budgetSeconds)}（计划 第 5.5 节）。从最早开始到最晚结束的跨度：${clock(wallSeconds)}。本任务（required）自己的耗时不计入。`,
+  `预算 ${clock(options.budgetSeconds)}（计划 第 5.5 节），比的是跨度：从最早开始到最晚结束 ${clock(wallSeconds)}。任务并行跑，“合计”是各任务耗时之和（占用的执行机时间），不拿它比预算。本任务（required）自己的耗时不计入。`,
 ];
 if (known.length < rows.length) {
   lines.push("", "有任务没取到起止时间（被跳过，或没拿到任务列表），合计只含取到的部分。");
@@ -122,7 +125,7 @@ if (known.length < rows.length) {
 if (overBudget) {
   lines.push(
     "",
-    `**超出预算**：合计 ${clock(totalSeconds)} > ${clock(options.budgetSeconds)}。不阻断本 PR；按受影响的包运行，或把检查挪到“合并后”一栏（计划 第 5.5 节）。`,
+    `**超出预算**：跨度 ${clock(wallSeconds)} > ${clock(options.budgetSeconds)}。不阻断本 PR；按受影响的包运行，或把检查挪到“合并后”一栏（计划 第 5.5 节）。`,
   );
 }
 const summary = `${lines.join("\n")}\n`;

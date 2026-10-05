@@ -116,12 +116,36 @@ describe("时长统计", () => {
     expect(result.summary).not.toContain("超出预算");
   });
 
-  it("超过 15 分钟：在摘要里标出，不阻断", () => {
+  it("从最早开始到最晚结束超过 15 分钟：在摘要里标出，不阻断", () => {
     const slow = [job("verify", "00:00", "16:00"), job("gate-classify", "00:00", "00:30")];
     const result = required(ok, slow);
     expect(result.status).toBe(0);
-    expect(result.summary).toContain("**超出预算**：合计 16 分 30 秒 > 15 分 00 秒");
+    expect(result.summary).toContain("**超出预算**：跨度 16 分 00 秒 > 15 分 00 秒");
     expect(result.report?.overBudget).toBe(true);
+  });
+
+  it("任务并行跑：预算比的是跨度，不是各任务耗时之和。之和超过 15 分钟而跨度没超，不算超出", () => {
+    const names = ["verify", "test", "test-infra", "web"];
+    const parallel = names.map((name) => job(name, "00:10", "05:10"));
+    const needs = Object.fromEntries(names.map((name) => [name, { result: "success" }]));
+    const result = required(needs, parallel);
+    expect(result.status).toBe(0);
+    expect(result.report).toMatchObject({
+      totalSeconds: 1200,
+      wallSeconds: 300,
+      overBudget: false,
+    });
+    expect(result.summary).toContain("| 合计 | 全部通过 | 20 分 00 秒 |");
+    expect(result.summary).toContain("比的是跨度：从最早开始到最晚结束 5 分 00 秒");
+    expect(result.summary).not.toContain("超出预算");
+  });
+
+  it("排队等执行机的时间算在跨度里：任务一个接一个跑完，跨度超了就标出", () => {
+    const queued = [job("verify", "00:00", "08:00"), job("test", "08:30", "16:30")];
+    const needs = { verify: { result: "success" }, test: { result: "success" } };
+    const result = required(needs, queued);
+    expect(result.report).toMatchObject({ totalSeconds: 960, wallSeconds: 990, overBudget: true });
+    expect(result.summary).toContain("**超出预算**：跨度 16 分 30 秒 > 15 分 00 秒");
   });
 
   it("矩阵展开的任务按名字前缀归到一起", () => {
@@ -135,6 +159,7 @@ describe("时长统计", () => {
     const result = required(ok, null);
     expect(result.status).toBe(0);
     expect(result.report?.totalSeconds).toBeNull();
+    expect(result.report?.overBudget).toBe(false);
     expect(result.summary).toContain("| verify | success | 未知 |");
     expect(result.summary).toContain("有任务没取到起止时间");
   });
