@@ -79,7 +79,7 @@ import type { StorageProvider } from "../providers/types.js";
 
 ## 7. 外呼前钩子
 
-每个方法的入口先调一次 `beforeCall({ provider, method })`，由工厂统一包上（`withBeforeCall`），实现里不用自己调。缺省空转。W0-20 把它接到 kernel 的事务标记上：在事务里外呼，local、test 下在这里抛错（D7 第 2.3 节规则 5）。
+每个方法的入口先调一次 `beforeCall({ provider, method })`，由工厂统一包上（`withBeforeCall`），实现里不用自己调。`createProviders` 自己的缺省是空转；进程装配不直接调它，走 kernel 的 `assembleProviders`（KF-1），钩子固定是 `guardProviderCall`：在事务里外呼，local、test 下在这里抛错，stg、prod 上报后照常调（D7 第 2.3 节规则 5）。替身 `createFakeProviders()` 缺省也是它。
 
 ## 8. 替身
 

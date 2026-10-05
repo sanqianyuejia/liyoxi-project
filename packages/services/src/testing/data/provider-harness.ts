@@ -9,7 +9,7 @@
 //
 // 比直接用 createFakeProviders 多两样：
 //   1. 事务里外呼即抛错：每次外呼先过 kernel 的 assertNotInTransaction（硬性规则 9）。
-//      createFakeProviders 的外呼前钩子缺省空转，用例不接就查不出“在事务里调了外部服务”。
+//      （createFakeProviders 自己的外呼前钩子从 KF-1 起缺省也查这一条；这里关掉它的，由本支架在记时间线之前查。）
 //   2. 一条时间线：十二个替身各记各的调用，时钟不拨时分不出先后；这里按发生的先后统一编号。
 // 纯内存，很轻：每条用例建一个新的，替身里的状态（发出去的短信、存进去的对象）就不会串到下一条。
 import { assertNotInTransaction } from "../../kernel/index.js";
@@ -69,7 +69,8 @@ export interface ProviderHarness {
 export function createProviderHarness(options: ProviderHarnessOptions = {}): ProviderHarness {
   const clock = options.clock ?? systemClock;
   const guard = options.guardTransaction !== false;
-  const fakes = createFakeProviders({ clock: options.clock });
+  // 替身自己的外呼前钩子关掉：事务里外呼由下面这一层查（要先于记时间线，guardTransaction 也要关得掉）
+  const fakes = createFakeProviders({ clock: options.clock, beforeCall: () => {} });
   const timeline: HarnessCall[] = [];
 
   /** 给一个替身包一层：清单里的方法进入时先查事务、再记一笔，然后调原实现；其余属性原样透传 */

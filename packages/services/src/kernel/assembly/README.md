@@ -103,3 +103,9 @@ pnpm --filter @liyoxi/services exec vitest run src/kernel/assembly/ src/assembly
 ## 8. 进程运行时（W0-22）
 
 第 5 节说的“装配基础设施”落在包级文件 `packages/services/src/runtime.ts`，不在 kernel：`createRuntime({ entry, env, version })` 建数据库客户端（连接参数照 D7 第 8.3 节的表，`DB_POOLS`）、Redis 连接、事务入口、业务单号、配置读侧、健康检查，并调 `assembleServices`；`runStartupChecks(runtime.startupChecks)` 跑启动自检。api 与 worker 经 `@liyoxi/services` 的入口拿到它，拿不到数据库客户端。日志的唯一构造在 `packages/services/src/logger.ts`。
+
+KF-1 接齐的三样（worker 走 `ops` 的 `buildWorkerServices`，做法相同）：
+
+- 十二个 Provider 经本目录的 `assembleProviders({ appEnv, logger, settings? })` 装配，放在 `runtime.providers`、`services.providers`。驱动的入口只许 kernel 引（D7 第 2.2 节 D8），所以落点在这里；外呼前钩子 `guardProviderCall` 在里面接死，装配方给不了别的。在事务里调任何 Provider 方法，`local`、`test` 抛 `KernelViolation`，`stg`、`prod` 上报后照常调。替身 `createFakeProviders()` 缺省带同一个钩子。
+- `createEvents`、`createTimers` 在两个进程启动时各建一次（`runtime.events`、`runtime.timers`）：订阅者、定时器处理器、周期任务的登记与契约对不上，进程起不来。
+- 启动自检的清单在 `ops/startup.ts`（`createStartupChecks`），两个进程共用，顺序固定：`db.connect`、`security.crypto`、`audit.target_type`、`events.aggregate_types`、`flow.state_columns`。库连不上只报第一条。密钥没配：`stg`、`prod` 不过；`local`、`test` 放行并记一条告警（本地与 CI 不放密钥文件）。

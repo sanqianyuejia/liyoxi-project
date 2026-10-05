@@ -107,6 +107,15 @@ importers:
 
   apps/api:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: 3.1141.0
+        version: 3.1141.0
+      '@aws-sdk/s3-presigned-post':
+        specifier: 3.1141.0
+        version: 3.1141.0
+      '@aws-sdk/s3-request-presigner':
+        specifier: 3.1141.0
+        version: 3.1141.0
       '@hono/node-server':
         specifier: 2.1.1
         version: 2.1.1(hono@4.13.9)

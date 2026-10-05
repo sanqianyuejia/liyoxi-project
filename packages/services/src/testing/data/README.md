@@ -180,7 +180,7 @@ harness.assertNoCalls(); // 一次外呼都没有
 | `tick()` | 放行到点的延迟应答（先拨时钟） |
 | `reset()` | 清空时间线与十二个替身的调用记录、没用掉的失败与延迟。替身里别的状态（发出去的短信、存进去的对象）不动 |
 
-- 事务里外呼即抛 `KernelViolation`（硬性规则 9），这次调用不记、替身也不执行。`createFakeProviders` 的外呼前钩子缺省空转，直接用它查不出这种错；支架缺省接上了 `assertNotInTransaction`。
+- 事务里外呼即抛 `KernelViolation`（硬性规则 9），这次调用不记、替身也不执行。支架在记时间线之前查这一条；直接用 `createFakeProviders()` 也查得出（它的外呼前钩子从 KF-1 起缺省是 `guardProviderCall`）。
 - 纯内存，很轻：每条用例建一个新的，替身里的状态就不会串到下一条。
 - 清调用记录用 `harness.reset()`；只调某个替身的 `resetCalls()`，时间线不会跟着清。
 
