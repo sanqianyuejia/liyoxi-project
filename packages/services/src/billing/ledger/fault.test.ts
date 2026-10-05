@@ -3,21 +3,27 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import {
   assertSnapshotsEqual,
+  captureHold,
   createLedgerHarness,
   dumpLedger,
+  holdDrama,
   openTerm,
   ownerContext,
+  refundHold,
+  releaseHold,
   snapshotTables,
   useSeededDatabase,
 } from "../../testing/index.js";
+import { uuidv7 } from "../../kernel/index.js";
 import type { LedgerHarness } from "../../testing/index.js";
 import { LEDGER_STEPS } from "./index.js";
 import type { LedgerStep } from "./index.js";
 
 // 验收 9：故障注入。在账本的每个写步骤之后抛错：事务回滚后八张表（连同订阅事件与出站事件）无残留，
 // 按原来的键重试成功，结果与没出过故障的对照主体逐项相同。
-// 两个场景合起来走到全部步骤：加购入账（新批次、操作行、流水、账户、事件）；
-// 一次推进里的清零、接续、发首月（已有批次的桶、周期、订阅事件、发放计划）。
+// 三个场景合起来走到登记的全部步骤：加购入账（新批次、操作行、流水、账户、事件）；
+// 一次推进里的清零、接续、发首月（已有批次的桶、周期、订阅事件、发放计划）；
+// 冻结单一族（新冻结单、分摊行、冻结单的状态、原周期已结束时转为加购的新批次）。
 
 const SLOW = 180_000;
 const TABLES = [
@@ -42,6 +48,8 @@ let h: LedgerHarness;
 /** 第几步之后抛错；null 即只记不抛 */
 let failAt: number | null = null;
 let seen: LedgerStep[] = [];
+/** 各场景合起来走到过的步骤 */
+const covered = new Set<LedgerStep>();
 
 beforeAll(async () => {
   prisma = await db.prisma();
@@ -127,11 +135,68 @@ describe("故障注入（验收 9）", () => {
       await h.tx.run((tx) => h.ledger.advance(tx, control));
 
       const steps = await failEveryStep(() => h.tx.run((tx) => h.ledger.advance(tx, victim)));
-      // 注入点覆盖了登记的全部步骤
-      expect(new Set(steps)).toEqual(new Set(LEDGER_STEPS));
+      for (const step of steps) covered.add(step);
       expect(steps.length).toBeGreaterThan(30);
       expect(await dumpLedger(prisma, victim)).toEqual(await dumpLedger(prisma, control));
     },
     SLOW,
   );
+  it(
+    "冻结、扣减、释放、退回（含原周期已结束转为加购）：每个写步骤之后抛错都无残留，按原键重试成功",
+    async () => {
+      h.clock.set(at("2026-07-01T12:00:00"));
+      const drama = await h.make.drama({ heatTier: "A" });
+      const prepare = async () => {
+        const { entity, store } = await h.make.merchant({ verified: true });
+        await openTerm(h, { entityId: entity.id });
+        return { entityId: entity.id, storeId: store.id, dramaId: drama.id };
+      };
+      const [control, victim] = [await prepare(), await prepare()];
+      // 每一步都用固定的业务引用：重试是同一个操作键
+      const script = async (who: typeof control, wrap: typeof failEveryStep) => {
+        const steps: LedgerStep[] = [];
+        const refs = { first: uuidv7(), second: uuidv7(), line: uuidv7() };
+        h.clock.set(at("2026-07-02T12:00:00"));
+        steps.push(...(await wrap(() => holdDrama(h, { ...who, refId: refs.first }))));
+        steps.push(...(await wrap(() => holdDrama(h, { ...who, refId: refs.second }))));
+        const [first, second] = [
+          await holdDrama(h, { ...who, refId: refs.first }),
+          await holdDrama(h, { ...who, refId: refs.second }),
+        ];
+        expect([first.replayed, second.replayed]).toEqual([true, true]);
+        steps.push(...(await wrap(() => releaseHold(h, first.pointHoldId))));
+        steps.push(...(await wrap(() => captureHold(h, second.pointHoldId))));
+        // 周期结束（没有续费）之后退回：原批次已不可用，转为加购积分
+        h.clock.set(at("2026-08-02T12:00:00"));
+        await h.tx.run((tx) => h.ledger.advance(tx, who.entityId));
+        steps.push(
+          ...(await wrap(() =>
+            refundHold(h, {
+              pointHoldId: second.pointHoldId,
+              qty: 1000,
+              cancelRequestLineId: refs.line,
+            }),
+          )),
+        );
+        return steps;
+      };
+      await script(control, async (run) => {
+        await run();
+        return [];
+      });
+      const steps = await script(victim, failEveryStep);
+      for (const step of steps) covered.add(step);
+      expect(steps).toEqual(
+        expect.arrayContaining(["hold.insert", "alloc.write", "hold.update", "lot.convert"]),
+      );
+      expect(await dumpLedger(prisma, victim.entityId)).toEqual(
+        await dumpLedger(prisma, control.entityId),
+      );
+    },
+    SLOW,
+  );
+
+  it("三个场景合起来，注入点覆盖了登记的全部步骤", () => {
+    expect(covered).toEqual(new Set(LEDGER_STEPS));
+  });
 });

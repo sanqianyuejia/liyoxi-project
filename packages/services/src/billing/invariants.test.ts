@@ -5,17 +5,21 @@ import { uuidv7 } from "../kernel/index.js";
 import type { InvariantViolation } from "../kernel/index.js";
 import {
   assembleForTest,
+  captureHold,
   connectTestDatabase,
   createLedgerHarness,
+  holdDrama,
   openTerm,
+  refundHold,
+  releaseHold,
   topUp,
   useSeededDatabase,
 } from "../testing/index.js";
 import { billingInvariants } from "./invariants.js";
 import type { LedgerHarness } from "../testing/index.js";
 
-// 验收 10（不变量的一半）：账户与批次的七条——各造一条违规都能查出；空库加种子、正常记账之后全量 0 违规；
-// I4、I5 随冻结一族。经 ops 的框架跑全量的用例在 ops/invariants（billing 是 L2，不引 L4 的 ops）。
+// 验收 10（不变量的一半）：账本内核的九条——各造一条违规都能查出；空库加种子、正常记账之后全量 0 违规。
+// 经 ops 的框架跑全量的用例在 ops/invariants（billing 是 L2，不引 L4 的 ops）。
 // 每条违规造在各自的主体上，按主体缩小范围来断言：同一个库里别的主体不受影响。
 
 const SLOW = 180_000;
@@ -53,6 +57,8 @@ const CLEAN = {
   "billing.I1": 0,
   "billing.I2": 0,
   "billing.I3": 0,
+  "billing.I4": 0,
+  "billing.I5": 0,
   "billing.I6": 0,
   "billing.I7": 0,
   "billing.I8": 0,
@@ -70,14 +76,16 @@ async function merchantWithLedger(months = 1) {
   return { entityId: entity.id, term, schedules, planLot };
 }
 
-describe("billing 的不变量：账户与批次的七条（验收 10）", () => {
-  it("登记的是 I1、I2、I3、I6、I7、I8、I16：都只在 full 里跑、不自愈；关系数量的 P1，漏跑与顺序 P2", () => {
+describe("billing 的不变量：账本内核的九条（验收 10）", () => {
+  it("登记的是 I1–I8、I16：都只在 full 里跑、不自愈；关系数量的 P1，漏跑与顺序 P2", () => {
     expect(
       billingInvariants.map((check) => [check.code, check.severity, check.modes, check.heal]),
     ).toEqual([
       ["billing.I1", "P1", ["full"], "none"],
       ["billing.I2", "P1", ["full"], "none"],
       ["billing.I3", "P1", ["full"], "none"],
+      ["billing.I4", "P1", ["full"], "none"],
+      ["billing.I5", "P1", ["full"], "none"],
       ["billing.I6", "P2", ["full"], "none"],
       ["billing.I7", "P1", ["full"], "none"],
       ["billing.I8", "P2", ["full"], "none"],
@@ -86,22 +94,37 @@ describe("billing 的不变量：账户与批次的七条（验收 10）", () =>
   });
 
   it(
-    "空库加种子 0 违规；发放、加购、清零、接续、过期之后仍是 0 违规；装配结果里收得到这七条",
+    "空库加种子 0 违规；发放、加购、冻结、扣减、释放、退回、清零、接续、过期之后仍是 0 违规；装配结果里收得到这九条",
     async () => {
       expect(await runAll()).toEqual(CLEAN);
 
       h.clock.set(at("2026-01-05T12:00:00"));
-      const { entity } = await h.make.merchant({ verified: true });
+      const { entity, store } = await h.make.merchant({ verified: true });
       const first = await openTerm(h, { entityId: entity.id, months: 3 });
       await openTerm(h, { entityId: entity.id, after: first.term });
       await topUp(h, { entityId: entity.id, points: 500 });
+      // 冻结三张（A 级模板价 2,000，专业版 9 折 = 1,800）：一张释放，一张扣减后部分退回，一张冻结着跨过期末再扣减
+      const drama = await h.make.drama({ heatTier: "A" });
+      const order = { entityId: entity.id, storeId: store.id, dramaId: drama.id };
+      const [released, refunded, carried] = [
+        await holdDrama(h, order),
+        await holdDrama(h, order),
+        await holdDrama(h, order),
+      ];
+      await releaseHold(h, released.pointHoldId);
+      await captureHold(h, refunded.pointHoldId);
+      await refundHold(h, { pointHoldId: refunded.pointHoldId, qty: 700 });
+      expect(await runAll()).toEqual(CLEAN);
       for (const moment of ["2026-02-05T00:01:00", "2026-04-05T00:01:00", "2026-05-05T00:01:00"]) {
         h.clock.set(at(moment));
         await h.tx.run((tx) => h.ledger.advance(tx, entity.id));
       }
+      // 原周期已结束：扣减照常；再退回的部分转为加购积分
+      await captureHold(h, carried.pointHoldId);
+      await refundHold(h, { pointHoldId: carried.pointHoldId, qty: 1800, reasonClass: "platform" });
       expect(await runAll()).toEqual(CLEAN);
 
-      // 装配结果里收得到这七条（ops 的 invariant.full 按它调度；框架本身的用例在 ops/invariants）
+      // 装配结果里收得到这九条（ops 的 invariant.full 按它调度；框架本身的用例在 ops/invariants）
       const registered = assembleForTest({ entry: "worker" }).invariants.map((check) => check.code);
       expect(registered).toEqual(
         expect.arrayContaining(billingInvariants.map((check) => check.code)),
@@ -260,6 +283,94 @@ describe("billing 的不变量：账户与批次的七条（验收 10）", () =>
       const wrongDay = await insertEntry(b, at("2026-06-04T12:00:00"), "2026-06-03");
       expect(await run("billing.I16", b.entityId)).toMatchObject([
         { detail: { problem: "biz_date_mismatch", id: wrongDay } },
+      ]);
+    },
+    SLOW,
+  );
+
+  it(
+    "I4：冻结单与分摊对不上、批次的冻结与在冻结状态的分摊对不上；I5：已扣减的冻结单留在已消耗的数量对不上",
+    async () => {
+      h.clock.set(at("2026-06-04T18:00:00"));
+      const drama = await h.make.drama({ heatTier: "A" });
+      const merchant = async () => {
+        const { entity, store } = await h.make.merchant({ verified: true });
+        await openTerm(h, { entityId: entity.id });
+        const held = await holdDrama(h, {
+          entityId: entity.id,
+          storeId: store.id,
+          dramaId: drama.id,
+        });
+        const lot = await prisma.pointLot.findFirstOrThrow({ where: { entityId: entity.id } });
+        return { entityId: entity.id, storeId: store.id, held, lot };
+      };
+
+      // 分摊行被改大：冻结单一侧（应扣 ≠ 分摊之和）与批次一侧（冻结 ≠ 在冻结状态的分摊之和）各报一条
+      const a = await merchant();
+      expect(await run("billing.I4", a.entityId)).toEqual([]);
+      await prisma.pointHoldAlloc.update({
+        where: { pointHoldId_allocNo: { pointHoldId: a.held.pointHoldId, allocNo: 1 } },
+        data: { qty: { increment: 3 } },
+      });
+      const found = await run("billing.I4", a.entityId);
+      expect(found).toHaveLength(2);
+      expect(found).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            subject: { type: "point_hold", id: a.held.pointHoldId },
+            entityId: a.entityId,
+            detail: { problem: "alloc_sum", hold: [1800, 0, 0], allocs: [1803, 0, 0] },
+          }),
+          expect.objectContaining({
+            subject: { type: "point_lot", id: a.lot.id },
+            detail: { problem: "lot_held", heldQty: 1800, allocated: 1803 },
+          }),
+        ]),
+      );
+
+      // 工厂直接插的冻结单没有分摊、没动批次：只有冻结单一侧报
+      const b = await merchant();
+      const bare = await h.make.pointHold({
+        entityId: b.entityId,
+        storeId: b.storeId,
+        subscriptionTermId: b.held.snapshot.termId,
+        qty: 40,
+      });
+      expect(await run("billing.I4", b.entityId)).toMatchObject([
+        { subject: { type: "point_hold", id: bare.id }, detail: { problem: "alloc_sum" } },
+      ]);
+
+      // 已扣减的冻结单多了一条“已消耗 → 可用”的流水，冻结单上却没记退回
+      const c = await merchant();
+      await captureHold(h, c.held.pointHoldId);
+      expect(await run("billing.I5", c.entityId)).toEqual([]);
+      const operation = await prisma.ledgerOperation.findFirstOrThrow({
+        where: { entityId: c.entityId },
+        orderBy: { seq: "desc" },
+      });
+      await prisma.pointLedgerEntry.create({
+        data: {
+          id: uuidv7(),
+          ledgerOperationId: operation.id,
+          entityId: c.entityId,
+          pointLotId: c.lot.id,
+          pointHoldId: c.held.pointHoldId,
+          lotKind: "plan",
+          planId: c.lot.planId,
+          fromBucket: "consumed",
+          toBucket: "available",
+          qty: 25,
+          occurredAt: h.clock.now(),
+          bizDate: new Date("2026-06-04T00:00:00.000Z"),
+          createdAt: h.clock.now(),
+        },
+      });
+      expect(await run("billing.I5", c.entityId)).toMatchObject([
+        {
+          subject: { type: "point_hold", id: c.held.pointHoldId },
+          entityId: c.entityId,
+          detail: { status: "captured", expected: 1800, consumed: 1775 },
+        },
       ]);
     },
     SLOW,
