@@ -135,8 +135,9 @@ jobs:
       - name: 测试
         run: pnpm test
       # 测试隔离（W0-05b；计划 第 6.3 节退出条件 ⑧）：两个会话同时跑连 PostgreSQL、Redis 的测试项目（挂了 globalSetup 的，
-      # 现在是 packages/db、packages/services），都要绿，且两边用的库名与 Redis 前缀没有交集。只跑这些项目是为了时长预算：
-      # 不带 --scope 是两个会话各跑一遍全量：执行机只有 2 核，要 5 分钟以上，放不进时长预算（计划 第 5.5 节）
+      # 现在是 packages/db、packages/services），都要绿，且两边用的库名与 Redis 前缀没有交集。只跑这些项目是为了给时长预算
+      # 留余量（计划 第 5.5 节）：不带 --scope 是两个会话各跑一遍全量，等于把全量测试再跑两份，开销跟着全部用例一起涨。
+      # 这一处与任务书验收的字面（CI 里跑全量）有出入，业主的结论见 docs/plan/status/W0-05b.md 偏差 12
       - name: test:isolation
         run: pnpm test:isolation --scope connected
       # 契约生成物与源码无差异（W0-08）：重新生成后 git diff --exit-code。排在“测试”之后：
