@@ -5,6 +5,7 @@ import { appDateTimeFormat } from "@liyoxi/shared/format/datetime";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 
+import { showSuccessNotice } from "../app/feedback";
 import { InfoList } from "../components/InfoList";
 import { PageHeader } from "../components/PageHeader";
 import {
@@ -134,6 +135,7 @@ export function QueueSample() {
             queryKey: ["get", "/admin/samples/reviews/summary"],
           });
         }}
+        notifySuccess={showSuccessNotice}
         itemKey={(item) => item.id}
         renderItem={(item) => {
           const settled = settledOf(item);

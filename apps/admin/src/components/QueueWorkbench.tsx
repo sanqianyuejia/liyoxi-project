@@ -5,13 +5,13 @@
 //   3. 动作带幂等键（一次意图一个键：选中一条时生成，处理完或换一条时换新）。记录的 lockVersion 由页面的动作函数回传。
 //      别人先处理了（VERSION_CONFLICT、STATE_NOT_ALLOWED）：动作函数返回 conflict，这里刷新队列并跳到下一条；
 //      “已被某某处理”那句提示由请求层出（lib/api.ts 对这两个码已经弹右上角通知），这里不再重复同一句。
-//   4. 处理完自动选中下一条；队列空时显示空态。处理成功的提示是右上角通知（规范 第 8 节：带对勾，4 秒后消失）。
+//   4. 处理完自动选中下一条；队列空时显示空态。处理成功的提示是右上角通知（规范 第 8 节：带对勾，4 秒后消失）：
+//      构件不认识应用层的通知出口，那句话经 notifySuccess 交回页面，页面传 app/feedback.ts 的 showSuccessNotice。
 //      已经处理过的事项（“已处理”页签里的）：底部操作条换成处理结果条，通过为成功色调，驳回为错误色调（规范 第 5.2 节）。
 //   5. 队列的定时静默刷新由取数一侧做（lib/query.ts 的 QUEUE_QUERY），不打断正在看的详情。
 import { Alert, Button } from "antd";
 import { useState, type ReactNode } from "react";
 
-import { showSuccessNotice } from "../app/feedback";
 import { newIdempotencyKey } from "../lib/idempotency";
 import { checklistDone, currentKey, nextKey, type QueueSearch } from "../lib/queue";
 
@@ -69,6 +69,8 @@ export interface QueueWorkbenchProps<Item> {
   onRetry: () => void;
   /** 处理完或发现冲突后调：让队列重新取数 */
   onQueueChanged: () => void;
+  /** 处理成功后调，参数是动作返回的那句话：页面传 showSuccessNotice（app/feedback.ts），出右上角通知 */
+  notifySuccess: (message: string) => void;
   itemKey: (item: Item) => string;
   renderItem: (item: Item) => { title: string; line: string; meta: string; tag?: ReactNode };
   detailHeader: (item: Item) => { title: string; description?: string; status?: ReactNode };
@@ -206,6 +208,7 @@ export function QueueWorkbench<Item>({
   queue,
   onRetry,
   onQueueChanged,
+  notifySuccess,
   itemKey,
   renderItem,
   detailHeader,
@@ -301,7 +304,7 @@ export function QueueWorkbench<Item>({
             readOnlyHint={readOnlyHint}
             settled={settled?.(selected)}
             onSettled={(successMessage) => {
-              if (successMessage !== null) showSuccessNotice(successMessage);
+              if (successMessage !== null) notifySuccess(successMessage);
               // 自动选中下一条；队列只有这一条时回到空态
               select(nextKey(keys, selectedKey));
               onQueueChanged();
