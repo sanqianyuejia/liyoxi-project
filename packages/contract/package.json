@@ -33,6 +33,14 @@
       "types": "./src/authz/index.ts",
       "default": "./src/authz/index.ts"
     },
+    "./notify": {
+      "types": "./src/notify/index.ts",
+      "default": "./src/notify/index.ts"
+    },
+    "./analytics/events": {
+      "types": "./src/analytics/events.ts",
+      "default": "./src/analytics/events.ts"
+    },
     "./types/merchant": {
       "types": "./generated/merchant.d.ts"
     },
