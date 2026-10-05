@@ -10,6 +10,7 @@ W1-04 的第一个 PR 交会话与鉴权链要的服务：令牌与会话、静�
 | `token.ts` | 令牌 `lyxm_<sid>.<随机数>`：签发、解析、定长比较 |
 | `sessions.ts` | 开会话与上限、每请求校验与续写、按微信身份吊销 |
 | `login.ts` | 静默登录、手机号登录（含休眠检查、改绑、首触来源、同意与指纹） |
+| `phone.ts` | 换回来的手机号认不认：只认中国大陆的手机号，区号看原串 |
 | `logout.ts` | 退出登录 |
 | `me.ts` | `MeView`：账号、成员关系、待同意协议、一次性提示 |
 | `consent-gate.ts` | 协议同意的门：比指纹、复核、回写 |
@@ -60,3 +61,4 @@ LYX_FC_RUNS=5000 LYX_FC_SEED=42 pnpm --filter @liyoxi/services exec vitest run s
 - `MeUser.actions` 里的“换绑手机号”要装配处给 `smsConfigured`，现在不给（短信驱动随 G2-D）。
 - 会话的过期清理（吊销或过期满 30 天的行）没有登记，随清理框架（W0-24）合并后由 M2 的包接。
 - `auth_event` 的写函数在 `audit/auth-event.ts`：现在是本包先建的最小实现，W1-01a 合并后以它的那份为准。
+- 区号只能从 `getPhoneNumber` 交回的原串里看（`phone.ts`）：Provider 的接口只交 `phone`，没有区号一项。带 `+区号`、`00区号` 而不是 86 的回 `PHONE_REGION_UNSUPPORTED`；真实驱动（G2-D）要把区号交出来，不能把区号不带加号地拼在号码前面（`+1` 的号码去掉符号与大陆号同形）。

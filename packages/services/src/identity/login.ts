@@ -30,12 +30,13 @@ import type { Flow } from "../flow/index.js";
 import { AppError, createIdentityContext, lockRows, trackOf, uuidv7 } from "../kernel/index.js";
 import type { Assembly, Clock, IdentityContext, Tx, TxRunner } from "../kernel/index.js";
 import type { ProviderResult, WechatProvider, WechatSession } from "../providers/types.js";
-import { blindIndex, normalizePhone, sealPhone } from "../security/index.js";
+import { blindIndex, sealPhone } from "../security/index.js";
 import type { Keyring } from "../security/index.js";
 import type { Tenant } from "../tenant/index.js";
 import type { RegisterArgs } from "./machines.js";
 import { buildMeView } from "./me.js";
 import type { MeDeps } from "./me.js";
+import { mainlandMobileOf } from "./phone.js";
 import { openSession, revokeIdentitySessions } from "./sessions.js";
 import { deviceSummary } from "./types.js";
 import type { RequestMeta } from "./types.js";
@@ -81,7 +82,6 @@ export interface PhoneLoginOptions {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const MAINLAND_MOBILE = /^1\d{10}$/;
 
 /** 回滚登录事务、另起事务记一行 reverify_required 的信号：只在本文件里抛与接 */
 class ReverifyNeeded extends Error {
@@ -353,8 +353,9 @@ export async function phoneLogin(
   const openidSnapshot = openidHmac(deps.keyring(), deps.appid, session.openid);
   await options.onOpenid?.(openidSnapshot.toString("hex"));
   const { phone: rawPhone } = await exchange(deps.wechat.getPhoneNumber({ code: input.phoneCode }));
-  const phone = normalizePhone(rawPhone);
-  if (!MAINLAND_MOBILE.test(phone)) throw new AppError("PHONE_REGION_UNSUPPORTED");
+  // 区号看原串：带别的国际前缀的不能归一化之后再按长相判（phone.ts）
+  const phone = mainlandMobileOf(rawPhone);
+  if (phone === null) throw new AppError("PHONE_REGION_UNSUPPORTED");
   const dormantDays = await deps.config.params.get("auth.dormant_days");
   const scene = input.consentScene ?? "login";
 

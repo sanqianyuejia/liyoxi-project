@@ -453,6 +453,7 @@ describe("手机号登录各分支（验收 4）", () => {
         where: { id: disabled.userId },
         data: { status: "disabled" },
       });
+      const mainland = await register();
       const tables = ["merchant_user", "wechat_identity", "user_session", "agreement_consent"];
       const before = await snapshotTables(prisma, tables);
 
@@ -467,6 +468,18 @@ describe("手机号登录各分支（验收 4）", () => {
         (await appError(() => h.identity.phoneLogin(META, { ...abroad, consents: h.consents() })))
           .error,
       ).toBe("PHONE_REGION_UNSUPPORTED");
+
+      // 区号是 +1、去掉符号后与一个已注册的大陆号数字相同：不能登进那个账号、绑上这个微信
+      const digits = mainland.phone;
+      for (const raw of [
+        `+${digits}`,
+        `+1 ${digits.slice(1, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`,
+        `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`,
+      ]) {
+        const lookalike = h.codes({ openid: nextOpenid(), phone: raw });
+        const login = () => h.identity.phoneLogin(META, { ...lookalike, consents: h.consents() });
+        expect((await appError(login)).error, raw).toBe("PHONE_REGION_UNSUPPORTED");
+      }
 
       // 只勾了一份：428，details 里是缺的那一份
       const partial = await appError(() =>
