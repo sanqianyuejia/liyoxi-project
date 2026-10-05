@@ -17,6 +17,7 @@
 | `fault/` | 四种故障注入：`deliverRepeatedly`、`runUntilCrash` 与 `crashPoint`、`createRedisOutage`、`createCallInterrupter` |
 | `isolation.mjs` | `pnpm test:isolation` |
 | `global-setup.ts` | 转导出上面那个 globalSetup，给本包与应用层挂 |
+| `assembly.ts` | `assembleForTest`：测试装配（W0-07b） |
 
 ## 2. 测试库
 
@@ -163,3 +164,13 @@ pnpm test:isolation --dry-run            # 只打印要跑什么，不跑
 - CI 的 `test:isolation` 一步（`--scope connected`）跑哪些项目，靠的是一条约定：用支架就得挂 globalSetup。拦的只有 `useTestDatabase`、`useTestRedis` 两个入口；不经这两个入口连库、连 Redis 的用例，它看不到。今天全仓只有 `infra/ci/test/` 下的 `db-catalog-diff`、`db-verify-managed` 两份是这样：自己起 `psql` 建库，库名带进程号（`lyx_test_infra_catdiff_<进程号>`、`lyx_test_infra_managed_<进程号>`），两个会话同时跑互不相干；CI 的“测试”一步与不带 `--scope` 的全量里照跑。`infra` 或别的没挂支架的项目里再加连库的用例：库名带上进程号，或改用支架并挂 globalSetup。直接用 `TestDatabaseHandle`、`TestRedisHandle`、`connectTestDatabase` 而不挂 globalSetup，同样会被漏在这一步之外。
 - `pnpm test:db:prune --all` 会删到别的会话正在用的库。判断“正在用”只有会话锁这一个办法：按本支架命名的库查得到所属的会话，正有一轮测试在跑的不删；不按本支架命名的 `lyx_test_` 库（`infra` 用例自己建的 `lyx_test_infra_…`）没有会话标识，查不了锁，别的会话正用着也照删，那边的用例会红。共享实例上用 `--all` 之前，先确认没有别的会话在跑测试。
 - 缺省切到应用角色是为了让用例看到与线上一样的权限，不是隔离手段：登录的仍是 `DATABASE_URL` 的账号，用例里发一句 `SET ROLE NONE`（或 `SET ROLE <那个账号>`）就换回去了；`RESET ROLE` 换不回去，它回到的是连接时定下的角色。要属主身份就明写 `role: null`，不要在用例里自己切（2026-10-05 本机实测，PostgreSQL 17.11）。这个缺省还要 `DATABASE_URL` 的账号切得过去：切不过去时（既不是超级用户、也不是 `lyx_app` 的成员），缺省的连接一连就报错。连库的用例只在本地与 CI 跑，那里的管理账号是超级用户。
+
+## 10. 测试装配
+
+```ts
+import { assembleForTest } from "@liyoxi/services/testing";
+
+const assembly = assembleForTest({ entry: "worker", extra: [sampleRegistration] }); // appEnv 缺省 test
+```
+
+真实模块的登记之外，再追加用例自己的样例登记（W0-07b）；查重名与缺实现的口径与生产装配相同。样例的名字用 `lyxtest` 前缀（模块名 `lyxtest_…`，订阅者、kind、事件 `lyxtest.…`），不进契约的正式登记。要看预发专用的登记项写 `appEnv: "stg"`；只装样例写 `isolated: true`。登记怎么写见 [../kernel/assembly/README.md](../kernel/assembly/README.md)。
