@@ -35,7 +35,9 @@
     "db:validate": "pnpm --filter @liyoxi/db validate",
     "db:deploy": "pnpm --filter @liyoxi/db migrate:deploy",
     "db:catalog-diff": "node infra/ci/db-catalog-diff.mjs",
-    "db:verify-managed": "node infra/ci/db-verify-managed.mjs"
+    "db:verify-managed": "node infra/ci/db-verify-managed.mjs",
+    "db:verify-grants": "node infra/ci/db-verify-grants.mjs",
+    "postdb:verify-managed": "node infra/ci/db-verify-grants.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.3",
