@@ -1,0 +1,21 @@
+# 草稿冻结守卫的登记值（W0-06b）：docs/data-model/schema.prisma 与 constraints/ 下每个文件的 sha256。
+# 表结构已由迁移接管，这两处是首版迁移的底稿，冻结。pnpm db:draft-freeze:check 逐个核对。
+# 本文件按 frozen 登记：改任何一行都是放松类改动，走单独的 gate-change PR，由业主确认。
+# 写法与 shasum -a 256 的输出相同：<sha256>、两个空格、路径。
+4c0bc66c0584496b7270dce498675262deda54ef0863352b14eb65d740b3d2f6  docs/data-model/schema.prisma
+a4b547afb5c4a8623daae812fd0ac2c94caa6846c73423cc09017b27b146d045  docs/data-model/constraints/00-common.sql
+1cc92c14077eba424d5b802bc8fa79e9fc8343bfa10029866eb778d99a102c3e  docs/data-model/constraints/01-kernel-flow.sql
+7af94ee05960a2bb1846c9128ee4995bf4ab3c8fe2065906ccd4959013017d45  docs/data-model/constraints/02-identity-tenant.sql
+219a4a238b4be5058910ecf19de41ad9cc009598c4d757667eae689319a750c4  docs/data-model/constraints/03-staff-authz-audit.sql
+37b81357da3d01f02fd4fdecc1c14b5aaf6c7e31c051c0c9d65db5241f65d41f  docs/data-model/constraints/04-profile.sql
+2be99e5b861f68e9e3671b3b7e2dc68cd637c1108318dbb5aae3e456249643e4  docs/data-model/constraints/05-content.sql
+4c9c47cfd273bae84f14af14272d197258e74b6e6632991d07455407b74b2dfd  docs/data-model/constraints/06-media.sql
+28a249d900faad4a792a3270dd04314ad05930284b4181f645c2b19cbde3dd93  docs/data-model/constraints/07-billing-ledger.sql
+06d66bb22215e425338c3bf1860f35501d0ab3bb828b7b4ae4609a693ea44a78  docs/data-model/constraints/08-billing-payment.sql
+4ac91cd3f10b9715aa394069e93eee71d84132c8baaff8a93cfe41b188040c1c  docs/data-model/constraints/09-order-ad.sql
+61c2c676b2c47bbaab4f34993bcbf3ee87a5852a7877e0c299d804f53da150c5  docs/data-model/constraints/10-delivery.sql
+963b4cd6e241d3bdb7b427c09ceca7bb3750bf46842e710855363aacb86946b4  docs/data-model/constraints/11-publish.sql
+12f6ea987b67e89d10fb15d307d0f639f3bad93284143285927d77ff61b47aab  docs/data-model/constraints/12-support.sql
+ba31939e6a4b571f0a1fdaa7f0b92c8bbb99906a4e7bc403494fe8e88315ae98  docs/data-model/constraints/13-notify-docs.sql
+0e28a1f6c32d442f6650116b164fe1038ef5a92ba1cfec14eaa9e9a201343057  docs/data-model/constraints/14-config-data.sql
+54555ede621ae6c490c6e9d82dceec71e7695a42f1e88be1978d8c3bd29a1ccd  docs/data-model/constraints/15-integration-ops.sql
