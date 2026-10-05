@@ -28,5 +28,5 @@ python3 tools/schema-check/check.py --from-draft                  # 旧流程：
 ## 说明
 
 - 结构以迁移为准：改表结构是写新迁移（`packages/db/README.md` 第 4 节），同一个 PR 改分组文档，再用本工具核对；不回头改草稿。
-- 这里只比字段表（列名、类型、可空）。约束、索引、触发器、函数由结构快照把关（`pnpm db:snapshot:check`、`pnpm db:constraints:check`，见 [infra/ci/README.md](../../infra/ci/README.md) 第 7 节）。
+- 这里只比字段表（列名、类型、可空）。约束、索引、触发器、函数由结构快照把关（`pnpm db:snapshot:check`、`pnpm db:constraints:check`，见 [infra/ci/README.md](../../infra/ci/README.md) 第 8 节）。
 - 手写约束当初只用 PostgreSQL 14 也支持的语法；目标库与 CI 都是 17。
