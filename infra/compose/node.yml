@@ -1,0 +1,381 @@
+# 狸有戏 · 预发节点的六个容器（ADR-041“决定”第 4.1–4.6 节；D7 第 7.4、7.5 节；W2-25）。
+#
+# 不要直接 docker compose up：变量、密钥检查与先后顺序都由 infra/deploy/node-step.sh 管（节点上再由 systemd 管生命周期）。
+# 本机照原样演练：pnpm stg:rehearse。首次起环境的步骤见 infra/bootstrap/README.md。
+# 变量从三份文件来（--env-file，只做变量替换，不是容器的 env_file）：infra/compose/env/stg.env（入库的非敏感配置）、
+#   节点上的 node.env（镜像仓库前缀）与 release.env（现在跑哪个版本）；路径类的由 node-step.sh 导出（LYX_SRC、LYX_SECRETS_DIR）。
+# 密钥：逐项一个文件，用 Compose 的 file 型 secrets 只读挂到 /run/secrets/<文件名>，按容器分挂；环境变量里只有 *_FILE 路径。
+#   不用 env_file，也不把值写进 environment：那样 docker inspect 读得到。清单与挂给谁写在 infra/deploy/secrets.manifest.json，
+#   这里的挂载要与它逐项一致（infra/ci/test/stg-node.test.ts 核对）。迁移账号的连接串只挂给一次性的 migrate、verify-db。
+# 端口：只有 gateway 发布，且只绑宿主机回环地址；库与 Redis 不发布。网络是固定网段：gateway 只信网桥地址带来的转发头。
+# 重启策略一律 no：进程退出由 systemd 拉起（infra/deploy/systemd/）。日志 json-file 带轮转。
+# 内存上限是 ADR-041 第 4.2 节的起始值，没有实测；按实测调时改这里，并同步那张表。
+# 内存见底时先杀谁：mediatool 的 oom_score_adj 最高，库的最低。
+# 服务之间按服务名连（postgres、redis、api），不按容器名：容器名带前缀 ${LYX_NODE_PREFIX}（节点上是 lyx，演练时换一个）。
+name: liyoxi-node
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 20m
+    max-file: "5"
+
+services:
+  # 主版本与 server 镜像里的 pg_dump 对齐；镜像与 infra/compose/local.yml 同一个（stg.env）。
+  # 以镜像自带的 postgres 用户（999）起，不经 root：超级用户的口令文件属主也是它。
+  # 只建出实例；库 liyoxi、三个登录账号、两个扩展由 infra/bootstrap/db-init.sh 建。
+  postgres:
+    image: ${LYX_PG_IMAGE:?}
+    container_name: ${LYX_NODE_PREFIX:-lyx}-postgres
+    command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=60"]
+    user: "999:999"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m
+      - /var/run/postgresql:size=1m
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres-password
+    secrets:
+      - postgres-password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -q -U postgres -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    mem_limit: 256m
+    oom_score_adj: -500
+    stop_grace_period: 60s
+    restart: "no"
+    logging: *logging
+
+  # 队列、限流、缓存同用。写满即报错而不是淘汰；开 AOF；清空后由 PostgreSQL 自愈。口令在只挂给它的那一个文件里。
+  redis:
+    image: ${LYX_REDIS_IMAGE:?}
+    container_name: ${LYX_NODE_PREFIX:-lyx}-redis
+    command:
+      - redis-server
+      - --include
+      - /run/secrets/redis-auth.conf
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - 64mb
+      - --maxmemory-policy
+      - noeviction
+    user: "999:1000"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    secrets:
+      - redis-auth.conf
+    volumes:
+      - redisdata:/data
+    # 起来了就算健康：没带口令时回 NOAUTH，也是活的
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping 2>&1 | grep -Eq 'PONG|NOAUTH'"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    mem_limit: 96m
+    restart: "no"
+    logging: *logging
+
+  # 约束照抄 infra/docker/mediatool/compose.verify.yml（README 第 3 节），一条不少；不带环境变量，不挂任何密钥。
+  # 与它不同的只有内存：这台机器给不出 1GB，上限 256MB，超出的靠交换区，内存加交换合计 1GB（ADR-041 第 4.2 节）。
+  mediatool:
+    image: ${LYX_IMAGE_PREFIX:-}liyoxi/mediatool:${LYX_TAG:?}
+    container_name: ${LYX_NODE_PREFIX:-lyx}-mediatool
+    network_mode: none
+    read_only: true
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 256m
+    memswap_limit: 1g
+    cpus: 1
+    tmpfs:
+      - /tmp:size=64m
+    volumes:
+      - work:/work
+    oom_score_adj: 500
+    restart: "no"
+    logging: *logging
+
+  api:
+    image: ${LYX_IMAGE_PREFIX:-}liyoxi/server:${LYX_TAG:?}
+    container_name: ${LYX_NODE_PREFIX:-lyx}-api
+    # 可信代理只有本网络里的 gateway 一跳
+    command:
+      - node
+      - apps/api/dist/server.js
+      - --port
+      - "3000"
+      - --trusted-proxy-cidrs
+      - ${LYX_NODE_SUBNET:?}
+    init: true
+    read_only: true
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m
+    environment:
+      APP_ENV: stg
+      LOG_LEVEL: ${LYX_LOG_LEVEL:-info}
+      DATABASE_URL_FILE: /run/secrets/database-url
+      REDIS_URL_FILE: /run/secrets/redis-url
+      DATA_KEYS_FILE: /run/secrets/data-keys.json
+      BIDX_KEYS_FILE: /run/secrets/bidx-keys.json
+      AUTH_KEYS_FILE: /run/secrets/auth-keys.json
+    secrets:
+      - database-url
+      - redis-url
+      - data-keys.json
+      - bidx-keys.json
+      - auth-keys.json
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # 只给 docker ps 看；进程不健康时自己退出，由 systemd 拉起（D7 第 7.4 节）
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - 'fetch("http://127.0.0.1:3000/readyz").then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))'
+      interval: 5s
+      timeout: 5s
+      retries: 40
+    mem_limit: 320m
+    stop_grace_period: 60s
+    restart: "no"
+    logging: *logging
+
+  # 一个实例，没有热备；数据库租约照用。对象存储的 worker 密钥接进来时只挂给它。
+  worker:
+    image: ${LYX_IMAGE_PREFIX:-}liyoxi/server:${LYX_TAG:?}
+    container_name: ${LYX_NODE_PREFIX:-lyx}-worker
+    command: ["node", "apps/worker/dist/index.js"]
+    init: true
+    read_only: true
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m
+    environment:
+      APP_ENV: stg
+      LOG_LEVEL: ${LYX_LOG_LEVEL:-info}
+      DATABASE_URL_FILE: /run/secrets/database-url
+      REDIS_URL_FILE: /run/secrets/redis-url
+      DATA_KEYS_FILE: /run/secrets/data-keys.json
+      BIDX_KEYS_FILE: /run/secrets/bidx-keys.json
+    secrets:
+      - database-url
+      - redis-url
+      - data-keys.json
+      - bidx-keys.json
+    volumes:
+      - work:/work
+    # mediatool 先起：命名卷第一次挂载时沿用它镜像里 /work 的属主；套接字也由它建
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mediatool:
+        condition: service_healthy
+    mem_limit: 320m
+    stop_grace_period: 60s
+    restart: "no"
+    logging: *logging
+
+  # 听 8080，按域名隔离接口面。前面是宿主机 nginx（终止 TLS、覆盖写 X-Forwarded-For）：只信网桥地址带来的转发头。
+  gateway:
+    image: ${LYX_IMAGE_PREFIX:-}liyoxi/gateway:${LYX_TAG:?}
+    container_name: ${LYX_NODE_PREFIX:-lyx}-gateway
+    read_only: true
+    user: "101:101"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m
+    environment:
+      API_HOST: ${LYX_API_HOST:?}
+      ADMIN_HOST: ${LYX_ADMIN_HOST:?}
+      PORTAL_HOST: ${LYX_PORTAL_HOST:?}
+      API_UPSTREAM: api:3000
+      TRUSTED_PROXY_CIDRS: ${LYX_TRUSTED_PROXY_CIDRS:?}
+      MEDIA_ORIGINS: ${LYX_MEDIA_ORIGINS:-}
+    ports:
+      - "127.0.0.1:${LYX_GATEWAY_PORT:-8080}:8080"
+    mem_limit: 64m
+    restart: "no"
+    logging: *logging
+
+  # ---- 下面四个是一次性容器，由节点步骤经 docker compose run --rm 起，跑完即走 ----
+
+  # 环境变量自检：用要上的那个镜像、api 的那一组变量与密钥文件跑一遍 loadEnv。不连库，不接网络。
+  check-env:
+    image: ${LYX_IMAGE_PREFIX:-}liyoxi/server:${LYX_TAG:?}
+    profiles:
+      - tools
+    command: ["node", "apps/api/dist/check-env.js"]
+    network_mode: none
+    init: true
+    read_only: true
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m
+    environment:
+      APP_ENV: stg
+      LOG_LEVEL: ${LYX_LOG_LEVEL:-info}
+      DATABASE_URL_FILE: /run/secrets/database-url
+      REDIS_URL_FILE: /run/secrets/redis-url
+      DATA_KEYS_FILE: /run/secrets/data-keys.json
+      BIDX_KEYS_FILE: /run/secrets/bidx-keys.json
+      AUTH_KEYS_FILE: /run/secrets/auth-keys.json
+    secrets:
+      - database-url
+      - redis-url
+      - data-keys.json
+      - bidx-keys.json
+      - auth-keys.json
+    mem_limit: 256m
+    logging: *logging
+
+  # 迁移：只有它与 verify-db 拿得到迁移账号的连接串。prisma 只认环境变量 DATABASE_URL：
+  # 在容器里的 shell 进程中从文件读出来再交给它，值不进容器配置（docker inspect 看不到），也不进命令行参数。
+  migrate:
+    image: ${LYX_IMAGE_PREFIX:-}liyoxi/server:${LYX_TAG:?}
+    profiles:
+      - tools
+    working_dir: /app/packages/db
+    command:
+      - sh
+      - -c
+      - 'DATABASE_URL="$$(cat /run/secrets/migrator-database-url)" exec prisma migrate deploy'
+    init: true
+    read_only: true
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m
+    secrets:
+      - migrator-database-url
+    mem_limit: 384m
+    logging: *logging
+
+  # 播种：紧跟迁移，每次发布都跑。没有才插、已有的行不改，播完跑六条配置类断言（有违规即非 0）。
+  # 连库用应用登录账号，不给迁移账号的连接串。
+  seed:
+    image: ${LYX_IMAGE_PREFIX:-}liyoxi/server:${LYX_TAG:?}
+    profiles:
+      - tools
+    command: ["node", "apps/worker/dist/seed.js"]
+    init: true
+    read_only: true
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m
+    environment:
+      APP_ENV: stg
+      LOG_LEVEL: ${LYX_LOG_LEVEL:-info}
+      DATABASE_URL_FILE: /run/secrets/database-url
+      REDIS_URL_FILE: /run/secrets/redis-url
+    secrets:
+      - database-url
+      - redis-url
+    mem_limit: 384m
+    logging: *logging
+
+  # 库的核对（只读，另有一处插完即回滚的写入）：库名、扩展、应用连库用的是不是登录账号，再跑镜像里的角色与授权核对。
+  verify-db:
+    image: ${LYX_IMAGE_PREFIX:-}liyoxi/server:${LYX_TAG:?}
+    profiles:
+      - tools
+    command: ["node", "/app/infra/deploy/verify-db.mjs"]
+    init: true
+    read_only: true
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m
+    environment:
+      LYX_DB_NAME: ${LYX_DB_NAME:?}
+      DATABASE_URL_FILE: /run/secrets/database-url
+    secrets:
+      - migrator-database-url
+      - database-url
+    volumes:
+      - ${LYX_SRC:?}/infra/deploy/verify-db.mjs:/app/infra/deploy/verify-db.mjs:ro
+    mem_limit: 256m
+    logging: *logging
+
+secrets:
+  postgres-password:
+    file: ${LYX_SECRETS_DIR:?}/postgres-password
+  migrator-database-url:
+    file: ${LYX_SECRETS_DIR:?}/migrator-database-url
+  database-url:
+    file: ${LYX_SECRETS_DIR:?}/database-url
+  redis-auth.conf:
+    file: ${LYX_SECRETS_DIR:?}/redis-auth.conf
+  redis-url:
+    file: ${LYX_SECRETS_DIR:?}/redis-url
+  data-keys.json:
+    file: ${LYX_SECRETS_DIR:?}/data-keys.json
+  bidx-keys.json:
+    file: ${LYX_SECRETS_DIR:?}/bidx-keys.json
+  auth-keys.json:
+    file: ${LYX_SECRETS_DIR:?}/auth-keys.json
+
+networks:
+  # 固定网段：重建网络后宿主机 nginx 进 gateway 的来源地址不变（ADR-041 第 4.3 节）
+  default:
+    name: ${LYX_NODE_PREFIX:-lyx}-node
+    ipam:
+      config:
+        - subnet: ${LYX_NODE_SUBNET:?}
+
+volumes:
+  pgdata:
+    name: ${LYX_NODE_PREFIX:-lyx}-node-pgdata
+  redisdata:
+    name: ${LYX_NODE_PREFIX:-lyx}-node-redisdata
+  # mediatool 与 worker 共享的目录
+  work:
+    name: ${LYX_NODE_PREFIX:-lyx}-node-work
