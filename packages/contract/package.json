@@ -21,6 +21,14 @@
       "types": "./src/registry/index.ts",
       "default": "./src/registry/index.ts"
     },
+    "./config/flags": {
+      "types": "./src/config/flags.ts",
+      "default": "./src/config/flags.ts"
+    },
+    "./config/params": {
+      "types": "./src/config/params.ts",
+      "default": "./src/config/params.ts"
+    },
     "./types/merchant": {
       "types": "./generated/merchant.d.ts"
     },

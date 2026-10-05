@@ -18,7 +18,8 @@
  *   - 只涉及一个 text 列、看着像取值集合却不是上面四种写法的，按差异报出来：宁可多报，不让它漏过去。
  *   - 不是 text 的取值集合（如整数角度）不算枚举，只列出。
  *   - 分区子表上继承来的约束不重复看；_prisma_migrations 不看。
- *   - 另核对名字写法的 CHECK 正则：契约里登记的写法（src/registry/formats.ts 的 NAME_FORMATS）与库里的逐字相同。
+ *   - 另核对名字写法的 CHECK 正则：契约里登记的写法（src/registry/formats.ts 的 NAME_FORMATS，以及
+ *     src/config 的开关键、参数键两种）与库里的逐字相同，长度上限也相同。
  *     它不是枚举，放在这里是因为同样要读库里的 CHECK；pnpm registry:check 靠这些正则校验登记的名字。
  * 退出码：0 通过；1 有差异；2 用法或环境错误（连不上库、库没跑过迁移、psql 不在）。
  */
@@ -26,14 +27,20 @@ import { spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { FLAG_KEY_FORMAT } from "../src/config/flags.js";
+import { PARAM_KEY_FORMAT } from "../src/config/params.js";
 import { ENUMS, type EnumDef } from "../src/enums/index.js";
 import { NAME_FORMATS, type NameFormat } from "../src/registry/index.js";
 
 const DEFAULT_DB = "lyx_migrate_check";
 const DB_NAME = /^lyx_[a-z0-9_]{1,58}$/;
 
-/** 要与库逐字比对的写法 */
-export const CHECKED_FORMATS: readonly NameFormat[] = Object.values(NAME_FORMATS);
+/** 要与库逐字比对的写法：内核的五种名字，加上开关键与参数键 */
+export const CHECKED_FORMATS: readonly NameFormat[] = [
+  ...Object.values(NAME_FORMATS),
+  FLAG_KEY_FORMAT,
+  PARAM_KEY_FORMAT,
+];
 
 /** 库里的一条 CHECK */
 export interface DbCheck {

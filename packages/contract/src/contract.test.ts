@@ -656,6 +656,8 @@ describe("验收 6：纯常量子路径不带 Zod", () => {
       "./errors",
       "./enums",
       "./registry",
+      "./config/flags",
+      "./config/params",
       "./types/merchant",
       "./types/admin",
       "./types/portal",
