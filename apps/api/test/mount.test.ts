@@ -27,7 +27,8 @@ const TIMEOUT = { timeout: 60_000 };
 const auth = fakeAuth({
   actor: { type: "merchant", id: uuidv7(), client: "weapp", role: "owner" },
 });
-const without = (slot: string) => ROUTE_MIDDLEWARES.filter((entry) => entry.slot !== slot);
+const without = (...slots: string[]) =>
+  ROUTE_MIDDLEWARES.filter((entry) => !slots.includes(entry.slot));
 const NO_RATE_LIMIT =
   "声明了 x-rate-limit（档位按 operationId 登记，约定 C68），装配里没有中间件 rateLimit";
 
@@ -38,10 +39,17 @@ async function issuesOf(options: TestApiOptions): Promise<readonly string[]> {
 }
 
 describe("漏挂中间件，建应用即失败", () => {
+  // W1-04 起生产的装配里有商家鉴权链：要验“漏挂”，从登记表里摘掉那一件
   it("要登录的路由没有鉴权中间件", TIMEOUT, async () => {
-    expect(await issuesOf({ handlers: [thingUpdateHandler] })).toEqual([
+    expect(await issuesOf({ handlers: [thingUpdateHandler], pipeline: without("auth") })).toEqual([
       "m.lyxtestThing.update：声明了 x-auth（optional、user、member、staff、portal），装配里没有中间件 auth",
     ]);
+  });
+
+  it("要门店上下文的路由没有成员关系中间件", TIMEOUT, async () => {
+    expect(
+      await issuesOf({ handlers: [thingUpdateHandler], pipeline: without("membership") }),
+    ).toEqual(["m.lyxtestThing.update：声明了 x-auth: member，装配里没有中间件 membership"]);
   });
 
   it("回调没有验签中间件", TIMEOUT, async () => {
@@ -51,7 +59,9 @@ describe("漏挂中间件，建应用即失败", () => {
   });
 
   it("声明了能力点而没有鉴权与授权中间件", TIMEOUT, async () => {
-    expect(await issuesOf({ handlers: [capabilityHandler] })).toEqual([
+    expect(
+      await issuesOf({ handlers: [capabilityHandler], pipeline: without("auth", "authz") }),
+    ).toEqual([
       "m.lyxtestThing.guarded：声明了 x-auth（optional、user、member、staff、portal），装配里没有中间件 auth",
       "m.lyxtestThing.guarded：声明了 x-capability / x-permission，装配里没有中间件 authz",
     ]);
@@ -136,8 +146,16 @@ describe("挂齐了就起得来", () => {
       handlers: [thingUpdateHandler, hookReceiveHandler, capabilityHandler, rateLimitedHandler],
       middlewares: [auth, stubMiddleware("signature"), stubMiddleware("authz")],
     });
+    // 顶替了鉴权，成员关系由支架补一个空转的占位（testing/index.ts）
     for (const route of api.mounted) {
-      expect(route.middlewares).toEqual(["auth", "signature", "authz", "rateLimit", "idempotency"]);
+      expect(route.middlewares).toEqual([
+        "auth",
+        "signature",
+        "membership",
+        "authz",
+        "rateLimit",
+        "idempotency",
+      ]);
     }
     expect((await request("/api/v1/m/lyxtest-things/guarded")).status).toBe(200);
     expect((await request("/api/v1/m/lyxtest-things/limited")).status).toBe(200);

@@ -14,7 +14,11 @@
 import type { RouteGroup } from "@liyoxi/contract";
 
 import { idempotency } from "../http/idempotency.js";
+import { merchantAuth } from "../http/merchant-auth.js";
+import { merchantConsent } from "../http/merchant-consent.js";
+import { merchantCapability, merchantMembership } from "../http/merchant-membership.js";
 import { rateLimit } from "../http/rate-limit.js";
+import { versionGate } from "../http/version-gate.js";
 
 import type { RouteMiddlewareFactory } from "./types.js";
 
@@ -64,4 +68,10 @@ export interface PipelineEntry {
 export const ROUTE_MIDDLEWARES: readonly PipelineEntry[] = [
   { slot: "rateLimit", factory: rateLimit() },
   { slot: "idempotency", factory: idempotency },
+  // W1-04 商家鉴权链：版本门槛、会话、成员关系、协议同意、能力点。先后看槽位，不看这几行的次序
+  { slot: "versionGate", groups: ["m"], factory: versionGate },
+  { slot: "auth", groups: ["m"], factory: merchantAuth },
+  { slot: "membership", groups: ["m"], factory: merchantMembership },
+  { slot: "consent", groups: ["m"], factory: merchantConsent },
+  { slot: "authz", groups: ["m"], factory: merchantCapability },
 ];

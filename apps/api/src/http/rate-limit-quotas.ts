@@ -97,3 +97,9 @@ export const RATE_LIMIT_QUOTAS: RateLimitQuotas = {
   // 约定只写“高上限保护、额度为部署配置”，没给数：先取每来源 IP 1200 次 / 分
   "hooks.ip": [{ by: "ip", limit: 1_200, windowSec: MINUTE }],
 };
+
+/**
+ * 手机号登录的“每 openid 5 次 / 小时”（约定 C68；W1-04）：不是中间件里的规则。那条路由是公开的，openid 要换出来才知道，
+ * 由登录的处理器在 code2Session 之后调限流器计数（routes/sessions.ts），计数键里放的是 openid 的 HMAC。
+ */
+export const PHONE_LOGIN_OPENID_QUOTA = { limit: 5, windowSec: HOUR } as const;

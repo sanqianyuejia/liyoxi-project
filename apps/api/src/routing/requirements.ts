@@ -71,6 +71,12 @@ export const MIDDLEWARE_REQUIREMENTS: readonly MiddlewareRequirement[] = [
     declared: "x-three-phase（约定 C51）",
     when: isThreePhaseRoute,
   },
+  {
+    // W1-04：商家端要门店上下文的路由，没有成员关系中间件就没有人查 X-Store-Id
+    slot: "membership",
+    declared: "x-auth: member",
+    when: (route) => route["x-auth"] === "member",
+  },
 ];
 
 /** 一条路由按声明必须挂的中间件 */

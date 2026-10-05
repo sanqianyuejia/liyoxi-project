@@ -15,15 +15,27 @@
 //   要验限流就传 rateLimitQuotas 换成小额度，request 的 peer 可以换来源。
 // - 用例里以字符串字面量写出被测接口的 operationId：“已落地”的判定按它认“有接口层测试”。
 // 只给测试用，不进构建产物。
-import { createLogger, createIdentityContext, createRuntime, loadEnv } from "@liyoxi/services";
+import {
+  createLogger,
+  createIdentityContext,
+  createRuntime,
+  loadEnv,
+  security,
+} from "@liyoxi/services";
 import type { IdentityContextInput, Runtime } from "@liyoxi/services";
 import {
   assertTestDatabaseUrl,
   createClock,
+  createProviderHarness,
   useTestDatabase,
   useTestRedis,
 } from "@liyoxi/services/testing";
-import type { AdjustableClock, TestDatabase, TestRedis } from "@liyoxi/services/testing";
+import type {
+  AdjustableClock,
+  FakeWechat,
+  TestDatabase,
+  TestRedis,
+} from "@liyoxi/services/testing";
 import { afterAll } from "vitest";
 
 import { createApp } from "../app.js";
@@ -31,6 +43,7 @@ import type { Api } from "../app.js";
 import type { HandlerEntry } from "../routing/define.js";
 import { rateLimit } from "../http/rate-limit.js";
 import type { RateLimitOptions } from "../http/rate-limit.js";
+import { provideMerchantDeps } from "../merchant/services.js";
 import { ROUTE_MIDDLEWARES } from "../routing/pipeline.js";
 import type { PipelineEntry, PipelineSlot } from "../routing/pipeline.js";
 import { HANDLERS } from "../routes/index.js";
@@ -65,8 +78,18 @@ export interface TestApi {
   readonly logs: Record<string, unknown>[];
   /** 这个应用缺省的来源 IP */
   readonly peer: string;
+  /** 假微信：商家端登录走它（预置 code 对应的会话与手机号；带“事务内不外呼”的钩子） */
+  readonly wechat: FakeWechat;
   request(path: string, init?: TestRequestInit): Promise<Response>;
 }
+
+/** 接口用例里商家端登录用的 appid 与密钥环：固定字节现造，不读任何文件，不是任何环境在用的密钥 */
+export const TEST_WEAPP_APPID = "wxlyxtestapi00001";
+const testKey = (fill: number): Buffer => Buffer.alloc(32, fill);
+export const TEST_API_KEYRING = security.createKeyring({
+  data: { current: "api", keys: { api: testKey(0x71) } },
+  bidx: { phone: testKey(0x72), uscc: testKey(0x73) },
+});
 
 export interface TestApiHandle {
   readonly db: TestDatabase;
@@ -118,6 +141,13 @@ export function useTestApi(): TestApiHandle {
         }),
       });
       runtimes.push(runtime);
+      // 商家端的登录：假微信与测试密钥环（要在建应用之前给，鉴权链的中间件建应用时就取服务）
+      const { wechat } = createProviderHarness({ clock }).providers;
+      provideMerchantDeps(runtime, {
+        keyring: TEST_API_KEYRING,
+        wechat,
+        appid: TEST_WEAPP_APPID,
+      });
       const api = createApp({
         runtime,
         handlers: options.handlers ?? HANDLERS,
@@ -131,6 +161,7 @@ export function useTestApi(): TestApiHandle {
         clock,
         logs,
         peer: ownPeer,
+        wechat,
         async request(path, init = {}) {
           const { json, headers = {}, peer = ownPeer, ...rest } = init;
           return api.app.request(
@@ -149,6 +180,17 @@ export function useTestApi(): TestApiHandle {
   };
 }
 
+/**
+ * 生产的鉴权链里要真实会话才走得通的几件（W1-04 起有商家的）：用例顶替了鉴权（fakeAuth）就一并拿掉，
+ * 假身份没有会话行、也不带 X-Store-Id。要验它们本身，走真实登录（testing/merchant.ts 的 signInAsMerchant）。
+ */
+const SESSION_BOUND_SLOTS: readonly PipelineSlot[] = [
+  "versionGate",
+  "membership",
+  "consent",
+  "authz",
+];
+
 /** 生产的登记表，套上用例给的顶替件与额度表 */
 function withOverrides(options: TestApiOptions): PipelineEntry[] {
   const given = [
@@ -158,6 +200,11 @@ function withOverrides(options: TestApiOptions): PipelineEntry[] {
     ...(options.middlewares ?? []),
   ];
   const replaced = new Set(given.map((entry) => entry.slot));
+  if (replaced.has("auth")) {
+    // 成员关系是 member 路由按声明必须有的一件：用例没给就补一个空转的占位
+    if (!replaced.has("membership")) given.push(stubMiddleware("membership"));
+    for (const slot of SESSION_BOUND_SLOTS) replaced.add(slot);
+  }
   return [...ROUTE_MIDDLEWARES.filter((entry) => !replaced.has(entry.slot)), ...given];
 }
 

@@ -3,8 +3,11 @@
 import type { HandlerEntry } from "../routing/define.js";
 
 import { agreementHandlers } from "./agreements.js";
+import { sessionHandlers } from "./sessions.js";
 
 export const HANDLERS: readonly HandlerEntry[] = [
   // W1-03：协议清单与版本正文（两条公开路由）
   ...agreementHandlers,
+  // W1-04：静默登录、手机号登录、退出、当前账号
+  ...sessionHandlers,
 ];
