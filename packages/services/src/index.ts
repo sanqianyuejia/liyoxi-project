@@ -39,3 +39,12 @@ export type {
 } from "./kernel/index.js";
 // W0-22 探活的响应结构（h01 第 2.5 节）
 export type { FinanceHealth, FlowHealth, Health, HealthSummary } from "./ops/index.js";
+// W0-22b 限流器：进程运行时建好经 runtime.rateLimiter 给出；类型给 api 的限流中间件用
+export { createRateLimiter, degradedLimit } from "./rate-limit.js";
+export type {
+  RateLimitCheck,
+  RateLimitDecision,
+  RateLimiter,
+  RateLimiterOptions,
+  RateLimitStore,
+} from "./rate-limit.js";

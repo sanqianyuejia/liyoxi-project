@@ -28,6 +28,8 @@ import { createLogger } from "./logger.js";
 import type { Logger } from "./logger.js";
 import { createHealth } from "./ops/index.js";
 import type { Health } from "./ops/index.js";
+import { createRateLimiter } from "./rate-limit.js";
+import type { RateLimiter } from "./rate-limit.js";
 
 /** 一个连接池的参数：连接数上限与三个会话超时（毫秒） */
 export interface DbPoolSettings {
@@ -88,6 +90,8 @@ export interface RuntimeOptions {
   readonly redisKeyPrefix?: string;
   /** /health 的缓存时长；用例里给 0 */
   readonly healthCacheMs?: number;
+  /** 限流等 Redis 一条命令的时限，缺省 200 毫秒；用例里放宽，免得机器忙时把慢当成断 */
+  readonly rateLimitCommandTimeoutMs?: number;
 }
 
 export interface Runtime {
@@ -101,6 +105,8 @@ export interface Runtime {
   readonly bizNo: BizNoIssuer;
   readonly config: Config;
   readonly health: Health;
+  /** 限流计数：Redis 上的固定窗口，Redis 不可用时进程内兜底、限额减半（约定 C68） */
+  readonly rateLimiter: RateLimiter;
   /** 各模块的登记汇成的装配结果 */
   readonly assembly: Assembly;
   /** 内核断言在 stg、prod 下的上报出口（local、test 下它们直接抛错）；防漏用断言也用它 */
@@ -159,6 +165,14 @@ export function createRuntime(options: RuntimeOptions): Runtime {
     version,
     ...(options.healthCacheMs === undefined ? {} : { cacheMs: options.healthCacheMs }),
   });
+  const rateLimiter = createRateLimiter({
+    store: redis,
+    clock,
+    logger,
+    ...(options.rateLimitCommandTimeoutMs === undefined
+      ? {}
+      : { commandTimeoutMs: options.rateLimitCommandTimeoutMs }),
+  });
   const assembly = assembleServices({ entry, appEnv: env.APP_ENV });
 
   const startupChecks: StartupCheck[] = [
@@ -184,6 +198,7 @@ export function createRuntime(options: RuntimeOptions): Runtime {
     bizNo: createBizNoIssuer({ clock, appEnv: env.APP_ENV }),
     config,
     health,
+    rateLimiter,
     assembly,
     report,
     startupChecks,
