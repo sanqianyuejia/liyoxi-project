@@ -23,7 +23,7 @@ await runner.run((tx) => timers.ensureRecurring(tx, clock.now()));
 
 - `kind` 与主体的表名以契约的登记为准（`@liyoxi/contract/registry` 的 `TIMERS`、`JOBS`）：不在登记里的 `arm` 直接抛错。
 - 去重键的形状是 `{kind}:{subject_type}:{id}[:后缀]`，用 `timerKey` 拼；后缀放什么照 x01 第 4.1 节。
-- 改期没有单独的接口：同键再 `arm` 一次，只改 `fire_at` 与 `payload`。目标日期变了是新键，旧键按 `keyPrefix` 取消。
+- 改期没有单独的接口：同键再 `arm` 一次，改 `fire_at` 与 `payload`。到期时间变了的，失败重试一并重来（`retry_at` 置空、`attempts` 归零：不清的话扫描仍按旧的重试时刻认领）；到期时间没变的不动重试进度。目标日期变了是新键，旧键按 `keyPrefix` 取消。
 - 同键已有未取消的行时：`scheduled` 改期；`dispatched`、`fired`、`skipped` 不动；`failed` 复活；处理器声明了 `rearmAfterSkip` 的，`skipped` 也复活。返回值的 `outcome` 说明走了哪一条。
 - `cancel` 只取消 `scheduled`、`dispatched` 的行，并跳过正在执行的这一条：执行处理器时用 `runAsCurrentTimer(timer.id, …)` 包住（W0-23 的 `runTimer` 做）。
 - `arm`、`cancel` 自己不锁业务行；`timer` 不在加锁顺序表里。

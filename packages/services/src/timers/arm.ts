@@ -5,6 +5,7 @@
 //   2. 同一语义目标只有一行未取消：靠部分唯一索引 uq_timer_dedupe_key_live。arm 先锁同键未取消的行再决定怎么办；
 //      没有就插入，插入时被并发的同键登记抢了先（ON CONFLICT DO NOTHING 影响 0 行）就回头再看一遍。
 //   3. 改期没有单独的接口：同键再 arm 一次。目标日期变了是新键，旧键由调用方按 keyPrefix 取消。
+//      改期时到期时间变了，连同失败重试一起重来（retry_at 置空、attempts 归零）；没变的不动重试进度。
 //   4. fire_at 是业务时间，由调用方按注入的时钟给；created_at、updated_at 是基础设施列，用库时间。
 import { AsyncLocalStorage } from "node:async_hooks";
 
@@ -150,8 +151,14 @@ export async function arm(tx: Tx, registry: TimerRegistry, input: ArmInput): Pro
       live.status === "skipped" && rearmAfterSkip ? "revive" : ON_SAME_KEY[live.status];
     if (action === "keep") return { id: live.id, status: live.status, outcome: "unchanged" };
     if (action === "reschedule") {
+      // 到期时间变了：之前那个时刻的失败重试不再作数，清掉 retry_at 与失败次数。不清的话扫描按
+      // COALESCE(retry_at, fire_at) 认领，仍照旧的重试时刻触发。到期时间没变（只换参数，或原样再登记一遍）不动重试进度：
+      // 否则反复同键登记会让一直失败的定时器每次都从头退避，够不到告警的次数。
       await tx.$executeRawUnsafe(
-        "UPDATE timer SET fire_at = $2::timestamptz, payload = $3::jsonb, updated_at = now() WHERE id = $1::uuid",
+        `UPDATE timer SET retry_at = CASE WHEN fire_at = $2::timestamptz THEN retry_at END,
+                attempts = CASE WHEN fire_at = $2::timestamptz THEN attempts ELSE 0 END,
+                fire_at = $2::timestamptz, payload = $3::jsonb, updated_at = now()
+          WHERE id = $1::uuid`,
         live.id,
         fireAt,
         payload,
