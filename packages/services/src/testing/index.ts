@@ -45,3 +45,5 @@ export * from "./approval.js";
 
 // W1-10：账本用例的夹具——一步建好账本、造周期与发放计划、加购入账、账本现状的可比快照
 export * from "./billing.js";
+// W1-11a：履约用例的夹具——账本夹具加履约、已支付未履约的套餐付款单
+export * from "./billing-fulfill.js";
