@@ -18,3 +18,6 @@ export * from "./ports.js";
 
 // W0-17：工作日历的样例数据
 export * from "./calendar.js";
+
+// W0-17：定时器的样例 kind、带样例的名字来源与样例登记
+export * from "./timers.js";

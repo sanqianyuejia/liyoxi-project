@@ -55,3 +55,7 @@ export type {
   TimerHandlerRegistration,
   TimerOutcome,
 } from "./types.js";
+
+// W0-17：周期任务的节奏、模式、漏跑级别（定时器处理器与周期任务两类登记项的可选字段）
+export { MISS_SEVERITIES, RECURRING_MODES } from "./types.js";
+export type { MissSeverity, RecurringMode, RecurringSchedule } from "./types.js";
