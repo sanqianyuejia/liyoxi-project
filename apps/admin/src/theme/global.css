@@ -24,13 +24,23 @@ body {
   color: var(--lyx-color-text-primary);
   background: var(--lyx-color-bg-page);
   -webkit-font-smoothing: antialiased;
+  /*
+   * 所有数字（金额、积分、数量、时间）等宽，纵向对得齐（规范 第 2.4 节）。加在 body 上，全站继承：
+   * 菜单角标、状态标签、队列项的时间、信息列表的值、页头副标题里的日期都不用各自再写，页面里新出现的数字也漏不掉。
+   * Ant Design 的组件一般不重置这个属性，弹窗、抽屉、通知挂在 body 下面，同样继承得到。
+   */
+  font-variant-numeric: tabular-nums;
 }
 
-/* 所有数字纵向对齐（规范 第 2.4 节） */
+/*
+ * 被别处重置掉的地方在这里接回来：下拉的浮层（antd 把它的 font-variant 设回了初始值，“10 条、20 条、50 条”这类选项会对不齐）。
+ * 前面加 :root 是为了不靠样式表的先后顺序压过 antd 自己的规则。.lyx-num 留着，个别地方要单独标数字时用。
+ */
 .lyx-num,
 .lyx-table,
 .lyx-pager,
-.lyx-tabs__count {
+.lyx-tabs__count,
+:root .ant-select-dropdown {
   font-variant-numeric: tabular-nums;
 }
 
