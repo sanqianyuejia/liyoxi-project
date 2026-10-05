@@ -1031,10 +1031,18 @@ a.lyx-link--danger:hover {
   overflow-wrap: anywhere;
 }
 
+/*
+ * 面板里的标题分两级（规范 第 2.3、13 节）：h2 是卡片这一级的标题（页签面板里的“基础信息”一类），15px；
+ * h3 是卡片内的分区标题（工作台详情卡里的“核对清单”一类），14px。两级用同一个类，按标题的级别取字号。
+ */
 .lyx-section-title {
   margin: 0 0 var(--lyx-space-12);
   font-size: var(--lyx-font-size-title-md);
   font-weight: var(--lyx-font-weight-semibold);
+}
+
+h3.lyx-section-title {
+  font-size: var(--lyx-font-size-title-sm);
 }
 
 /* ---------- 弹窗与右上角通知（规范 第 5.3 节“弹窗”“关闭按钮”“轻提示”；主题变量管不到的几处） ---------- */

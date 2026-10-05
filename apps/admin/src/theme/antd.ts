@@ -129,6 +129,9 @@ export const adminTheme: ThemeConfig = {
       activeShadow: shadow["focus-ring-input"],
     },
     Select: {
+      // 左右内边距 10（规范 第 5.3、5.4 节）：下拉没有 paddingInline 这个变量，它的内边距按“paddingSM 减描边宽”算，
+      // 缺省 12 − 1 = 11，这里把 paddingSM 设成 10 + 描边宽。小号（高 32）那一档按 paddingXS 算，规范没写，不动
+      paddingSM: px(sharedTokens.space[10]) + px(sharedTokens["border-width"].default),
       fontSize: BODY,
       optionFontSize: BODY,
       hoverBorderColor: color.primary,
