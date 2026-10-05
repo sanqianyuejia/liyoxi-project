@@ -2,7 +2,8 @@
 //   打开外壳 → 样例筛选表格页翻页、改筛选（URL 查询参数随之变）→ 样例审核工作台处理一条并自动跳到下一条 → 样例详情页。
 // 另断言：1366 × 768 下三个样例页没有横向滚动；请求带齐约定的请求头；二次确认勾选前不能点；
 // 规范写明数值的几处（双行数据行高 56、高 40 的按钮圆角 8、主按钮悬停加深、弹窗关闭按钮 32 × 32 且距边 24）。
-// 截图（1440 × 900）写到 dist/e2e-shots，CI 当产物上传：01–04 是验收要的外壳与三种骨架，
+// 滚得到底：筛选表格页一屏装不下时，只用鼠标滚轮滚到底，最后一行与分页条都要完整可见（规范 第 5.1 节“内容区纵向滚动”）。
+// 截图（1440 × 900）写到 dist/e2e-shots，CI 当产物上传：01–04 是验收要的外壳与三种骨架（02b 是筛选表格滚到底的样子），
 // 05–12 是顺路留的几个状态（空、出错、处理后、冲突、上传失败、二次确认、403、已处理的事项）。断言用角色与文字定位，不用样式类名。
 import { mkdirSync } from "node:fs";
 
@@ -55,6 +56,85 @@ async function expectNoHorizontalScroll(page: Page, name: string): Promise<void>
   expect(widths.content?.[0], `${name}：内容区的 scrollWidth`).toBeLessThanOrEqual(
     widths.content?.[1] ?? 0,
   );
+}
+
+interface Visibility {
+  top: number;
+  bottom: number;
+  /** 整个矩形在视口内，且上沿、下沿各往里 1px 处点得到它（没有被谁裁掉或盖住） */
+  visible: boolean;
+}
+
+/** 元素现在是不是完整可见。只读：不滚动，也不等它变得可见 */
+async function visibilityOf(target: Locator): Promise<Visibility> {
+  return target.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const hit = (y: number): boolean => {
+      const node = document.elementFromPoint(x, y);
+      return node !== null && (node === element || element.contains(node));
+    };
+    return {
+      top: Math.round(rect.top),
+      bottom: Math.round(rect.bottom),
+      visible:
+        rect.top >= 0 &&
+        rect.bottom <= window.innerHeight &&
+        hit(rect.top + 1) &&
+        hit(rect.bottom - 1),
+    };
+  });
+}
+
+/**
+ * 用鼠标滚轮把内容区滚到底，再看给出的几样东西是不是都完整可见。
+ * 只发滚轮事件：不调 scrollIntoView，也不用点击、悬停这类会先把目标滚出来的动作，那样测不出“人滚不到”
+ *（第二轮复审的阻断项：表格卡被压进可见高度，后面的行与分页条被裁掉，鼠标与键盘都滚不到，冒烟却是绿的）。
+ */
+async function expectWheelReaches(
+  page: Page,
+  name: string,
+  targets: Readonly<Record<string, Locator>>,
+): Promise<void> {
+  const content = page.getByTestId("shell-content");
+  const size = page.viewportSize() ?? MIN_VIEWPORT;
+  // 这一屏本来就装不下，下面的断言才量得出东西
+  const before = await Promise.all(Object.values(targets).map(visibilityOf));
+  expect(
+    before.some((entry) => !entry.visible),
+    `${name}：滚动之前就全看得见，量不出滚动`,
+  ).toBe(true);
+
+  await page.mouse.move(Math.round(size.width / 2), Math.round(size.height / 2));
+  let scrollTop = await content.evaluate((element) => element.scrollTop);
+  for (let round = 0; round < 40; round += 1) {
+    await page.mouse.wheel(0, 400);
+    // 等这一下滚轮生效；400 毫秒内没动就是到底了（或者根本滚不动）
+    const next = await content.evaluate(async (element, from) => {
+      const deadline = performance.now() + 400;
+      while (performance.now() < deadline && element.scrollTop === from) {
+        await new Promise((done) => requestAnimationFrame(done));
+      }
+      return element.scrollTop;
+    }, scrollTop);
+    if (next === scrollTop) break;
+    scrollTop = next;
+  }
+  for (const [label, target] of Object.entries(targets)) {
+    await expect
+      .poll(() => visibilityOf(target), {
+        message: `${name}：滚轮滚到底后，${label}要完整可见`,
+        timeout: 3_000,
+      })
+      .toMatchObject({ visible: true });
+  }
+  // 滚的是内容区（规范 第 5.1 节）：表格卡自己不滚，也没有滚出横向滚动
+  expect(scrollTop, `${name}：鼠标滚轮滚的应当是内容区`).toBeGreaterThan(0);
+  const overflow = await content.evaluate((element) => ({
+    horizontal: element.scrollWidth > element.clientWidth,
+    innerScrollers: [...element.querySelectorAll("*")].filter((node) => node.scrollTop > 0).length,
+  }));
+  expect(overflow, `${name}：滚到底之后`).toEqual({ horizontal: false, innerScrollers: 0 });
 }
 
 /** 截图一律 1440 × 900（原型的画板尺寸），截完换回最小视口 */
@@ -181,6 +261,14 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     expect([...new Set(rowHeights.slice(1))]).toEqual([56]);
     await shot(page, "02-query-table");
 
+    // 滚得到底：每页 20 条一屏装不下，鼠标滚轮滚到底后最后一行与分页条都看得全（先于下面的点击：点击会自己把按钮滚出来）
+    await expectWheelReaches(page, "筛选表格（每页 20 条）", {
+      最后一行: table.getByRole("row").last(),
+      "分页条左侧的“共 46 条”": table.getByText("共 46 条"),
+      "分页条右侧的“下一页”": table.getByRole("button", { name: "下一页" }),
+    });
+    await shot(page, "02b-query-table-scrolled-end");
+
     await table.getByRole("button", { name: "下一页" }).click();
     await expect(page).toHaveURL(/[?&]page=2(&|$)/);
     await expect(table.getByLabel("第 2 页")).toBeVisible();
@@ -220,6 +308,12 @@ test("外壳 → 筛选表格 → 审核工作台 → 详情页", async ({ page 
     await page.reload();
     await expect(table.getByText("共 23 条")).toBeVisible();
     await expect(table.getByRole("row")).toHaveCount(11);
+    // 刷新后回到顶上；每页 10 条在最小视口里同样装不下，再量一遍滚轮
+    await expectWheelReaches(page, "筛选表格（每页 10 条）", {
+      最后一行: table.getByRole("row").last(),
+      "分页条左侧的“共 23 条”": table.getByText("共 23 条"),
+      "分页条右侧的“下一页”": table.getByRole("button", { name: "下一页" }),
+    });
 
     // 重置筛选；空状态；出错重试
     await table.getByRole("button", { name: "重置筛选" }).click();
