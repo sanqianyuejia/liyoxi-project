@@ -2,7 +2,7 @@
 //   I1 有领域表的类型，每张审批单恰有一行领域行指向它；领域行不指向别的 kind；有执行步的类型，领域行状态与审批单对应。
 //   I2 审批人 ≠ 发起人；同一对象至多一张在途的同类申请。库的 CHECK 与部分唯一索引已经挡着，这里查的是被绕过的。
 //   I4 驳回原因都在字典 reject_reason 里；清单编码与版本号指向存在的清单模板版本。
-// I3（定时器）、I5（待审批超期）随决定时限在 M2。每一项至多报 500 条，按审批单 id 排。
+// I3（定时器）、I5（时限与超期）在 sla-invariants.ts。每一项至多报 500 条，按审批单 id 排。
 import type { InvariantViolation } from "../kernel/index.js";
 
 import type { ApprovalKindRegistration } from "./kinds.js";
@@ -14,7 +14,10 @@ export interface RawReader {
 
 export const APPROVAL_INVARIANT_LIMIT = 500;
 
-type Kinds = ReadonlyMap<string, Pick<ApprovalKindRegistration, "domain" | "hasExecution">>;
+type Kinds = ReadonlyMap<
+  string,
+  Pick<ApprovalKindRegistration, "domain" | "hasExecution" | "executionSla">
+>;
 
 // I1 要知道各类型的领域表，那是装配之后才有的：createApproval 把校验过的登记绑到这里。
 // 一个进程一份，后绑的顶掉先绑的；没绑时（这个进程没有装配 approval）I1 没有可查的类型

@@ -115,3 +115,5 @@ export {
 } from "./finance-config/index.js";
 export { seedPlaceholderFinanceConfig, PLACEHOLDER_FINANCE } from "./demo-seed.js";
 export type { BillingSeedDeps } from "./demo-seed.js";
+
+export { billingPiiFields } from "./pii-fields.js";

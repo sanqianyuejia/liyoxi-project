@@ -70,7 +70,7 @@ await tx.run(async (handle) => {
 ## 6. 还没接的
 
 - 两条每日校验已登记进不变量框架（`register.ts`，W0-24），随 `invariant.full` 每日跑。对象类型的启动自检只导出了函数，由 W0-22、W0-23 接（`docs/plan/tasks/README.md` 第 5 节移交表第 1 行）。
-- `audit.I1`（敏感操作与审计配对）随 M1；查询与导出、“先写 `access` 审计再给明文”随 G2-A；状态迁移补写活动流由 W0-16 调这里的 `record`。
+- `audit.I1`（敏感操作与审计配对）随 M1；查询与“先写 `access` 审计再给明文”由 W2-04 接；导出由 W2-31 拆 G7-A 接收；状态迁移补写活动流由 W0-16 调这里的 `record`。
 
 ## 7. 跑用例
 
@@ -80,3 +80,11 @@ LYX_FC_RUNS=2000 LYX_FC_SEED=42 pnpm --filter @liyoxi/services exec vitest run s
 ```
 
 三份用例都连真库，走测试支架：要本地的 PostgreSQL 与 `DATABASE_URL`（`CLAUDE.md` 第 9 节）。性质测试每一轮真的往库里写一行再读回来看。
+
+## 8. 脱敏读侧（W2-04）
+
+`createAuditRead(db)` 提供 `list(ctx, query)`、`get(ctx, auditLogId)`。ops 流需 system 查看权，access 流只对超级管理员开放，activity 流不在这两条 API 暴露；详情越权统一404。all 范围取完整获准流；own/group 只读取真实 staff 操作员在 `ctx.scope.staffIds` 内的行，无法证明归属的 merchant/system 行不扩成可见。查询 actorType/actorId 等筛选与该范围条件取交集。
+
+列表支持分类、操作人、对象、主体/门店、摘要/精确日志号及北京时间日期区间，createdAt/seq 降序游标，单页最多100行；总数近似值上限10000。详情对 before/after/meta 再跑既有敏感键清理和16KB限制，IP只给mask。深链只使用实际登记的员工、角色、商家路由及当前模块查看权；其余为空。纯读不会补审计、变更幂等记录或反向读取业务域。导出接口与队列尚未实现。
+
+`read.db.test.ts` 用真实范围和纯读前后计数验证筛选、游标、脱敏、404与零写入。

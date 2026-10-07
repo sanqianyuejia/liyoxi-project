@@ -2,7 +2,9 @@ import type { PrismaClient } from "@liyoxi/db";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { createTxRunner, uuidv7 } from "../kernel/index.js";
+import { createEvents } from "./index.js";
 import {
+  assembleForTest,
   createSampleEvents,
   SAMPLE_SUBSCRIBERS,
   sampleSystemContext,
@@ -95,16 +97,24 @@ describe("展开：一个事件按订阅者各一行投递（验收 5）", () =>
   });
 
   it("契约里有订阅者、当前装配里还没有处理器的事件：不建投递行", async () => {
-    // calendar.imported 在契约里有 8 个订阅者（x01 第 3.1 节），处理器要到各域落地才登记
+    // calendar.imported 的 approval 处理器已落地；本例显式装配没有真实订阅者的进程，保留未装配处理器的原断言。
+    const unbound = createEvents({
+      assembly: assembleForTest({ entry: "worker", omitReal: ["subscribers"] }),
+      clock: sample.clock,
+      tx: sample.tx,
+    });
     const { id } = await sample.tx.run((tx) =>
-      sample.events.emit(tx, system, {
+      unbound.emit(tx, system, {
         type: "calendar.imported",
         payload: { v: 1, calendarVersion: 1, year: 2027, changedDays: ["2027-01-01"] },
       }),
     );
-    expect(sample.events.subscribers.forEvent("calendar.imported")).toEqual([]);
-    expect(await sample.events.expand()).toEqual({ events: 1, deliveries: 0 });
+    expect(unbound.subscribers.forEvent("calendar.imported")).toEqual([]);
+    expect(await unbound.expand()).toEqual({ events: 1, deliveries: 0 });
     expect(await deliveriesOf(id as string)).toEqual([]);
+    expect(
+      sample.events.subscribers.forEvent("calendar.imported").map((subscriber) => subscriber.name),
+    ).toContain("approval.onCalendarImported");
   });
 
   it("按 seq 从老到新、按批量分批", async () => {

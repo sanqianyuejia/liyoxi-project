@@ -1,3 +1,4 @@
+import { staffPiiFields } from "./pii-fields.js";
 // staff 模块的登记：
 //   1. 不变量 staff.I8（W0-24 补；断言是 W0-21 写的）：后台角色恰是契约登记的 8 个。
 //      依据：03 分组 第 2.1 节；15 分组 第 3 节（staff_role 是自然键表，对象用 subject_key = 角色键）。
@@ -109,6 +110,7 @@ export const registration = defineRegistration("staff", {
     { code: "staff.I8", severity: "P2", modes: ["full"], heal: "none", run: findRoleSetViolations },
   ],
   portImplementations: [
+    staffPiiFields,
     implementKeyed(machinePort, chainKey("staff", "status"), staffStatusBinding),
   ],
   cleanups: [

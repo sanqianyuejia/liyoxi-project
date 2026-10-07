@@ -5,7 +5,7 @@ import {
   adminApprovalSummary,
   adminDictItemList,
 } from "@liyoxi/contract";
-import { AppError, authz } from "@liyoxi/services";
+import { authz } from "@liyoxi/services";
 import { ok } from "../../http/errors.js";
 import { defineAdminHandler } from "../../routing/admin.js";
 
@@ -32,15 +32,22 @@ export const adminApprovalHandlers = [
         module: { module: "system", need: "view" },
         permission: null,
       });
-    if (query.withRefCount)
-      throw new AppError("VALIDATION_FAILED", { message: "引用计数随 M2 开放" });
-    return ok(
-      c,
-      await c.var.runtime.config.dicts.listForAdmin(query.typeKey, {
-        includeDisabled: query.includeDisabled,
-        ...(query.parentCode === undefined ? {} : { parentCode: query.parentCode }),
-        ...(query.scene === undefined ? {} : { scene: query.scene }),
-      }),
-    );
+
+    const result = await c.var.runtime.config.dicts.listForAdmin(query.typeKey, {
+      includeDisabled: query.includeDisabled,
+      ...(query.parentCode === undefined ? {} : { parentCode: query.parentCode }),
+      ...(query.scene === undefined ? {} : { scene: query.scene }),
+    });
+    if (query.withRefCount) {
+      const counts = await c.var.runtime.configAdmin.dictReferences(result.items);
+      return ok(c, {
+        ...result,
+        items: result.items.map((item) => ({
+          ...item,
+          refCount: counts.get(`${item.typeKey}:${item.code}`) ?? null,
+        })),
+      });
+    }
+    return ok(c, result);
   }),
 ];

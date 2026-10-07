@@ -3,7 +3,7 @@
 // 先到的包新建本文件，后到的只往对象末尾加自己的码（docs/plan/tasks/README.md 第 7.3 节）。
 import type { DomainErrorSymbol } from "../../errors/index.js";
 import { z } from "../../zod.js";
-import { openEnum } from "../../common/index.js";
+import { openEnum, InstantSchema } from "../../common/index.js";
 import { FILE_OBJECT_STATUS } from "../../enums/index.js";
 
 /** 口令规则的编码。same_as_current 只在本人修改密码时出现（3.9，M2） */
@@ -28,9 +28,18 @@ export const A01_ERROR_DETAILS = {
     failedKeys: z.array(z.string()),
     invalidNaKeys: z.array(z.string()),
   }),
+  DICT_ITEM_IN_USE: z.object({ refCount: z.int().positive() }),
+  DICT_ITEM_LOCKED: z.object({ rule: z.string().min(1) }),
+  PARAM_WITHDRAW_TOO_LATE: z.object({ effectiveAt: InstantSchema }),
   FILE_NOT_AVAILABLE: z.object({ status: openEnum(FILE_OBJECT_STATUS.values) }),
+  WECOM_USERID_TAKEN: z.object({
+    staffId: z.string().uuid(),
+    name: z.string(),
+    status: z.enum(["pending", "active", "disabled"]),
+  }),
 } satisfies Partial<Record<DomainErrorSymbol, z.ZodType>>;
 
 export type PasswordPolicyViolatedDetails = z.infer<
   (typeof A01_ERROR_DETAILS)["PASSWORD_POLICY_VIOLATED"]
 >;
+export type WecomUseridTakenDetails = z.infer<(typeof A01_ERROR_DETAILS)["WECOM_USERID_TAKEN"]>;

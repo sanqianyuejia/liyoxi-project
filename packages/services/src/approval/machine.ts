@@ -1,4 +1,4 @@
-// 审批单状态机的登记（W1-06）：approval_request.status 的四行迁移（03 分组 第 2.12 节状态机表，03:804–807）。
+// 审批单状态机的登记（W1-06）：approval_request.status 的四行决定迁移和一行 SLA 同态迁移（03 分组 第 2.12 节状态机表，03:804–808）。
 // 守卫的各步（不在审、发起人审批、权限与范围、锁版本、重算前提）有先后与各自的错误码（a03 第 1.1 节），
 // 写在 submit.ts、decide.ts 里、迁移之前；登记给 flow 的守卫只认“这次迁移是本模块的函数发起的”：
 // 它们发起迁移时随 args 带一张通行证，别处直接调 flow.transition 迁移审批单拿不到，按代码缺陷拒掉。
@@ -20,6 +20,8 @@ export const DECISION_COLUMNS = [
   "checklist_code",
   "checklist_version_no",
   "checklist_result",
+  "due_at",
+  "sla_snapshot",
 ] as const;
 
 /** 通行证：本模块发起迁移时放进 args；after 是迁移之后、审计之前要调的处理器 */
@@ -44,7 +46,7 @@ const guard: Guard = (_tx, facts) => {
   if (passOf(facts.args) === undefined) {
     throw new ApprovalError(
       "bypass",
-      `审批单的 ${facts.event} 只经 approval 的 submit、approve、reject、withdraw 迁移`,
+      `审批单的 ${facts.event} 只经 approval 的业务用例与日历订阅迁移`,
     );
   }
   return Promise.resolve(true);
@@ -63,6 +65,7 @@ export const approvalBinding: MachineBinding = {
     [rowKey("03:805", "approve")]: guard,
     [rowKey("03:806", "reject")]: guard,
     [rowKey("03:807", "withdraw")]: guard,
+    [rowKey("03:808", "sla.recalculated")]: guard,
   },
   effects: {
     [rowKey("03:805", "approve")]: effect,

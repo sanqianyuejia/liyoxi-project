@@ -592,6 +592,7 @@ describe("ci.yml", () => {
       'node apps/admin/scripts/e2e-affected.mjs --base "$BASE"',
       // 浏览器缓存的键：Playwright 的版本（它的下一步是缓存，没有 run）
       `node -p '"version=" + require("./apps/admin/package.json").devDependencies["@playwright/test"]' >> "$GITHUB_OUTPUT"`,
+      'sudo env "PATH=$PATH" node infra/ci/normalize-browser-apt-source.mjs',
       "pnpm --filter @liyoxi/admin exec playwright install --with-deps chromium",
       "pnpm admin:e2e",
       "docker compose -f infra/compose/local.yml up -d --wait postgres redis",
@@ -601,6 +602,7 @@ describe("ci.yml", () => {
       "pnpm --filter @liyoxi/weapp test",
       "node infra/ci/check-mp-size.mjs apps/weapp/dist",
       'node apps/weapp/scripts/shots-affected.mjs --base "$BASE"',
+      'sudo env "PATH=$PATH" node infra/ci/normalize-browser-apt-source.mjs',
       "pnpm --filter @liyoxi/weapp exec playwright install --with-deps chromium",
       "pnpm weapp:shots",
     ],

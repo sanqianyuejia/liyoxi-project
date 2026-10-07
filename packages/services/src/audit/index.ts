@@ -12,3 +12,5 @@ export type { AuditInvariantCheck, AuditReader, AuditViolation } from "./invaria
 export * from "./auth-event.js";
 // 本模块的登记：两条每日校验进不变量框架（W0-24），auth_event 的清理项（W1-01a）
 export { registration } from "./register.js";
+
+export { createAuditRead } from "./read.js";

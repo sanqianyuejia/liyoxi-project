@@ -65,3 +65,4 @@ export type {
 
 // W2-24：APPtest owned 合法规模与真实HTTP基线前置。
 export * from "./p95-fixture.js";
+export { configTestStaffBriefs, createConfigProfileFixture } from "./config-admin.js";

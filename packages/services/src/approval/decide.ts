@@ -16,6 +16,8 @@ import type { EmitContext } from "../events/index.js";
 import { AppError, lockRows } from "../kernel/index.js";
 import type { Tx } from "../kernel/index.js";
 
+import { cancelDecisionTimer } from "./sla.js";
+
 import { auditOf, loadApproval, operatorOf } from "./context.js";
 import type { ApprovalDeps, AuditOverride, Operator } from "./context.js";
 import { ApprovalError } from "./errors.js";
@@ -202,6 +204,7 @@ async function settle(
   };
   const system = { isDecidedBySystem: decision.isDecidedBySystem };
   const reasonCode = decision.reasonCodes[0];
+  if (deps.sla !== undefined) await cancelDecisionTimer(tx, deps.sla.timers, row.id);
   await deps.flow.transition(tx, ctx, {
     machine: "approval_request",
     stateField: "status",

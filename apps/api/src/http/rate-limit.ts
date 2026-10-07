@@ -135,6 +135,19 @@ export function rateLimit(options: RateLimitOptions = {}): RouteMiddlewareFactor
           },
           "限流：超出额度",
         );
+        if (route.operationId === "admin.piiReveal.create") {
+          const index = decision.exceeded.find((index) => tiers[index] === "admin.pii_reveal");
+          if (index !== undefined) {
+            const check = checks[index]!;
+            const limit = decision.degraded
+              ? Math.max(1, Math.floor(check.limit / 2))
+              : check.limit;
+            const window = check.windowMs === 3_600_000 ? "hour" : "day";
+            const staffId = c.get("staff")?.principal.staff.id;
+            if (staffId !== undefined) await runtime.piiReveal.raiseLimit(staffId, window, limit);
+            throw new RateLimited(decision.retryAfterSec, { window, limit });
+          }
+        }
         throw new RateLimited(decision.retryAfterSec);
       }
       await next();

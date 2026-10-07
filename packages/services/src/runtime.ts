@@ -1,3 +1,4 @@
+import { createAuditRead } from "./audit/index.js";
 import { bindDelivery } from "./delivery/index.js";
 import { createOrderService, bindOrder, bindOrderStart } from "./order/index.js";
 import { assignDeliveryManager } from "./profile/index.js";
@@ -23,7 +24,7 @@ import { createPrismaClient } from "@liyoxi/db";
 import { Redis } from "ioredis";
 
 import { assembleServices } from "./assembly.js";
-import { createApproval } from "./approval/index.js";
+import { createApproval, bindApprovalSla } from "./approval/index.js";
 import type { Approval } from "./approval/index.js";
 import {
   bindBillingTimers,
@@ -33,22 +34,26 @@ import {
   createFulfillment,
 } from "./billing/index.js";
 import type { BillingPurchase } from "./billing/index.js";
+import { staffBriefs } from "./staff/index.js";
 import { createDocs } from "./docs/index.js";
 import { createTenant } from "./tenant/index.js";
-import { createSla } from "./sla/index.js";
+import { createSla, createCalendarAdmin, bindCalendarCoverage } from "./sla/index.js";
+import type { CalendarAdmin } from "./sla/index.js";
 import type { Keyring } from "./security/index.js";
-import { createConfig } from "./config/index.js";
-import type { Config } from "./config/index.js";
+import { createConfig, createConfigAdmin } from "./config/index.js";
+import type { Config, ConfigAdmin } from "./config/index.js";
 import { createEvents } from "./events/index.js";
 import type { Events } from "./events/index.js";
 import { createFlow } from "./flow/index.js";
 import type { Flow } from "./flow/index.js";
 import {
   alertsOf,
+  piiFieldsOf,
   assembleProviders,
   createBizNoIssuer,
   createTxRunner,
   createQueueChannel,
+  detach,
   systemClock,
 } from "./kernel/index.js";
 import type {
@@ -71,10 +76,20 @@ import { createMedia } from "./media/index.js";
 import type { Media } from "./media/index.js";
 import { createRateLimiter } from "./rate-limit.js";
 import type { RateLimiter } from "./rate-limit.js";
-import { loadAuthKeys, loadKeyring } from "./security/index.js";
-import { bindWebhooks, createWebhooks } from "./security/index.js";
+import {
+  loadAuthKeys,
+  loadKeyring,
+  createPiiReveal,
+  bindWebhooks,
+  createWebhooks,
+} from "./security/index.js";
 import type { Webhooks, WebhookSource } from "./security/index.js";
-import { createStaffAuth, recommendedStaff } from "./staff/index.js";
+import {
+  createStaffAuth,
+  recommendedStaff,
+  createRoleManagement,
+  createStaffSelfSecurity,
+} from "./staff/index.js";
 import type { StaffAuth } from "./staff/index.js";
 import { createTimers } from "./timers/index.js";
 import type { Timers } from "./timers/index.js";
@@ -154,6 +169,8 @@ export interface Runtime {
   readonly tx: TxRunner;
   readonly bizNo: BizNoIssuer;
   readonly config: Config;
+  readonly configAdmin: ConfigAdmin;
+  readonly calendarAdmin: CalendarAdmin;
   readonly health: Health;
   /** 限流计数：Redis 上的固定窗口，Redis 不可用时进程内兜底、限额减半（约定 C68） */
   readonly rateLimiter: RateLimiter;
@@ -178,6 +195,10 @@ export interface Runtime {
    * 第一次取时才加载密钥并装配；三份密钥文件（DATA_KEYS_FILE、BIDX_KEYS_FILE、AUTH_KEYS_FILE）没配全即抛 SecurityError
    */
   readonly staffAuth: StaffAuth;
+  readonly staffRoles: ReturnType<typeof createRoleManagement>;
+  readonly staffSelfSecurity: ReturnType<typeof createStaffSelfSecurity>;
+  readonly auditRead: ReturnType<typeof createAuditRead>;
+  readonly piiReveal: ReturnType<typeof createPiiReveal>;
 }
 
 /**
@@ -294,7 +315,23 @@ export function createRuntime(options: RuntimeOptions): Runtime {
   });
   const content = createContent({ clock, flow, media, assembly });
   const bizNo = createBizNoIssuer({ clock, appEnv: env.APP_ENV });
-  const approval = createApproval({ assembly, clock, flow, events, bizNo });
+  const sla = createSla({ clock, assembly });
+  const approval = createApproval({ assembly, clock, flow, events, bizNo, sla, timers });
+  const unbindApprovalSla = bindApprovalSla({
+    clock,
+    flow,
+    events,
+    sla,
+    timers,
+    kinds: approval.kinds,
+  });
+  const configAdmin = createConfigAdmin({ tx, clock, assembly, config, staffBriefs });
+  const calendarAdmin = createCalendarAdmin({ tx, clock, events });
+  const unbindCalendarCoverage = bindCalendarCoverage({
+    clock,
+    alerts: alertsOf(assembly),
+    detach,
+  });
   const unbindBilling = bindBillingTimers({ clock, flow, timers });
   const ledger = createLedger({ clock, events });
   const tenant = createTenant({ tx, clock, flow, assembly });
@@ -351,6 +388,17 @@ export function createRuntime(options: RuntimeOptions): Runtime {
     docs: createDocs({ tx, clock }),
   });
   let staffAuth: StaffAuth | undefined;
+  let staffRoles: ReturnType<typeof createRoleManagement> | undefined;
+  let staffSelfSecurity: ReturnType<typeof createStaffSelfSecurity> | undefined;
+  const auditRead = createAuditRead(prisma);
+  const piiReveal = createPiiReveal({
+    db: prisma,
+    tx,
+    clock,
+    keyring: () => loadKeyring(env),
+    facts: piiFieldsOf(assembly),
+    alerts: alertsOf(assembly),
+  });
 
   // 连库一项加移交表第 1 行的四个自检：security 的加解密与盲索引、审计 target_type 对表名单、聚合类型对表名单、
   // machine 与 state_field 对库里的表与列
@@ -394,6 +442,8 @@ export function createRuntime(options: RuntimeOptions): Runtime {
     bizNo,
     approval,
     config,
+    configAdmin,
+    calendarAdmin,
     health,
     rateLimiter,
     assembly,
@@ -409,6 +459,8 @@ export function createRuntime(options: RuntimeOptions): Runtime {
       unbindContent();
       unbindPublish();
       unbindDelivery();
+      unbindApprovalSla();
+      unbindCalendarCoverage();
       unbindOps();
       unbindWebhooks();
       await operations.close();
@@ -417,6 +469,24 @@ export function createRuntime(options: RuntimeOptions): Runtime {
       await prisma.$disconnect();
     },
     flow,
+    auditRead,
+    piiReveal,
+    get staffRoles() {
+      staffRoles ??= createRoleManagement({ db: prisma, tx, clock, roles: this.staffAuth.roles });
+      return staffRoles;
+    },
+    get staffSelfSecurity() {
+      staffSelfSecurity ??= createStaffSelfSecurity({
+        db: prisma,
+        tx,
+        clock,
+        keyring: loadKeyring(env),
+        authKeys: loadAuthKeys(env),
+        flags: config.flags,
+        wecom: providers.wecom,
+      });
+      return staffSelfSecurity;
+    },
     get staffAuth() {
       staffAuth ??= createStaffAuth({
         tx,

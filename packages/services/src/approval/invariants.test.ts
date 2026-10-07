@@ -42,7 +42,9 @@ describe("approval 的每日校验（验收 7）", () => {
     expect(registered.map((item) => [item.code, item.severity, item.modes])).toEqual([
       ["approval.I1", "P2", ["full"]],
       ["approval.I2", "P2", ["full"]],
+      ["approval.I3", "P2", ["full"]],
       ["approval.I4", "P2", ["full"]],
+      ["approval.I5", "P2", ["full"]],
     ]);
   });
 

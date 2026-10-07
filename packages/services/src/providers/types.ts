@@ -430,6 +430,8 @@ export interface WecomProvider extends ProviderBase {
     content: string;
     mentionAll: boolean;
   }): Promise<ProviderResult<void>>;
+  /** 后台内嵌扫码的单次 code 换员工 userid；真实驱动交 G7-A。 */
+  exchangeWebLoginCode(input: { code: string }): Promise<ProviderResult<{ userid: string }>>;
   /** 员工通知：自建应用消息 */
   sendAppMessage(input: {
     toUser: string;
@@ -584,6 +586,7 @@ export const PROVIDER_METHODS = {
     "verifyAndDecryptCallback",
     "getKfLink",
     "sendRobotMessage",
+    "exchangeWebLoginCode",
   ],
   esign: ["seal"],
   invoice: ["issue"],

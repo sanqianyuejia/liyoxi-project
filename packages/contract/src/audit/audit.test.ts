@@ -58,6 +58,10 @@ describe("对象类型", () => {
     expect(new Set(AUDIT_TARGET_TYPES).size).toBe(AUDIT_TARGET_TYPES.length);
     for (const type of AUDIT_TARGET_TYPES) expect(type).toMatch(/^[a-z][a-z0-9_]*$/);
     expect(isAuditTargetType("approval_request")).toBe(true);
+    expect(AUDIT_TARGET_TYPES.filter((name) => name === "work_calendar_day")).toEqual([
+      "work_calendar_day",
+    ]);
+    expect(isAuditTargetType("work_calendar_day")).toBe(true);
     expect(isAuditTargetType("ApprovalRequest")).toBe(false);
   });
 

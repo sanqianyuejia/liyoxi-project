@@ -16,6 +16,7 @@
 | `secret-scan.mjs` | 密钥扫描：gitleaks 官方镜像的固定标签，扫 HEAD 能到的全部提交，合并提交按它相对第一个父提交的差异扫（别的分支上的提交由它自己的 PR 扫）。放行项只在仓库根的 `.gitleaks.toml`，逐条写原因；写在被扫文件里的行内放行注释（`gitleaks:allow`）不认。所有文件都按文本出差异（`--text`），`.gitattributes` 里把一类文件标成 `-diff`、`binary` 也照扫。git 历史没读全（gitleaks 报了 git 的错误）按没跑完算，不报通过 | CI；本机要有 Docker |
 | `classify-gate-changes.mjs`、`gate-files.json` | 门禁改动分类：只增（`gate-touch`）与放松（`gate-change`） | CI 的 `gate-classify` 任务 |
 | `ci-required.mjs` | 汇总任务 `required`：判定必过任务的结论，统计耗时，出 `ci-duration.json` | CI 的 `required` 任务 |
+| `normalize-browser-apt-source.mjs` | 临时 Ubuntu runner 的 Azure Ubuntu 源改为官方 HTTPS URI，兼容 legacy/deb822 及实际 runner 的 `apt-mirrors.txt` 镜像列表，保留套件、组件、签名、镜像优先级与第三方源；先验证全部路径，拒绝软链接。不安装包或更新索引 | `web` 的两处原 Playwright 安装步骤之前，沿用各自受影响条件；本地测试用 `--root` 指向自有临时目录 |
 | `status-summary.mjs` | 核对各包的状态文件合不合规；生成状态汇总 `docs/plan/status/SUMMARY.md`（不入库，要看时现生成） | CI 用 `--check` 只核对状态文件；`pnpm status:summary` 在本地现生成（第 6 节） |
 | `selftest/run.mjs`、`selftest/cases/` | 门禁自测：一个反例一个文件 | `pnpm gates:selftest`；CI |
 | `isolation-shard.mjs` | 测试隔离的全量分片跑：范围同 `pnpm test:isolation --scope connected`，分成互不重叠的几片，一次跑一片（两个会话同时跑），核对交给 `packages/services/src/testing/isolation.mjs --check`（第 2 节） | CI 的 `test-isolation` 与它的另三片；本地 `node infra/ci/isolation-shard.mjs --shard 1/4` |
@@ -46,6 +47,8 @@
 | `infra/deploy/`、`infra/bootstrap/`（不在本目录） | 预发节点（W2-25）：节点步骤、密钥齐备检查、节点与库的初始化、本机演练。不是门禁；上服务器的步骤见 [infra/bootstrap/README.md](../bootstrap/README.md) | `pnpm stg:rehearse`；`stack-smoke.yml` 里冒烟之后的一步；用例 `test/stg-node.test.ts`（系统命令桩掉，在 `test-infra` 里） |
 
 工作流在 `.github/workflows/`：`ci.yml`（每个 PR 与推到 main）、`nightly.yml`（每晚，Node 26，失败只告警）。
+
+PR #134 的实际 CI 37666599887 在浏览器安装时访问 Azure Ubuntu HTTP 源持续等待，`web` 在原 10 分钟预算到期取消，尚未运行浏览器验收。上述源修复只作用于临时 runner；随后原 `playwright install --with-deps chromium` 仍负责安装和报错，浏览器测试、截图要求、检查名及 900 秒总墙钟预算保持原值。
 
 `images.yml`（W2-25b）在受影响 PR 构建四镜像、真加载上传 SDK、校验独立工具冻结锁，并构建小程序经过原体积门禁；PR 不访问密文、不推送。只有 main 的 push/manual 且 `STG_IMAGES_PUBLISH_ENABLED=true` 才推镜像；secure 制品另要求 `STG_ARTIFACT_UPLOAD_ENABLED=true`。PG/Redis 只手动转存固定多架构清单。`deploy-stg.yml` 整个 job 受 `STG_DEPLOY_ENABLED=true` 控制，只取同仓 main 成功 push 的同 run 发布摘要，验证 HEAD/镜像摘要后调用既有编排。两工作流均暂不进入 required；外部配置与密文键见 bootstrap README 第 12 节，真实云写/部署未执行。
 

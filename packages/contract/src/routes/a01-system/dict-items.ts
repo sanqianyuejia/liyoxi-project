@@ -4,7 +4,6 @@ import { IdSchema, InstantSchema, errorResponses, okResponse } from "../../commo
 import { z } from "../../zod.js";
 import { adminRoute } from "../builders.js";
 import { ApprovalBooleanQuerySchema } from "./approvals.schemas.js";
-import { adminMeta } from "../meta-only.js";
 
 export const DictItemViewSchema = z
   .object({
@@ -55,20 +54,38 @@ export const adminDictItemList = adminRoute({
   "x-idempotent-reason": "纯查询（GET 不写库，A19）",
 });
 
-export const adminDictItemCreate = adminMeta({
+export const adminDictItemCreate = adminRoute({
   method: "post",
   path: "/admin/dict-items",
   operationId: "admin.dictItem.create",
   summary: "新增字典项（编码由系统按顺序生成，保存后不可改；同级不重名）",
   "x-permission": "sys.dict.edit",
   "x-idempotent": "required",
+  responses: {
+    ...okResponse(DictItemViewSchema),
+    ...errorResponses(400, 401, 403, 404, 409, 429, 503),
+  },
+  request: {
+    body: { content: { "application/json": { schema: DictItemCreateBodySchema } }, required: true },
+  },
 });
 
-export const adminDictItemUpdate = adminMeta({
+export const adminDictItemUpdate = adminRoute({
   method: "patch",
   path: "/admin/dict-items/{dictItemId}",
   operationId: "admin.dictItem.update",
   summary: "修改字典项名称、说明，或启用 / 停用",
   "x-permission": "sys.dict.edit",
   "x-idempotent": "required",
+  responses: {
+    ...okResponse(DictItemViewSchema),
+    ...errorResponses(400, 401, 403, 404, 409, 429, 503),
+  },
+  request: {
+    body: { content: { "application/json": { schema: DictItemUpdateBodySchema } }, required: true },
+    params: z.object({ dictItemId: IdSchema }),
+  },
 });
+
+export { DictItemCreateBodySchema, DictItemUpdateBodySchema } from "./system-config.schemas.js";
+import { DictItemCreateBodySchema, DictItemUpdateBodySchema } from "./system-config.schemas.js";

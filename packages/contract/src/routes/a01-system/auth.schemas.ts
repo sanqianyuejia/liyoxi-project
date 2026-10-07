@@ -147,3 +147,39 @@ export const TotpConfirmResultSchema = z
 export const StepUpResultSchema = z
   .object({ stepUpValidUntil: InstantSchema })
   .openapi("StepUpResult");
+
+// W2-04 已登录本人的安全结果。密钥与恢复码仅首次响应，不进入缓存。
+export const ChangePasswordBodySchema = z
+  .object({ currentPassword: z.string().min(1).max(128), newPassword: z.string().min(1).max(128) })
+  .strict()
+  .openapi("ChangePasswordBody");
+export const BindWecomSelfBodySchema = z
+  .object({
+    wecomUserid: z.string().trim().min(1).max(64).optional(),
+    code: z.string().min(1).max(128).optional(),
+  })
+  .strict()
+  .openapi("BindWecomSelfBody");
+export const StaffWecomSchema = z
+  .object({
+    status: z.enum(["none", "invited", "bound", "unbound"]),
+    userid: z.string().nullable(),
+    boundAt: z.string().datetime().nullable(),
+    qrFileId: z.string().uuid().nullable(),
+    qrUrl: orNull(z.object({ url: z.url(), expiresAt: InstantSchema })),
+  })
+  .openapi("StaffWecom");
+export const TotpReEnrollmentSchema = z
+  .object({ otpauthUri: z.string(), secret: z.string(), pendingExpiresAt: z.string().datetime() })
+  .openapi("TotpReEnrollment");
+export const ConfirmTotpSelfBodySchema = z
+  .object({ code: z.string().regex(/^\d{6}$/) })
+  .strict()
+  .openapi("ConfirmTotpSelfBody");
+export const TotpReEnrollResultSchema = z
+  .object({
+    recoveryCodes: z.array(z.string()).nullable(),
+    recoveryCodesLeft: z.int().nonnegative(),
+    replayed: z.boolean(),
+  })
+  .openapi("TotpReEnrollResult");

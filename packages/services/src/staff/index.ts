@@ -54,3 +54,9 @@ export { createStaffManagement } from "./management.js";
 export type { StaffManagementDeps } from "./management.js";
 export { pickNext, recommendedStaff, staffBriefs } from "./assignment.js";
 export type { AssignmentPool } from "./assignment.js";
+export { createRoleManagement, roleDefaults } from "./role-management.js";
+export type { RoleManagementDeps } from "./role-management.js";
+export { createStaffSelfSecurity } from "./self-security.js";
+export type { StaffSelfSecurityDeps } from "./self-security.js";
+
+export { staffPiiFields } from "./pii-fields.js";

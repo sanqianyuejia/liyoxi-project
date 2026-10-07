@@ -12,6 +12,7 @@ W1-04 的第一个 PR 交会话与鉴权链要的服务：令牌与会话、静�
 | `login.ts` | 静默登录、手机号登录（含休眠检查、改绑、首触来源、同意与指纹） |
 | `phone.ts` | 换回来的手机号认不认：只认中国大陆的手机号，区号看原串 |
 | `logout.ts` | 退出登录 |
+| `portal-grants.ts` | 调用方同事务精准吊销下载页授权，tenant 的强制端口实现 |
 | `me.ts` | `MeView`：账号、成员关系、待同意协议、一次性提示 |
 | `consent-gate.ts` | 协议同意的门：比指纹、复核、回写 |
 | `machines.ts`、`invariants.ts`、`register.ts` | `merchant_user.status` 的守卫；`identity.I8`、`I9`、`I22`、`I23`、`I25` |
@@ -70,3 +71,13 @@ LYX_FC_RUNS=5000 LYX_FC_SEED=42 pnpm --filter @liyoxi/services exec vitest run s
 `identity.overview({ merchantUserId, membership })` 取 tenant 的门店卡、条数和额度；套餐积分、概览、发布广告客服入口、未读数经事实端口，未登记即默认。店员只询问未读消息事实，返回门店、可见数与未读数；接口回包还会用观察者角色结构 parse 一次。
 
 图片上限按任务书暂为 5 MB；引导订阅登录后为 `[]`，客服为 contact。未登记的订阅参数暂为 7 天、每次 3 个，随 G2-C 接共享参数。事实端口已有实现会自动生效，不把整个聚合等到其余包到齐才交。
+
+## 6. 成员授权吊销前置（W2-10 PR1）
+
+`revokePortalGrants(tx, input): Promise<number>` 是 [02 分组第 5 节](../../../../docs/data-model/02-identity-tenant.md) 要求的公开函数；同一实现经 identity 的 registration 注册到 tenant 定义的 `membershipAuthorizationsPort`。不需要运行时另绑端口，api 与 worker 都自动装配；没有实现必须拒绝启动。
+
+调用方在原事务持有主体与相关成员锁。主体范围仅匹配 `entityId`；owner 范围还匹配 `approvedByUserId = merchantUserId`，二者都限定 `revokedAt = null`。一次 UPDATE 写 `membership_changed` 与相同的注入 `now` 到 revokedAt/updatedAt，返回实际 count；不按 expiresAt 排除已过期行。重复不改旧原因、时间、令牌摘要及归属列，外层回滚会一并回滚。
+
+此口不注销商家账号或改 user_session/portal_ticket，也没有成员生命周期调用方和 M6 登录、票据、下载入口。新真库测试直接准备授权表 fixture，只证明吊销能力；旧 sessions/logout 与 tenant 成员范围用例继续保留。
+
+定点命令见 [tenant 第 6 节](../tenant/README.md)，其中两条独立连接重复 12 轮，覆盖主体和 owner 两种范围，计数总和与真实撤销行数一致。

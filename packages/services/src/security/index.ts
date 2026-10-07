@@ -11,6 +11,9 @@ export type { SealedField, SealedPhone } from "./pii.js";
 export { loadKeyring, selfCheck } from "./selfcheck.js";
 // W1-01a：后台登录的三把密钥（票据、设备 Cookie、MFA）的加载与自检，MFA 密钥的加解密
 export * from "./auth-keys.js";
+
+export { createPiiReveal } from "./pii-reveal.js";
+export type { PiiRevealDeps } from "./pii-reveal.js";
 export { createWebhooks } from "./webhooks/runtime.js";
 export type * from "./webhooks/types.js";
 export { bindWebhooks } from "./webhooks/binding.js";

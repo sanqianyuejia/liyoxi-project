@@ -103,6 +103,7 @@ async function dicts(
 ) {
   if (!selected) return;
   for (const code of selected.filter((code) => !previous.includes(code))) {
+    await tx.$queryRaw`SELECT id FROM dict_item WHERE dict_type_key=${type} AND code=${code} ORDER BY id FOR SHARE`;
     const row = await tx.dictItem.findUnique({
       where: { dictTypeKey_code: { dictTypeKey: type, code } },
     });

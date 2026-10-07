@@ -46,6 +46,7 @@ export interface ApprovalRow {
   readonly requesterStaffGroupId: string | null;
   readonly submittedAt: Date;
   readonly dueAt: Date | null;
+  readonly slaSnapshot: unknown;
   readonly decidedByStaffId: string | null;
   readonly isDecidedBySystem: boolean;
   readonly decidedAt: Date | null;
@@ -86,7 +87,16 @@ export interface ApprovalOperations {
   readonly withdraw: string | null;
 }
 
+export interface ApprovalExecutionSlaFacts {
+  readonly status: string;
+  readonly dueAt: Date | null;
+  /** 是否已建立过真实执行交易，失败回待执行也不重新计时。 */
+  readonly hasExecuted: boolean;
+}
+
 export interface ApprovalKindRegistration<I = unknown> {
+  /** 有执行步的领域所属模块提供真实执行事实；尚无 producer 的类型不得伪造。 */
+  readonly executionSla?: (tx: Tx, row: ApprovalRow) => Promise<ApprovalExecutionSlaFacts | null>;
   /** review：商家提交的审核，审计写 activity 流；approval：员工发起的审批，写 ops 流 */
   readonly category: ApprovalCategory;
   /** 一对一的领域表与它指向审批单的列（approval.I1 据此核对） */

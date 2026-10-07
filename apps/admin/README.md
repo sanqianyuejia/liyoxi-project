@@ -165,3 +165,16 @@ W1-19 PR2 的 `zz-delivery-flow.fixture.ts` 用独立“制作演练-本轮 runI
 `live-delivery-flow.spec.ts` 经生产 `UploadField` 与本域直传 adapter 完成真实 MinIO POST/complete，再由 Node 私有 helper 调 `packages/services/scripts/admin-live-delivery-media.ts`。窄桥只接受本检出、本轮 `APP_ENV=test`、严格配对的 `lyx_test_admin_live_<runId>` 库/前缀与 loopback 公开测试配置；复核 file/category/item/uploader/clientToken/ETag/createdAt 全部归属后，对已有 job 调实际 `runtime.media.promote`，真实 copy/head 成功且 stored 后才写固定 known MP4 事实。文件是 17947 字节、真实 1 秒、160×90 的 H.264；未知 metadata 样片仍以 `PRODUCTION_NOT_READY` 拒绝 QC，零业务写。Chrome 不保证保留 Request stream 的 postData，因此 Node 从实际注册响应取 fileId/clientToken，再经真实文件 GET 核文件名与主体，制作上下文继续由窄桥锁内核验。测试不改生产请求、公共 harness、探测/QC 或 stored 状态；对象、库与前缀按本轮归属清理。
 
 该流程走方案推送/商家确认、不同员工样片质检/推送、商家实际 900 秒附件下载留证/确认、两集上传登记、默认与单集例外质检、成片包质检至 delivering；成片包推送由 W1-20 接续。八张 `delivery-01-detail` 至 `delivery-08-delivering` 截图为 1440×900，另核 1366×768 无横向滚动。服务端窄桥目标可直接在 CI 用 Node FormData 运行；早期本机 CORS 探针显式加 `LYX_W119_BROWSER_POST=1`、`LYX_E2E_CHANNEL=chrome`，最终完整 live 总是实际浏览器上传，不以 Node 上传代替。
+
+
+## W2-08 操作日志与访问留痕
+
+`/sys/logs` 是唯一 `system.logs` 主从页，默认 ops；实际消费 `admin.auditLog.list/get`，复用 `MasterDetailPage`、`DateRangeField`、`DiffBlock` 与公共 mask。category 多选写 CSV，操作人、对象 ID/key 二选一、主体/门店、标题/RZ编号与北京时间日期均沿正式查询 schema 校验；筛选/切流清旧详情与游标。分页仅使用真实 nextCursor/hasMore，前驱按身份和筛选范围隔离，totalApprox 明示近似与 10,000 条封顶，不计算精确页数。URL 的日期范围也显示为两端含的文本；近 7/30 天和全部日期只改变查询条件。
+
+列表声明已脱敏；详情显示具名安全字段，未知对象和值裁剪，密码/密钥/value 等不进入 DOM。关联 link 仅在已实现且有权限的登记页转成固定入口，未来页显示普通标签。access 切换只给超级管理员；非超管仍由真实 API 返回 403（列表）/404（详情），失败清选择，不显示旧详情。PII 留痕显示访问字段、动作、用途、备注、操作人和审计编号，不含被查看值。
+
+`w208.fixture.ts` 只在本轮隔离库准备虚构 ops、系统任务与合法财务查看角色。`live-audit.spec.ts` 的 PII POST 使用 Node 原生 fetch：明文响应不经过浏览器或 Playwright API tracing，断言只比较布尔结果，返回 auditLogId 后以真实 GET 查询；API 日志不记响应 body。页面查询前后 ops/access 数量相同、浏览器零写请求。访问 POST 单独证明 access 数量增加一条。
+
+真实截图在 `dist/e2e-shots/`：`audit-01-filtered-ops.png`（多条件）、`audit-02-masked-detail.png` / `audit-02-masked-diff.png`（脱敏详情与差异）、`audit-03-access-pii.png` / `audit-03-access-purpose.png`（访问留痕与用途）、`audit-04-empty.png`、`audit-05-permission-denied.png`。截图尺寸 1440×900，另在 1366×768 核对整页/内容区无横滚；图中均为虚构数据。日期空值 Tab/Shift+Tab 进出、Enter打开、Esc关闭与手输当天两端包含由真实 Chrome 验收；无头全量与有头 W208 定向结论分别写在本包状态。保留原 runner/config 与失败 trace 策略。
+
+后续 `W2-31` 所拆 G7-A 接 `admin.exportJob.create` / `audit_logs.list` 及导出记录，不在本页放占位导出按钮；关联页落地后再按正式 link 与权限接准确对象入口。

@@ -5,6 +5,11 @@ import { APPROVAL_EXECUTION_KINDS, APPROVAL_KIND } from "@liyoxi/contract";
 import type { ApprovalKind } from "@liyoxi/contract";
 
 import type { EmitContext, Events } from "../events/index.js";
+import type { Sla } from "../sla/index.js";
+import type { Timers } from "../timers/index.js";
+import { touchPending } from "./touch.js";
+import type { TouchPendingInput } from "./touch.js";
+
 import type { Flow } from "../flow/index.js";
 import type { Assembly, BizNoIssuer, Clock, Tx } from "../kernel/index.js";
 
@@ -31,6 +36,9 @@ export interface ApprovalOptions {
   /** createEvents 给的：approval.executed 不随迁移，直接发 */
   readonly events: Pick<Events, "emit">;
   readonly bizNo: Pick<BizNoIssuer, "next">;
+  /** 决定时限依赖成对注入；旧的单模块样例可以均不传。实际 runtime 必须提供。 */
+  readonly sla?: Pick<Sla, "dueAt">;
+  readonly timers?: Pick<Timers, "arm" | "cancel">;
 }
 
 export interface Approval extends ApprovalReads {
@@ -44,6 +52,11 @@ export interface Approval extends ApprovalReads {
   reject(tx: Tx, ctx: EmitContext, input: RejectInput): Promise<DecisionResult>;
   /** 撤回：提交人本人、代撤、系统三种来源 */
   withdraw(tx: Tx, ctx: EmitContext, input: WithdrawInput): Promise<DecisionResult>;
+  /** 领域更正在同事务中先锁待审单并升版本；不迁移、不写决定记录。 */
+  touchPending(
+    tx: Tx,
+    input: TouchPendingInput,
+  ): Promise<{ approvalId: string; lockVersion: number }>;
   /** 有执行步的类型执行成功后调：发 approval.executed，审批单不动 */
   recordExecuted(
     tx: Tx,
@@ -105,6 +118,9 @@ export function approvalKindsOf(
 }
 
 export function createApproval(options: ApprovalOptions): Approval {
+  if ((options.sla === undefined) !== (options.timers === undefined)) {
+    throw new TypeError("approval 的 sla 与 timers 必须成对注入");
+  }
   const kinds = approvalKindsOf(options.assembly);
   bindApprovalKinds(kinds);
   const deps: ApprovalDeps = {
@@ -114,10 +130,23 @@ export function createApproval(options: ApprovalOptions): Approval {
     bizNo: options.bizNo,
     kinds,
     fresh: new WeakMap(),
+    ...(options.sla === undefined || options.timers === undefined
+      ? {}
+      : {
+          sla: {
+            flow: options.flow,
+            clock: options.clock,
+            events: options.events,
+            sla: options.sla,
+            timers: options.timers,
+            kinds,
+          },
+        }),
   };
   return {
     ...createApprovalReads({ kinds, clock: options.clock }),
     kinds,
+    touchPending: (tx, input) => touchPending(tx, deps, input),
     submit: (tx, ctx, input) => submit(tx, deps, ctx, input),
     approve: (tx, ctx, input) => approve(tx, deps, ctx, input),
     reject: (tx, ctx, input) => reject(tx, deps, ctx, input),

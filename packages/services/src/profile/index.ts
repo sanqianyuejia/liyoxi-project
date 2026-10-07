@@ -12,3 +12,5 @@ export { registration } from "./register.js";
 
 export { adminProfileFactsPort, implementAdminProfileFacts } from "./admin-ports.js";
 export type { AdminFacts, AdminFactsQuery, AdminFactSource } from "./admin-ports.js";
+
+export { profilePiiFields } from "./pii-fields.js";

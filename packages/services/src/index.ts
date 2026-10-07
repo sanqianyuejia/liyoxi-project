@@ -110,10 +110,12 @@ export type {
   DocsDeps,
   SignedAgreementViewer,
 } from "./docs/index.js";
-export { billingAccountPort, createTenant } from "./tenant/index.js";
+export { billingAccountPort, createTenant, membershipAuthorizationsPort } from "./tenant/index.js";
 export type {
   ActiveMembership,
   BillingAccountOpener,
+  MembershipAuthorizations,
+  PortalGrantRevocation,
   QuotaUsage,
   StoreMembership,
   Tenant,
@@ -149,7 +151,7 @@ export type {
 } from "./approval/index.js";
 // W1-04 identity 与商家侧授权：装配入口 createIdentity（api 启动时建一次，用法见 identity/README.md）、
 // 商家鉴权链要用的类型、能力点判定与门店、主体的数据范围；微信能力的接口类型给装配处用
-export { createIdentity } from "./identity/index.js";
+export { createIdentity, revokePortalGrants } from "./identity/index.js";
 export type {
   Identity,
   IdentityDeps,

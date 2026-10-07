@@ -2,18 +2,23 @@
 // 走测试支架：连接串换成本文件的测试库，Redis 用测试支架给的前缀。
 import { describe, expect, it } from "vitest";
 
-import { KernelViolation, loadEnv } from "./kernel/index.js";
+import { createTxRunner, detach, KernelViolation, loadEnv } from "./kernel/index.js";
 import type { Env } from "./kernel/index.js";
 import { createLogger } from "./logger.js";
 import { createRuntime, DB_POOLS, runStartupChecks, StartupCheckError } from "./runtime.js";
 import type { RuntimeOptions } from "./runtime.js";
 import {
   createFakeProviders,
+  createClock,
   fakeKeyEnv,
   SAMPLE_PROVIDER_INPUTS,
   useTestDatabase,
   useTestRedis,
 } from "./testing/index.js";
+
+import { bindCalendarCoverage } from "./sla/index.js";
+import { armRecurringSlot, claimTimers, runTimer } from "./timers/index.js";
+import type { TimerRunDeps } from "./timers/index.js";
 
 const db = useTestDatabase("services");
 const redis = useTestRedis();
@@ -41,6 +46,61 @@ async function start(overrides: Partial<Env> = {}, options: Partial<RuntimeOptio
 }
 
 describe("createRuntime", () => {
+  it("coverage runtime 实际绑定，close 后恢复此前的公开绑定", TIMEOUT, async () => {
+    const clock = createClock(new Date("2035-01-01T02:00:00Z"));
+    let previousCalls = 0;
+    const unbind = bindCalendarCoverage({
+      clock,
+      detach,
+      alerts: {
+        raise: async () => {
+          previousCalls++;
+        },
+      },
+    });
+    const { runtime } = await start(
+      {},
+      { entry: "worker", clock, providers: createFakeProviders({ clock }) },
+    );
+    let closed = false;
+    const deps: TimerRunDeps = {
+      tx: runtime.tx,
+      assembly: runtime.assembly,
+      registry: runtime.timers.registry,
+      clock,
+      alerts: { raise: async () => {} },
+    };
+    const runSlot = async (at: string, input: TimerRunDeps) => {
+      await input.tx.run((tx) => armRecurringSlot(tx, "calendar.coverage_check", new Date(at)));
+      const refs = await input.tx.run((tx) => claimTimers(tx, input.registry, clock.now(), 1));
+      expect(refs.claimed).toHaveLength(1);
+      expect(await runTimer(input, refs.claimed[0]!)).toBe("fired");
+      return refs.claimed[0]!;
+    };
+    try {
+      const ref = await runSlot("2026-01-01T02:00:00Z", deps);
+      const prisma = await db.prisma();
+      expect(await prisma.timer.findUnique({ where: { id: ref.timerId } })).toMatchObject({
+        status: "fired",
+        result: { alerts: 1 },
+      });
+      expect(previousCalls).toBe(0);
+      await runtime.close();
+      closed = true;
+      await runSlot("2026-02-01T02:00:00Z", {
+        ...deps,
+        tx: createTxRunner({ prisma, appEnv: "test" }),
+      });
+      expect(previousCalls).toBe(1);
+    } finally {
+      try {
+        if (!closed) await runtime.close();
+      } finally {
+        unbind();
+      }
+    }
+  });
+
   it("api 主池的三个会话超时照 D7 第 8.3 节的表下发到连接上", TIMEOUT, async () => {
     const { runtime } = await start();
     try {

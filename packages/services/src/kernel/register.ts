@@ -4,7 +4,9 @@
 import { defineRegistration } from "./assembly/index.js";
 import { purgeExpiredIdempotencyRecords } from "./idempotency-tools.js";
 import {
+  piiFieldsPort,
   alertsPort,
+  dictReferencesPort,
   invariantsPort,
   merchantFactsPort,
   notifyReadPort,
@@ -13,7 +15,16 @@ import {
 } from "./ports/index.js";
 
 export const registration = defineRegistration("kernel", {
-  ports: [alertsPort, invariantsPort, trackPort, notifyReadPort, remindersPort, merchantFactsPort],
+  ports: [
+    dictReferencesPort,
+    alertsPort,
+    invariantsPort,
+    trackPort,
+    notifyReadPort,
+    remindersPort,
+    merchantFactsPort,
+    piiFieldsPort,
+  ],
   // 幂等行的过期清理（W0-24 登记；01 分组 第 2.1 节，15 分组 第 5.3 节）：每小时一轮，由 ops.retention 调度
   cleanups: [
     {

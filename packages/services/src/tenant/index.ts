@@ -2,8 +2,12 @@
 // 用法见本目录的 README.md。新增门店、停用与恢复、成员、邀请、主体关闭随 M2。
 export { createTenant } from "./service.js";
 export type { Tenant, TenantDeps, UseCaseOptions } from "./service.js";
-export { billingAccountPort } from "./ports.js";
-export type { BillingAccountOpener } from "./ports.js";
+export { billingAccountPort, membershipAuthorizationsPort } from "./ports.js";
+export type {
+  BillingAccountOpener,
+  MembershipAuthorizations,
+  PortalGrantRevocation,
+} from "./ports.js";
 export { ONE_ENTITY_CONSTRAINT } from "./create-entity.js";
 export type { StoreMembership } from "./membership.js";
 export type { QuotaUsage } from "./quota.js";

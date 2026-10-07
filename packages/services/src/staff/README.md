@@ -164,3 +164,13 @@ APP_ENV=local DATABASE_URL=… REDIS_URL=… DATA_KEYS_FILE=… BIDX_KEYS_FILE=�
 完整列表、详情和角色成员按当前 DataScope 过滤；`system < v` 的选人列表按每个所带池的读权查启用成员，展示安全列且 `phoneMask=null`，以便跨角色指派。`actions=[]`，`withLoad=true` 的在办量为 0 与空来源数组，二维码链接为 `null`。
 
 上层在自己的事务里调用 `staff.pickNext(tx, pool, scopeKey)`，必须在锁任何业务行之前调用。M1 只选该池工号最小的启用成员，取员工共享锁后再次核对启用状态；城市、当班与游标留到 G2-A。没有候选返回 `null`。`staff.staffBriefs(tx, ids)` 批量返回六个展示列，重复与不存在的 id 不多返行。两项留桩见 `docs/plan/stubs/m2-staff-assignment-pool.md` 与 `m2-staff-activation-sms.md`；既有 `staff.I8` 登记保持一份。
+
+## 10. 角色配置与本人安全（W2-04）
+
+`createRoleManagement({ db, tx, clock, roles })` 提供 `get(ctx, roleKey)`、`defaults(ctx, roleKey)` 与 `replace(ctx, actor, meta, roleKey, body, { idem })`。默认值直接取契约注册表；配置完整替换，复用既有级别、权限适用角色与 leadOnly 校验。锁定角色和超级管理员角色拒绝修改，CAS 的 lockVersion 冲突返回当前版本。配置和脱敏差异审计在同一事务，提交后使本进程角色缓存失效；其他进程仍按既有5秒缓存口径读取。成员及更新人按当前员工范围裁剪。
+
+`createStaffSelfSecurity({ db, tx, clock, keyring, authKeys, flags, wecom })` 提供 `changePassword(principal, input, { idem })`、`enrollTotp(principal)`、`confirmTotp(principal, input, { idem })`、`bindWecom(principal, input, { idem })`。短事务锁员工并重读启用状态及当前会话的吊销/空闲/绝对期限。改密和确认 TOTP 原子吊销其他会话，当前会话保留；错误当前口令在失败事务回滚后独立计入既有 untrusted 桶。TOTP 必须再验证，待确认密钥15分钟有效，确认前旧密钥仍在；确认替换旧密钥和恢复码并更新当前 stepupAt。恢复码首次返回10枚，幂等库只存 null，HTTP 同键重放 `recoveryCodes=null`；secret、恢复码响应均 no-store。
+
+企业微信开关默认关闭，手填 userid 的审计标为 manual，不能代表平台核验；开关开启只接 code。扫码用 `WecomProvider.exchangeWebLoginCode({ code })` 在事务外换取 `{ userid }`，随后短事务按 UUID 顺序锁员工、重读当前会话和 userid 归属。启用占用返回真实员工 details，停用/待激活占用可移交并记录来源；未配置、超时或失败不落绑定事实。此 PR 只补 Provider 公共能力及本地替身，真实企业微信驱动仍由 W2-31 拆出的 G7-A 接入和外部验证。
+
+验证：`pnpm exec vitest run --project services packages/services/src/staff/`；真实 HTTP 链在 `apps/api/test/system-security.test.ts`，旧后台鉴权和权限矩阵同时回归。

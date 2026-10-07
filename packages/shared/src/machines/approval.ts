@@ -3,7 +3,7 @@
 // 改这里的行，要在同一个 PR 改分组文档的那一行：pnpm machines:check 逐行对照。
 import { APPROVAL_STATUS } from "@liyoxi/contract/enums";
 
-import { chain } from "./define.js";
+import { chain, SAME } from "./define.js";
 
 /** approval_request.status：docs/data-model/03-staff-authz-audit.md */
 export const approvalRequest = chain("approval_request", "status", APPROVAL_STATUS, [
@@ -11,4 +11,5 @@ export const approvalRequest = chain("approval_request", "status", APPROVAL_STAT
   ["03:805", ["pending"], "approve", ["approved"]],
   ["03:806", ["pending"], "reject", ["rejected"]],
   ["03:807", ["pending"], "withdraw", ["withdrawn"]],
+  ["03:808", ["pending"], "sla.recalculated", SAME],
 ]);

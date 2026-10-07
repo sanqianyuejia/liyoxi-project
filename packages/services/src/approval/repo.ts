@@ -45,6 +45,7 @@ export function approvalRow(row: ApprovalRequest): ApprovalRow {
     requesterStaffGroupId: row.requesterStaffGroupId,
     submittedAt: row.submittedAt,
     dueAt: row.dueAt,
+    slaSnapshot: row.slaSnapshot,
     decidedByStaffId: row.decidedByStaffId,
     isDecidedBySystem: row.isDecidedBySystem,
     decidedAt: row.decidedAt,
@@ -124,6 +125,8 @@ export interface NewApproval {
   readonly dedupeKey: string | null;
   readonly idempotencyKey: string | null;
   readonly now: Date;
+  readonly dueAt?: Date | null;
+  readonly slaSnapshot?: object | null;
 }
 
 /**
@@ -136,14 +139,15 @@ export async function insertPending(tx: Tx, row: NewApproval): Promise<boolean> 
       id, request_no, kind, category, subject_type, subject_id, entity_id, store_id,
       delivery_ticket_id, round_no, status, summary_snapshot, submit_actor_type, submit_actor_id,
       submit_client, requester_staff_id, requester_staff_group_id, submitted_at, dedupe_key,
-      idempotency_key, created_at, updated_at)
+      idempotency_key, created_at, updated_at, due_at, sla_snapshot)
     VALUES (
       ${row.id}::uuid, ${row.requestNo}, ${row.kind}, ${row.category}, ${row.subjectType},
       ${row.subjectId}::uuid, ${row.entityId}::uuid, ${row.storeId}::uuid,
       ${row.deliveryTicketId}::uuid, ${row.roundNo}, 'pending', ${JSON.stringify(row.summary)}::jsonb,
       ${row.submitActorType}, ${row.submitActorId}::uuid, ${row.submitClient},
       ${row.requesterStaffId}::uuid, ${row.requesterStaffGroupId}::uuid, ${row.now},
-      ${row.dedupeKey}, ${row.idempotencyKey}, ${row.now}, ${row.now})
+      ${row.dedupeKey}, ${row.idempotencyKey}, ${row.now}, ${row.now},
+      ${row.dueAt ?? null}, ${row.slaSnapshot == null ? null : JSON.stringify(row.slaSnapshot)}::jsonb)
     ON CONFLICT (dedupe_key) WHERE status = 'pending' AND dedupe_key IS NOT NULL DO NOTHING`;
   return inserted === 1;
 }

@@ -41,3 +41,5 @@ export {
   seedPlaceholderAgreementVersions,
 } from "./demo-seed.js";
 export type { PlaceholderFile, PlaceholderSeedDeps, PlaceholderSeedInput } from "./demo-seed.js";
+
+export { docsPiiFields } from "./pii-fields.js";

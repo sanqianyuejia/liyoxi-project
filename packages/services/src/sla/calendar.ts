@@ -47,3 +47,14 @@ export async function currentCalendarVersion(tx: Tx): Promise<number> {
   );
   return row?.version ?? 0;
 }
+
+/** 同一批次号与日期事实的读取边界；年度导入持排他锁，其余 SLA 计算持共享锁。 */
+export async function lockCalendarImport(
+  tx: Tx,
+  mode: "shared" | "exclusive" = "shared",
+): Promise<void> {
+  if (mode === "exclusive")
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('config.calendar.import',0))`;
+  else
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock_shared(hashtextextended('config.calendar.import',0))`;
+}

@@ -30,6 +30,8 @@ export interface FakeContactWay {
 }
 
 export interface FakeWecom extends WecomProvider, FakeControl<Method> {
+  /** 仅测试预置一次性扫码 code；不访问真实平台。 */
+  setWebLoginCode(code: string, userid: string): void;
   /** 发出去的应用消息 */
   readonly messages: FakeWecomMessage[];
   readonly robotMessages: Array<{ title: string; content: string; mentionAll: boolean }>;
@@ -52,6 +54,7 @@ export function createFakeWecom(options: { clock?: FakeClock } = {}): FakeWecom 
   const robotMessages: Array<{ title: string; content: string; mentionAll: boolean }> = [];
   const contactWays: FakeContactWay[] = [];
   let nonceSeq = 0;
+  const webLoginCodes = new Map<string, string>();
 
   return {
     status: "fake",
@@ -60,6 +63,16 @@ export function createFakeWecom(options: { clock?: FakeClock } = {}): FakeWecom 
     messages,
     robotMessages,
     contactWays,
+    setWebLoginCode: (code, userid) => {
+      webLoginCodes.set(code, userid);
+    },
+    exchangeWebLoginCode: (input) =>
+      core.run("exchangeWebLoginCode", input, () => {
+        const userid = webLoginCodes.get(input.code);
+        if (userid === undefined) return failed("rejected", "扫码凭据无效或已使用");
+        webLoginCodes.delete(input.code);
+        return ok({ userid });
+      }),
     encodeCallback(event) {
       const rawBody = JSON.stringify(event);
       const timestamp = String(Math.floor(clock.now().getTime() / 1000));

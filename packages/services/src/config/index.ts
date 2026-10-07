@@ -127,3 +127,6 @@ export { createNotices } from "./notices.js";
 export type { AnnouncedNotice, NoticeAnnouncement, Notices, NoticesDeps } from "./notices.js";
 
 export { insertDictItemsMissing } from "./insert-dict-items.js";
+
+export { createConfigAdmin } from "./admin.js";
+export type { ConfigAdmin, ConfigActor, ConfigAdminDeps } from "./admin.js";

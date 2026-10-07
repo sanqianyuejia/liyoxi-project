@@ -5,6 +5,7 @@
 import { workMinutesPort } from "../flow/index.js";
 import { defineRegistration, implement } from "../kernel/index.js";
 import type { InvariantViolation, Tx } from "../kernel/index.js";
+import { runCalendarCoverage } from "./coverage.js";
 import { calendarWorkMinutes } from "./work-minutes.js";
 
 /** 从库里最早那一年的 1 月 1 日到最晚那一年的 12 月 31 日，缺行的每一天各报一条；表为空时不报 */
@@ -27,6 +28,16 @@ export async function findCalendarGaps(tx: Tx): Promise<InvariantViolation[]> {
 }
 
 export const registration = defineRegistration("sla", {
+  recurringJobs: [
+    {
+      kind: "calendar.coverage_check",
+      schedule: { every: "month", day: 1, at: "10:00" },
+      mode: "tx",
+      deadlineMin: 60,
+      missSeverity: "P3",
+      run: (ctx) => runCalendarCoverage(ctx.tx),
+    },
+  ],
   portImplementations: [implement(workMinutesPort, calendarWorkMinutes)],
   invariants: [
     { code: "sla.N8", severity: "P2", modes: ["full"], heal: "none", run: findCalendarGaps },

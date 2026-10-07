@@ -32,3 +32,9 @@ export {
 export { registration } from "./register.js";
 export { createApprovalReads, countTodo } from "./read.js";
 export type { ApprovalReads } from "./read.js";
+
+export { bindApprovalSla, onApprovalCalendarImported, handleApprovalSlaBreach } from "./sla.js";
+export type { ApprovalSlaBinding } from "./sla.js";
+export type { TouchPendingInput } from "./touch.js";
+
+export { findI3Violations, findI5Violations } from "./sla-invariants.js";

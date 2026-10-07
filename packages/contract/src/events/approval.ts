@@ -1,7 +1,7 @@
 // approval 模块发出的事件的载荷（docs/api/x01-events-jobs.md 第 3.3 节；03 分组 第 2.12 节状态机）。
 // 载荷规则见 x01 第 2.3 节 P1–P7：只放 id 与枚举；四个迁移事件另带三个迁移键（P4），由 flow.transition() 补上。
-// approval.sla_breached 随决定时限在 M2 交（W1-06 第 5 节）。
-import { IdSchema, orNull } from "../common/scalars.js";
+// W2-05 补 approval.sla_breached，区分决定与执行用途。
+import { IdSchema, InstantSchema, orNull } from "../common/scalars.js";
 import { APPROVAL_KIND, APPROVAL_STATUS } from "../enums/shared.js";
 import { zodEnum } from "../enums/zod.js";
 import {
@@ -74,10 +74,19 @@ export const approvalExecutedPayload = z.strictObject({
   domainId: IdSchema,
 });
 
+export const approvalSlaBreachedPayload = z.strictObject({
+  v: z.literal(1),
+  approvalRequestId: IdSchema,
+  kind: zodEnum(APPROVAL_KIND),
+  purpose: z.enum(["decision", "execution"]),
+  dueAt: InstantSchema,
+});
+
 export const payloads = {
   "approval.submitted": approvalSubmittedPayload,
   "approval.approved": approvalApprovedPayload,
   "approval.rejected": approvalRejectedPayload,
   "approval.withdrawn": approvalWithdrawnPayload,
   "approval.executed": approvalExecutedPayload,
+  "approval.sla_breached": approvalSlaBreachedPayload,
 } as const;

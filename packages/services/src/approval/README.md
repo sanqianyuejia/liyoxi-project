@@ -14,16 +14,18 @@
 | `decide.ts` | `approve`、`reject`、`withdraw` 与守卫 |
 | `execute.ts` | `recordExecuted` |
 | `machine.ts` | 审批单状态机在 flow 上的登记：守卫、处理器的挂点、随迁列 |
-| `invariants.ts`、`register.ts` | `approval.I1`、`I2`、`I4` 的查询与登记；端口的声明 |
+| `invariants.ts`、`sla-invariants.ts`、`register.ts` | `approval.I1`–`I5` 的查询与登记；端口的声明 |
 | `repo.ts` | 本模块读写库的语句 |
 | `read.ts` | 可读类型与数据范围、当前动作、列表、计数与详情；GET 不写库 |
 | `errors.ts` | `ApprovalError`：内部错误 |
+| `sla.ts`、`touch.ts` | 决定时限、日历订阅、超期 timer；待审内容更正只升版本 |
 
 ## 2. 装配
 
 ```ts
 const flow = createFlow({ assembly, clock, events });
-const approval = createApproval({ assembly, clock, flow, events, bizNo }); // api、worker 启动时各一次
+const approval = createApproval({ assembly, clock, flow, events, bizNo, sla, timers }); // api、worker 启动时各一次
+const unbindSla = bindApprovalSla({ clock, flow, events, sla, timers, kinds: approval.kinds });
 ```
 
 构造时把各模块登记的审批类型对照 03 分组 第 3.2 节校验一遍（键是不是 12 个类型之一、大类、有无执行步、去重键的有无、单号前缀、表名写法），写错的一次列全，抛 `ApprovalError`。worker 也要建：`approval.I1` 要的领域表取自这里绑上的登记，没建的进程里 I1 没有可查的类型。
@@ -131,7 +133,23 @@ await approval.recordExecuted(handle, ctx, { approvalId, domain: { type: "cancel
 | `approval.I2` | 审批人 ≠ 发起人；同一对象至多一张在途的同类申请（有去重键的按键，没有的按“类型 + 对象”） |
 | `approval.I4` | 驳回原因都在字典 `reject_reason` 里；清单编码与版本号指向存在的清单模板版本 |
 
-P2、只在 full 运行里查，各至多报 500 条。`approval.I3`、`I5` 随决定时限在 M2。
+W2-05 增加两项：`approval.I3` 交叉核对业务行、决定/执行用途键、当前批次、期限、参数载荷与活跃 timer 数量；`approval.I5` 独立重算合法快照并发现坏快照或 due_at 偏移，避免超期读侧被污染的期限隐藏。日历窗口中尚未消费的更新允许旧快照暂时存在。五项均为 P2、只在 full 运行里查，各至多报 500 条。
+
+### 决定时限与日历批次
+
+actual runtime 必须给 `createApproval` 成对注入 `sla` 与 `timers`，并调用 `bindApprovalSla`，关闭时调用其返回的解绑函数。旧的单模块测试样例可均不注入，不能只传其一。
+
+资质、账号、链接审核使用各自 `sla.review.*`；四类取消与退款决定使用 `sla.review.refund_approve`。策略、数量、单位取提交时参数，工作时段取提交时生效的 work.start/end。due_at、sla_snapshot 与决定 timer 同事务保存。A93 的积分调整、补偿延长、受控财务配置、对公二人复核不设决定时限；没有登记决定策略的账号变更继续用升级读侧。
+
+决定 timer 键为 `sla.breach:approval_request:{id}:decision:{calendarVersion}`。决定或撤回同事务取消该对象决定用途的活跃 timer。日历重算保留原策略参数和历史工时，通过带品牌守卫的 `sla.recalculated` 同态 flow 写期限、快照、锁版本、状态历史与差异审计，取消旧批次并登记新批次。已触发记录留存，旧派发按当前状态、当前批次和当前期限跳过。日历与计算共用公开 `lockCalendarImport` 咨询锁；最新事件按窗口中尚未消费的真实 kind 批次变化补齐更正，重复/旧事件无副作用。
+
+### 待审内容更正
+
+`approval.touchPending(tx, { approvalId, lockVersion })` 在原 FOR UPDATE 锁下核对 pending 与版本，再只升 lock_version/updated_at；没有迁移、决定、审计或事件记录。下游领域用例在同一事务先调用它，再锁领域行并写自身内容与审计。旧版本返回 `VERSION_CONFLICT`（details.lockVersion），已决定返回 `APPROVAL_NOT_PENDING`（details.status/decidedAt）。资质识别字段更正由 W3-16 接入。
+
+### 执行用途移交
+
+现有 `approval.kind` 登记可增加 `executionSla(tx, approvalRow)`，返回领域真实 status、exec_due_at 与是否已建立过执行交易，缺行返回 null。执行超期只在 approved、领域仍 pending_execution、未执行、当前期限到点时发 `approval.sla_breached`。I3 只校验实际登记的执行来源；出现执行 timer 却没有真实来源会报 execution_source_missing。W4-08/W4-10/W4-13 负责领域 producer、执行前取消、失败回待执行不重新计时与晚到回调取消，本包不创造执行事实。其他尚未接入的 sla.breach 主体返回 skipped，后续 owner 须扩展统一派发。
 
 ### 审批读侧
 
@@ -164,7 +182,7 @@ LYX_FC_RUNS=2000 LYX_FC_SEED=42 pnpm --filter @liyoxi/services exec vitest run s
 ## 8. 已知的限度
 
 - 审批单按 `FOR UPDATE` 锁（kernel 的 `lockRows` 与 `flow.transition` 都只有这一种排他锁），03 分组写的是 `FOR NO KEY UPDATE`。差别只在并发：别的事务往领域表插一行、指向一张正在被决定的审批单时，要等决定的事务结束。
-- 决定时限不做：`due_at`、`sla_snapshot` 一律为空，不登记 `sla.breach`，不发 `approval.sla_breached`（M2）。“只升锁版本”的入口随 M2 的修正识别字段。
+- 执行类领域 producer 尚未接入；I3 只校验有真实 `executionSla` 登记的来源，其他 timer 主体由后续所属模块接入统一派发。
 - 通知：事件照发，`s.approval_pending`、`s.approval_decided` 的场景解析没有登记（M2）。
 - 驳回原因只核对“是字典 `reject_reason` 的启用项”，不核对它属于这个类型的场景。
 - `approval.I1` 靠 `createApproval` 把登记绑到本模块：一个进程一份，没建 approval 的进程里它查不到任何类型。

@@ -1,3 +1,4 @@
+import { billingPiiFields } from "./pii-fields.js";
 // billing 模块的登记（W1-10 起）：账本内核的九条不变量（billing.I1–I8、I16）。机制见 kernel/assembly/README.md。
 // 循环 billing_advance 不是登记项：它是任务进程里的进程内循环，用例函数在 sweep.ts，由 ops 的 worker 装配接上。
 // W1-11a（账本侧）：tenant 的计费账户端口与事实端口 billing 键的实现；订阅一侧的三条不变量（I9、I10、I12）。
@@ -29,6 +30,7 @@ import { dramaPriceAdapter } from "./pricing/drama-price-port.js";
 
 export const registration = defineRegistration("billing", {
   portImplementations: [
+    ...billingPiiFields,
     implementKeyed(approvalKindPort, "finance_config_change", financeConfigApproval),
     implementKeyed(fileRefTypePort, "transfer_proof", {
       roles: { main: { categories: ["pay_receipt"], retentionDays: null } },

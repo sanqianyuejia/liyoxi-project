@@ -789,6 +789,9 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
+      - name: 后台浏览器使用官方 Ubuntu HTTPS 源
+        if: steps.admin-e2e.outputs.run == 'true'
+        run: sudo env "PATH=$PATH" node infra/ci/normalize-browser-apt-source.mjs
       - name: 装后台冒烟用的浏览器
         if: steps.admin-e2e.outputs.run == 'true'
         run: pnpm --filter @liyoxi/admin exec playwright install --with-deps chromium
@@ -833,6 +836,9 @@ jobs:
         env:
           BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
         run: node apps/weapp/scripts/shots-affected.mjs --base "$BASE"
+      - name: 小程序浏览器使用官方 Ubuntu HTTPS 源
+        if: steps.weapp-shots.outputs.run == 'true'
+        run: sudo env "PATH=$PATH" node infra/ci/normalize-browser-apt-source.mjs
       - name: 装小程序截图用的浏览器
         if: steps.weapp-shots.outputs.run == 'true'
         run: pnpm --filter @liyoxi/weapp exec playwright install --with-deps chromium

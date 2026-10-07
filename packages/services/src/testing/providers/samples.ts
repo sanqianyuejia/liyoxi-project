@@ -133,6 +133,7 @@ export const SAMPLE_PROVIDER_INPUTS: ProviderInputs = {
     createContactWay: { userId: "sample-manager", state: "store:sample" },
     verifyAndDecryptCallback: { query: {}, rawBody: "{}" },
     getKfLink: { scene: "order" },
+    exchangeWebLoginCode: { code: "fake-web-login-code" },
   },
   esign: { seal: { pdf: new TextEncoder().encode("%PDF-sample") } },
   invoice: { issue: { requestNo: "FP-SAMPLE-0001", title: "样例餐饮店", amountFen: 19900 } },

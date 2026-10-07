@@ -52,12 +52,12 @@ describe("十二个接口", () => {
       ocr: 2, // 营业执照识别、行业许可证字段抽取
       asr: 1, // 录音转写
       llm: 2, // 素材识别打标、要点提炼
-      wecom: 5, // 原四个能力，加告警群机器人
+      wecom: 6, // 员工通知、“联系我”二维码、加好友回调、微信客服、后台扫码、告警群机器人
       esign: 1, // 授权书数字签名
       invoice: 1, // 自动开票
       mail: 1, // 电子发票发送
     });
-    expect(ALL_PROVIDER_METHODS).toHaveLength(43);
+    expect(ALL_PROVIDER_METHODS).toHaveLength(44);
   });
 
   it("环境的取值与 kernel 的 APP_ENV 相同", () => {

@@ -11,7 +11,7 @@ import type { FallbackInfo, SlaPolicy, WorkCalendar } from "@liyoxi/shared/workc
 
 import { alertsOf } from "../kernel/index.js";
 import type { Assembly, Clock, Tx } from "../kernel/index.js";
-import { currentCalendarVersion, loadWorkCalendar } from "./calendar.js";
+import { currentCalendarVersion, loadWorkCalendar, lockCalendarImport } from "./calendar.js";
 import type { WorkHours } from "./calendar.js";
 
 export type SlaUnit = SlaPolicy["unit"];
@@ -115,6 +115,7 @@ export function createSla(deps: SlaDeps): Sla {
 
   return {
     async dueAt(tx, input) {
+      await lockCalendarImport(tx);
       const { policy, amount, unit, from, workHours } = input;
       if (typeof policy !== "string" || policy === "") throw new TypeError("sla：policy 不得为空");
       if (!SLA_UNITS.includes(unit)) throw new TypeError(`sla：不认识的时限单位 ${String(unit)}`);
@@ -143,6 +144,7 @@ export function createSla(deps: SlaDeps): Sla {
     },
 
     async workMinutesBetween(tx, { from, to, workHours }) {
+      await lockCalendarImport(tx);
       const range = { from: calendarDate(from), to: calendarDate(to) };
       const calendar = await loadWorkCalendar(tx, range, workHours);
       const result = workingMinutesBetween(calendar, from, to);

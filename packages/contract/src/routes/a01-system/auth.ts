@@ -2,11 +2,16 @@
 // 改接口同 PR 改 routemap.json 与分组文档，pnpm contract:docs-check 对账。归属的里程碑在 ../milestones.ts。
 // W1-01a：登录链路的八条（3.1–3.8）已带结构；其余四条（3.9、3.10、3.86、3.87）随 G2-A。
 import { errorResponses, okResponse } from "../../common/index.js";
-import type { z } from "../../zod.js";
+import { z } from "../../zod.js";
 import { adminRoute } from "../builders.js";
-import { adminMeta } from "../meta-only.js";
 
 import {
+  BindWecomSelfBodySchema,
+  ChangePasswordBodySchema,
+  StaffWecomSchema,
+  TotpReEnrollmentSchema,
+  ConfirmTotpSelfBodySchema,
+  TotpReEnrollResultSchema,
   ActivateBodySchema,
   AuthNextSchema,
   ConfirmTotpBodySchema,
@@ -40,7 +45,7 @@ export const adminAuthActivate = adminRoute({
   responses: { ...okResponse(AuthNextSchema), ...errorResponses(400, 401, 403, 429) },
 });
 
-export const adminAuthBindWecom = adminMeta({
+export const adminAuthBindWecom = adminRoute({
   method: "post",
   path: "/admin/auth/bind-wecom",
   operationId: "admin.auth.bindWecom",
@@ -48,15 +53,19 @@ export const adminAuthBindWecom = adminMeta({
   "x-permission": null,
   "x-idempotent": "required",
   "x-idempotent-reason": "状态写入；扫码分支为三段式用例（C51，先调外部、再开事务）",
+  request: jsonBody(BindWecomSelfBodySchema),
+  responses: { ...okResponse(StaffWecomSchema), ...errorResponses(400, 401, 403, 409, 429, 503) },
 });
 
-export const adminAuthChangePassword = adminMeta({
+export const adminAuthChangePassword = adminRoute({
   method: "post",
   path: "/admin/auth/change-password",
   operationId: "admin.auth.changePassword",
   summary: "修改本人登录密码",
   "x-permission": null,
   "x-idempotent": "required",
+  request: jsonBody(ChangePasswordBodySchema),
+  responses: { ...okResponse(z.null()), ...errorResponses(400, 401, 403, 409, 429, 503) },
 });
 
 export const adminAuthConfirmTotp = adminRoute({
@@ -155,7 +164,7 @@ export const adminAuthVerifyMfa = adminRoute({
   responses: { ...okResponse(StaffMeSchema), ...errorResponses(400, 401, 403, 429) },
 });
 
-export const adminAuthMeEnrollTotp = adminMeta({
+export const adminAuthMeEnrollTotp = adminRoute({
   method: "post",
   path: "/admin/auth/me/enroll-totp",
   operationId: "admin.auth.me.enrollTotp",
@@ -164,9 +173,13 @@ export const adminAuthMeEnrollTotp = adminMeta({
   "x-idempotent": "none",
   "x-idempotent-reason":
     "结果只有一次性的新密钥，重放没有意义（C50 与 none 的分工）；重复调用只覆盖待确认密钥；已登记进 C47 的 none 清单（A139）",
+  responses: {
+    ...okResponse(TotpReEnrollmentSchema),
+    ...errorResponses(400, 401, 403, 409, 429, 503),
+  },
 });
 
-export const adminAuthMeConfirmTotp = adminMeta({
+export const adminAuthMeConfirmTotp = adminRoute({
   method: "post",
   path: "/admin/auth/me/confirm-totp",
   operationId: "admin.auth.me.confirmTotp",
@@ -175,4 +188,10 @@ export const adminAuthMeConfirmTotp = adminMeta({
   "x-idempotent": "required",
   "x-idempotent-reason":
     "有业务写入（替换密钥、重发恢复码、吊销其他会话）；结果脱敏 x-redact-on-replay recoveryCodes（A80、C50）",
+  "x-redact-on-replay": ["recoveryCodes"],
+  request: jsonBody(ConfirmTotpSelfBodySchema),
+  responses: {
+    ...okResponse(TotpReEnrollResultSchema),
+    ...errorResponses(400, 401, 403, 409, 429, 503),
+  },
 });

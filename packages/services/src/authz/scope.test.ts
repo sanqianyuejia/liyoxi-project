@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { contextOf } from "./__fixtures__/contexts.js";
 import {
+  assertIssuedScope,
   effectiveDataScope,
   ownTaskScope,
   scopeCovers,
@@ -20,6 +21,22 @@ const B = "01900000-0000-7000-8000-00000000000b";
 const C = "01900000-0000-7000-8000-00000000000c";
 
 describe("scopeOf", () => {
+  it("opaque端口只恢复原签发handle；结构相同、反序列化和非对象仍拒绝", () => {
+    const handle: unknown = ownTaskScope({ id: A });
+    expect(assertIssuedScope(handle)).toBe(handle);
+    expect(assertIssuedScope(SYSTEM_SCOPE)).toBe(SYSTEM_SCOPE);
+    for (const fake of [
+      null,
+      undefined,
+      "all",
+      1,
+      { kind: "all" },
+      { kind: "staff", staffIds: [A], unassigned: new Set() },
+      JSON.parse(JSON.stringify(scopeSnapshot(assertIssuedScope(handle)))),
+    ]) {
+      expect(() => assertIssuedScope(fake)).toThrow(TypeError);
+    }
+  });
   it("角色范围与主管标记取较大者：主管只放大，不缩小", () => {
     expect(effectiveDataScope("own", false)).toBe("own");
     expect(effectiveDataScope("own", true)).toBe("group");

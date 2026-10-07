@@ -40,6 +40,7 @@ export async function newCode(
   force = false,
 ) {
   if (code == null || (!force && code === old)) return;
+  await tx.$queryRaw`SELECT id FROM dict_item WHERE dict_type_key=${type} AND code=${code} ORDER BY id FOR SHARE`;
   const row = await tx.dictItem.findUnique({
     where: { dictTypeKey_code: { dictTypeKey: type, code } },
   });

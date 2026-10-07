@@ -8,6 +8,8 @@ import type { EmitContext } from "../events/index.js";
 import { AppError, lockRows, uuidv7 } from "../kernel/index.js";
 import type { Tx } from "../kernel/index.js";
 
+import { computeDecisionSla, armDecisionTimer } from "./sla.js";
+
 import { auditOf, kindOf } from "./context.js";
 import type { ApprovalDeps, AuditOverride } from "./context.js";
 import { ApprovalError } from "./errors.js";
@@ -95,6 +97,9 @@ export async function submit<I>(
   // 取号放在靠后：同前缀同日的取号持锁到提交
   const requestNo =
     kind.numberPrefix === null ? null : await deps.bizNo.next(tx, kind.numberPrefix);
+  const now = deps.clock.now();
+  const deadline =
+    deps.sla === undefined ? null : await computeDecisionSla(tx, deps.sla, input.kind, now);
   const row = {
     id: submission.approvalId,
     requestNo,
@@ -115,7 +120,9 @@ export async function submit<I>(
     requesterStaffGroupId,
     dedupeKey,
     idempotencyKey: requesterStaffId === null ? null : (input.idempotencyKey ?? null),
-    now: deps.clock.now(),
+    now,
+    dueAt: deadline?.dueAt ?? null,
+    slaSnapshot: deadline?.snapshot ?? null,
   };
   // 并发的两个提交：后到的在这里等前一个提交，然后一行都没插进去。
   // 没插进去又查不到在途的那一张（它刚好在这中间被决定了）：再插一次，还不行按繁忙回
@@ -153,5 +160,8 @@ export async function submit<I>(
     },
     args: issuePass(),
   });
+  if (deadline !== null && deps.sla !== undefined) {
+    await armDecisionTimer(tx, deps.sla.timers, row, deadline.dueAt, deadline.snapshot);
+  }
   return { approvalId: row.id, requestNo, roundNo, lockVersion: 0 };
 }

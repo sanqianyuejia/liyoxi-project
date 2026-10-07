@@ -80,3 +80,14 @@ LYX_FC_RUNS=5000 LYX_FC_SEED=42 pnpm --filter @liyoxi/services exec vitest run s
 ## 后台来源拒绝（W2-24）
 
 公开 `recordOffnetDenied({tx,clock,logger}, {ip,requestId,userAgent?})` 在身份认证前单独写 auth_event，space=staff、subjectId/authMethod=null，event=offnet_denied。写失败固定脱敏日志，仍拒绝来源，不改变员工失败次数/锁定。应用仅调用这个owned公口。ADMIN_IP_ALLOWLIST 默认空；非空由可信clientIP解析后检查IPv4/IPv6/CIDR（含IPv4 mapped IPv6），不接受原始未信任XFF，已登录也拒绝。此包没有改登录会话或再验证流程。
+## 7. 专用明文查看（W2-04）
+
+`createPiiReveal({ db, tx, clock, keyring, facts, alerts })` 提供 `reveal(ctx, actor, meta, body)`，只接受契约登记的11类 subjectType / 20种字段组合。权限、员工电话的 system 查看权、再验证和真实范围事实均先在事务外校验；范围外和缺失统一404。随后独立 `tx.run(audit.record)` 提交 access，再在事务外解密指定字段。审计失败即不解密，解密失败仍保留已提交审计；在已有 TX 里调用直接拒绝。响应只有 value/field/auditLogId，API no-store，既无幂等结果也不把 value 写进日志、指标或告警。
+
+定位由 kernel 的 `security.pii_fields` 只读端口分派到 identity/profile/staff/docs/billing/support 自有事实提供者。端口 scope 为 opaque unknown，来源模块经既有 WeakSet 品牌 `assertIssuedScope` 恢复，伪造对象不能调用范围谓词。资格材料依据真实 scope 列：主体共享营业执照走 entityScope，门店许可证走 storeScope。财务/客服等未来业务没有合法记录或范围事实时404，未提供假业务完成事实。
+
+审计 action 按实际密文列去掉 `_enc`，例如 `pii.contact_phone.reveal`，保持既有 snake_case 校验。agreement_consent 的生产 `docs.assertConsents` 原样复制账号 phoneEnc、主体 usccEnc；此只读用例分别按原始 merchant_user.phone_enc / entity.uscc_enc AAD 解密，授权仍使用同意记录所属主体范围。这是现有生产快照的兼容读，不改变加密或同意写侧。`docs/pii-fields.db.test.ts` 经过真实写入口验证两种来源密文，启动审计目标自检包含 agreement_consent。
+
+超额接口保留既有小时/日及全局限额：只有 PII 专用档位触发才带 `{ window, limit }`，Redis 降级返回实际减半额度。`raiseLimit(staffId, window, limit)` 尝试通过 alerts 端口上报 `pii.reveal_limit`，维度仅员工 id，告警失败不能替换429或丢失 Retry-After。当前 alertsOf 未配置持久实现，因此此包不声称告警已持久送达；后续由 W2-24 接入。
+
+`pii-reveal.db.test.ts` 覆盖真实 own/group/all、独立提交顺序、审计/解密故障、可空/JSON字段、嵌套拒绝；`apps/api/test/system-security.test.ts` 验证真实 HTTP 权限、再验证、限流与审计失败500零泄露。

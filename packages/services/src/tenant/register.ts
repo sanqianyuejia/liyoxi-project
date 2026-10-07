@@ -1,5 +1,5 @@
 // tenant 模块的登记（W1-03）：
-//   端口     声明计费账户端口；实现由 billing 登记（W1-11a 起，建主体的事务里建 billing_account 行）。
+//   端口     计费账户由 billing 实现；W2-10 PR1 的精准下载页授权吊销由 identity 实现。
 //   状态机   entity、store、entity_member 五条链的随迁列、活动流默认描述，与本包用到的十行迁移的守卫。
 //   不变量   tenant.I1、I7、I27、I29；调度与落库由 ops（W0-24）。
 // 订阅者 tenant.onEntitlementChanged、定时器 invitation.expire 随 M2。
@@ -12,7 +12,7 @@ import {
   findI7Violations,
 } from "./invariants.js";
 import { machineImplementations } from "./machines.js";
-import { billingAccountPort } from "./ports.js";
+import { billingAccountPort, membershipAuthorizationsPort } from "./ports.js";
 
 const check = (
   code: string,
@@ -20,7 +20,7 @@ const check = (
 ): InvariantRegistration => ({ code, severity: "P2", modes: ["full"], heal: "none", run });
 
 export const registration = defineRegistration("tenant", {
-  ports: [billingAccountPort],
+  ports: [billingAccountPort, membershipAuthorizationsPort],
   portImplementations: [...machineImplementations()],
   invariants: [
     check("tenant.I1", (tx) => findI1Violations(tx)),

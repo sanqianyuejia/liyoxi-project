@@ -1,0 +1,91 @@
+.lyx-audit-filters {
+  padding: var(--lyx-space-16);
+  display: grid;
+  gap: var(--lyx-space-12);
+}
+.lyx-audit-filters__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--lyx-space-8);
+}
+.lyx-audit-filters__row > .ant-input {
+  width: 230px;
+}
+.lyx-audit-filters__row > .ant-select {
+  width: 180px;
+}
+.lyx-audit-filters__row .ant-picker {
+  width: 270px;
+}
+.lyx-audit-filters__advanced {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--lyx-space-12);
+}
+.lyx-audit-muted {
+  font-size: 12px;
+  color: var(--lyx-color-text-secondary);
+}
+.lyx-audit-list {
+  min-width: 0;
+  overflow: hidden;
+}
+.lyx-audit-list td {
+  overflow-wrap: anywhere;
+}
+.lyx-audit-pager {
+  padding: var(--lyx-space-16);
+  display: flex;
+  gap: var(--lyx-space-8);
+  align-items: center;
+  flex-wrap: wrap;
+}
+.lyx-audit-pager > span {
+  margin-inline-end: auto;
+  font-size: 12px;
+  color: var(--lyx-color-text-secondary);
+}
+.lyx-audit-pager > .ant-select {
+  width: 90px;
+}
+.lyx-audit-detail {
+  display: grid;
+  gap: var(--lyx-space-12);
+  overflow-wrap: anywhere;
+}
+.lyx-audit-detail h3,
+.lyx-audit-detail p {
+  margin: 0;
+}
+.lyx-audit-detail h3 {
+  font-size: 14px;
+  line-height: var(--lyx-line-height-title);
+}
+.lyx-audit-detail__number {
+  font-size: 12px;
+  color: var(--lyx-color-text-secondary);
+}
+.lyx-audit-kv {
+  display: grid;
+  gap: var(--lyx-space-8);
+  margin: 0;
+  font-size: 12px;
+}
+.lyx-audit-kv > div {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: var(--lyx-space-8);
+}
+.lyx-audit-kv dt {
+  color: var(--lyx-color-text-secondary);
+}
+.lyx-audit-kv dd {
+  margin: 0;
+}
+
+/* 详情的比对面板各占半宽，私有字段纵向排，保证脱敏号码可完整读。 */
+.lyx-audit-diff .lyx-audit-kv > div {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+}

@@ -29,7 +29,10 @@ export class ValidationFailure extends Error {
 export class RateLimited extends Error {
   readonly retryAfterSec: number;
 
-  constructor(retryAfterSec: number) {
+  constructor(
+    retryAfterSec: number,
+    readonly details?: unknown,
+  ) {
     super("请求过于频繁");
     this.name = "RateLimited";
     this.retryAfterSec = retryAfterSec;
@@ -57,7 +60,11 @@ function resolve(error: unknown): Resolved {
     return { symbol: "VALIDATION_FAILED", fieldErrors: error.fieldErrors };
   }
   if (error instanceof RateLimited) {
-    return { symbol: "RATE_LIMITED", retryAfterSec: error.retryAfterSec };
+    return {
+      symbol: "RATE_LIMITED",
+      retryAfterSec: error.retryAfterSec,
+      ...(error.details === undefined ? {} : { details: error.details }),
+    };
   }
   if (error instanceof HTTPException) {
     // 框架自己抛的：请求体不是合法 JSON（400）、内容类型不对（415）等都算入参不合；约定不用 415、422

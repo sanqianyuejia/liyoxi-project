@@ -4594,6 +4594,12 @@
    "via": "随调用方事务"
   },
   {
+   "ref": "03-staff-authz-audit.md:808",
+   "column": "approval_request.status",
+   "transition": "pending→pending（sla.recalculated）",
+   "via": "订阅者 approval.onCalendarImported"
+  },
+  {
    "ref": "04-profile.md:344",
    "column": "qualification_submission（派生阶段）",
    "transition": "草稿→已关闭（discarded，系统部分）",

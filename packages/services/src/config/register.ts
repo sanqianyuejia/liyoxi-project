@@ -3,12 +3,19 @@
 //   config.N9、N16、N17、N19、N20：W0-21 写成 SQL 断言的五条（invariants.ts），“现在”取框架给的业务时间。
 //   config.N8：库里未撤销的参数值（生效中与待生效）满足参数定义，用读侧的自检（params.ts）。
 // config.N7、N13、N15、N18 还没有实现，随用到它们的包。
-import { defineRegistration, invariantNow, runSqlAssertion } from "../kernel/index.js";
+import {
+  defineRegistration,
+  invariantNow,
+  runSqlAssertion,
+  dictReferencesPort,
+  implementKeyed,
+} from "../kernel/index.js";
 import type { InvariantRegistration } from "../kernel/index.js";
 
 import { createConfigCache } from "./cache.js";
 import { configSeedAssertions } from "./invariants.js";
 import { createParams } from "./params.js";
+import { configDictReferences } from "./dict-references.js";
 
 /** 写成 SQL 断言的那几条的编号；与 configSeedAssertions 给出的一一对应（用例核对） */
 export const CONFIG_SQL_INVARIANTS = [
@@ -63,5 +70,6 @@ const paramValues: InvariantRegistration = {
 };
 
 export const registration = defineRegistration("config", {
+  portImplementations: [implementKeyed(dictReferencesPort, "config", configDictReferences)],
   invariants: [paramValues, ...CONFIG_SQL_INVARIANTS.map(sqlInvariant)],
 });

@@ -25,6 +25,7 @@ export function derivedHarness(h: Harness) {
     tx: h.tx,
     events: h.events,
     sla: createSla({ clock: h.clock, assembly: h.assembly }),
+    timers: h.deps.timers,
   };
   const tenant = createTenant(core),
     approval = createApproval({ ...core, bizNo: h.deps.bizNo });

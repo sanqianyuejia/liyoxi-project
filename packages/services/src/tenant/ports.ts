@@ -16,3 +16,26 @@ export interface BillingAccountOpener {
 }
 
 export const billingAccountPort = definePort<BillingAccountOpener>("tenant.billingAccount");
+
+/** 下载页授权只按主体或该主体内的授权老板撤销；时间由调用方注入。 */
+export type PortalGrantRevocation =
+  | { readonly scope: "entity"; readonly entityId: string; readonly now: Date }
+  | {
+      readonly scope: "owner";
+      readonly entityId: string;
+      readonly merchantUserId: string;
+      readonly now: Date;
+    };
+
+export interface MembershipAuthorizations {
+  /**
+   * 调用方先持主体及相关成员锁，在原事务内调用。返回这次实际撤销的行数。
+   * 不吊销商家登录，不因 by_owner 门店归档调用；重复保留旧撤销证据。
+   */
+  revokePortalGrants(tx: Tx, input: PortalGrantRevocation): Promise<number>;
+}
+
+// 02 分组第 5 节：tenant 不能反调 identity，由 identity 登记强制实现。
+export const membershipAuthorizationsPort = definePort<MembershipAuthorizations>(
+  "tenant.membership_authorizations",
+);

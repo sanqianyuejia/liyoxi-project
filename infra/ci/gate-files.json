@@ -176,6 +176,11 @@
       "except": ["apps/api/README.md"],
       "kind": "append",
       "note": "API 门禁的说明文档：只作为门禁路径，不逐行判；扫描与回归按各自条目判"
+    },
+    {
+      "pattern": "apps/api/golden/admin-permission-matrix.txt",
+      "kind": "append",
+      "note": "后台角色矩阵：新增接口由现有回放生成器登记，既有接口行与角色格保持一致"
     }
   ]
 }

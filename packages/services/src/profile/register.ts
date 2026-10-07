@@ -1,3 +1,4 @@
+import { profilePiiFields } from "./pii-fields.js";
 import { approvalKindPort } from "../approval/index.js";
 import {
   defineRegistration,
@@ -15,6 +16,8 @@ import { dictRef, snapshot } from "./repo.js";
 export const registration = defineRegistration("profile", {
   ports: [orderManagerPort, deliveryManagerPort, adminProfileFactsPort],
   portImplementations: [
+    implementKeyed(dictReferencesPort, "profile", profileDictReferences),
+    ...profilePiiFields,
     implementKeyed(approvalKindPort, "qualification", qualificationKind),
     implementMerchantFacts("profile", async (tx, query) => {
       const stores: Record<
@@ -114,3 +117,6 @@ export const registration = defineRegistration("profile", {
     run: (tx, scope, ctx) => findViolations(tx, code, scope, ctx),
   })),
 });
+
+import { dictReferencesPort } from "../kernel/index.js";
+import { profileDictReferences } from "./dict-references.js";

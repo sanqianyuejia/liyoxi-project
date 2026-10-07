@@ -35,6 +35,7 @@ export {
 export { assertConfirm } from "./confirm.js";
 export type { ConfirmValue } from "./confirm.js";
 export {
+  assertIssuedScope,
   effectiveDataScope,
   ownTaskScope,
   poolsGrantedBy,

@@ -3734,6 +3734,293 @@
         ],
         "type": "object"
       },
+      "AuditLogDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AuditLogItem"
+          },
+          {
+            "properties": {
+              "after": {
+                "additionalProperties": {},
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "authMethod": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "before": {
+                "additionalProperties": {},
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "ipMask": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "jobName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "link": {
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "params": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "route": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "route",
+                  "params",
+                  "label"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "meta": {
+                "additionalProperties": {},
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "onBehalfOfEntityId": {
+                "format": "uuid",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reason": {
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "code",
+                  "text"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "requestId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "reason",
+              "before",
+              "after",
+              "meta",
+              "authMethod",
+              "ipMask",
+              "requestId",
+              "jobName",
+              "onBehalfOfEntityId",
+              "link"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "AuditLogItem": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actor": {
+            "properties": {
+              "actorId": {
+                "format": "uuid",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "actorType": {
+                "type": "string"
+              },
+              "client": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "actorType",
+              "actorId",
+              "name",
+              "role",
+              "client"
+            ],
+            "type": "object"
+          },
+          "auditLogId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "entityId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "logNo": {
+            "type": "string"
+          },
+          "storeId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stream": {
+            "enum": [
+              "ops",
+              "activity",
+              "access"
+            ],
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "target": {
+            "properties": {
+              "id": {
+                "format": "uuid",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "key": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id",
+              "key",
+              "label"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "auditLogId",
+          "logNo",
+          "createdAt",
+          "stream",
+          "category",
+          "action",
+          "summary",
+          "actor",
+          "target",
+          "entityId",
+          "storeId"
+        ],
+        "type": "object"
+      },
+      "AuditLogPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AuditLogItem"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "totalApprox": {
+            "maximum": 10000,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor",
+          "hasMore",
+          "totalApprox"
+        ],
+        "type": "object"
+      },
       "AuthNext": {
         "properties": {
           "methods": {
@@ -3784,6 +4071,42 @@
           "ticket",
           "ticketExpiresAt",
           "methods"
+        ],
+        "type": "object"
+      },
+      "BindWecomSelfBody": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "wecomUserid": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ChangePasswordBody": {
+        "additionalProperties": false,
+        "properties": {
+          "currentPassword": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "newPassword": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword"
         ],
         "type": "object"
       },
@@ -4996,6 +5319,19 @@
         },
         "required": [
           "ticket",
+          "code"
+        ],
+        "type": "object"
+      },
+      "ConfirmTotpSelfBody": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "pattern": "^\\d{6}$",
+            "type": "string"
+          }
+        },
+        "required": [
           "code"
         ],
         "type": "object"
@@ -10558,6 +10894,103 @@
         ],
         "type": "object"
       },
+      "PiiRevealBody": {
+        "additionalProperties": false,
+        "properties": {
+          "field": {
+            "enum": [
+              "phone",
+              "contactPhone",
+              "newPhone",
+              "uscc",
+              "legalRepName",
+              "certNo",
+              "principalName",
+              "submittedFields",
+              "reviewedFields",
+              "taxNo",
+              "addrTel",
+              "bankAccount",
+              "recvEmail",
+              "mailTo",
+              "payeeAccount",
+              "accountNo"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "purpose": {
+            "enum": [
+              "contact_merchant",
+              "verify_identity",
+              "finance_ops",
+              "other"
+            ],
+            "type": "string"
+          },
+          "subjectId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "subjectType": {
+            "enum": [
+              "merchant_user",
+              "store_profile",
+              "service_ticket",
+              "account_change_request",
+              "staff",
+              "entity",
+              "qualification_doc",
+              "invoice_request",
+              "refund_txn",
+              "finance_config_revision",
+              "agreement_consent"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "subjectType",
+          "subjectId",
+          "field",
+          "purpose"
+        ],
+        "type": "object"
+      },
+      "PiiRevealResult": {
+        "properties": {
+          "auditLogId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": {},
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "field",
+          "auditLogId"
+        ],
+        "type": "object"
+      },
       "PlanContentInput": {
         "additionalProperties": false,
         "properties": {
@@ -11912,6 +12345,559 @@
         ],
         "type": "object"
       },
+      "RoleConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "additionalProperties": {
+              "additionalProperties": false,
+              "properties": {
+                "leadOnly": {
+                  "type": "boolean"
+                },
+                "on": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "on",
+                "leadOnly"
+              ],
+              "type": "object"
+            },
+            "type": "object"
+          },
+          "dataScope": {
+            "enum": [
+              "own",
+              "group",
+              "all"
+            ],
+            "type": "string"
+          },
+          "moduleLevels": {
+            "additionalProperties": false,
+            "properties": {
+              "billing": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "channel": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "delivery": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "drama": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "finance": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "merchant": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "ops": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "order": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "publish": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "report": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "service": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "system": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "workbench": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "workbench",
+              "drama",
+              "billing",
+              "merchant",
+              "order",
+              "delivery",
+              "publish",
+              "service",
+              "finance",
+              "report",
+              "ops",
+              "system",
+              "channel"
+            ],
+            "type": "object"
+          },
+          "roleKey": {
+            "enum": [
+              "super_admin",
+              "cs",
+              "delivery_manager",
+              "editor",
+              "publisher",
+              "content_ops",
+              "channel_ops",
+              "finance"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "roleKey",
+          "moduleLevels",
+          "actions",
+          "dataScope"
+        ],
+        "type": "object"
+      },
+      "RoleDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RoleSummary"
+          },
+          {
+            "properties": {
+              "actions": {
+                "additionalProperties": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "leadOnly": {
+                      "type": "boolean"
+                    },
+                    "on": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "on",
+                    "leadOnly"
+                  ],
+                  "type": "object"
+                },
+                "type": "object"
+              },
+              "isDefault": {
+                "type": "boolean"
+              },
+              "lockVersion": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "moduleLevels": {
+                "additionalProperties": false,
+                "properties": {
+                  "billing": {
+                    "enum": [
+                      "n",
+                      "v",
+                      "o",
+                      "e"
+                    ],
+                    "type": "string"
+                  },
+                  "channel": {
+                    "enum": [
+                      "n",
+                      "v",
+                      "o",
+                      "e"
+                    ],
+                    "type": "string"
+                  },
+                  "delivery": {
+                    "enum": [
+                      "n",
+                      "v",
+                      "o",
+                      "e"
+                    ],
+                    "type": "string"
+                  },
+                  "drama": {
+                    "enum": [
+                      "n",
+                      "v",
+                      "o",
+                      "e"
+                    ],
+                    "type": "string"
+                  },
+                  "finance": {
+                    "enum": [
+                      "n",
+                      "v",
+                      "o",
+                      "e"
+                    ],
+                    "type": "string"
+                  },
+                  "merchant": {
+                    "enum": [
+                      "n",
+                      "v",
+                      "o",
+                      "e"
+                    ],
+                    "type": "string"
+                  },
+                  "ops": {
+                    "enum": [
+                      "n",
+                      "v",
+                      "o",
+                      "e"
+                    ],
+                    "type": "string"
+                  },
+                  "order": {
+                    "enum": [
+                      "n",
+                      "v",
+                      "o",
+                      "e"
+                    ],
+                    "type": "string"
+                  },
+                  "publish": {
+                    "enum": [
+                      "n",
+                      "v",
+                      "o",
+                      "e"
+                    ],
+                    "type": "string"
+                  },
+                  "report": {
+                    "enum": [
+                      "n",
+                      "v",
+                      "o",
+                      "e"
+                    ],
+                    "type": "string"
+                  },
+                  "service": {
+                    "enum": [
+                      "n",
+                      "v",
+                      "o",
+                      "e"
+                    ],
+                    "type": "string"
+                  },
+                  "system": {
+                    "enum": [
+                      "n",
+                      "v",
+                      "o",
+                      "e"
+                    ],
+                    "type": "string"
+                  },
+                  "workbench": {
+                    "enum": [
+                      "n",
+                      "v",
+                      "o",
+                      "e"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "workbench",
+                  "drama",
+                  "billing",
+                  "merchant",
+                  "order",
+                  "delivery",
+                  "publish",
+                  "service",
+                  "finance",
+                  "report",
+                  "ops",
+                  "system",
+                  "channel"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "moduleLevels",
+              "actions",
+              "lockVersion",
+              "isDefault"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "RoleReplaceBody": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "additionalProperties": {
+              "additionalProperties": false,
+              "properties": {
+                "leadOnly": {
+                  "type": "boolean"
+                },
+                "on": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "on",
+                "leadOnly"
+              ],
+              "type": "object"
+            },
+            "type": "object"
+          },
+          "dataScope": {
+            "enum": [
+              "own",
+              "group",
+              "all"
+            ],
+            "type": "string"
+          },
+          "lockVersion": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "moduleLevels": {
+            "additionalProperties": false,
+            "properties": {
+              "billing": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "channel": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "delivery": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "drama": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "finance": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "merchant": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "ops": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "order": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "publish": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "report": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "service": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "system": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              },
+              "workbench": {
+                "enum": [
+                  "n",
+                  "v",
+                  "o",
+                  "e"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "workbench",
+              "drama",
+              "billing",
+              "merchant",
+              "order",
+              "delivery",
+              "publish",
+              "service",
+              "finance",
+              "report",
+              "ops",
+              "system",
+              "channel"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "moduleLevels",
+          "actions",
+          "dataScope",
+          "lockVersion"
+        ],
+        "type": "object"
+      },
       "RoleSummary": {
         "properties": {
           "availableFrom": {
@@ -13134,6 +14120,71 @@
         ],
         "type": "object"
       },
+      "StaffWecom": {
+        "properties": {
+          "boundAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "qrFileId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "qrUrl": {
+            "anyOf": [
+              {
+                "properties": {
+                  "expiresAt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "url": {
+                    "format": "uri",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "url",
+                  "expiresAt"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "none",
+              "invited",
+              "bound",
+              "unbound"
+            ],
+            "type": "string"
+          },
+          "userid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "userid",
+          "boundAt",
+          "qrFileId",
+          "qrUrl"
+        ],
+        "type": "object"
+      },
       "StepUpBody": {
         "properties": {
           "code": {
@@ -14144,6 +15195,16 @@
         ],
         "type": "object"
       },
+      "SystemConfigJsonValue": {
+        "type": [
+          "object",
+          "array",
+          "string",
+          "number",
+          "boolean",
+          "null"
+        ]
+      },
       "TotpConfirmResult": {
         "properties": {
           "me": {
@@ -14185,6 +15246,52 @@
           "secret",
           "ticket",
           "ticketExpiresAt"
+        ],
+        "type": "object"
+      },
+      "TotpReEnrollResult": {
+        "properties": {
+          "recoveryCodes": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "recoveryCodesLeft": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "replayed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "recoveryCodes",
+          "recoveryCodesLeft",
+          "replayed"
+        ],
+        "type": "object"
+      },
+      "TotpReEnrollment": {
+        "properties": {
+          "otpauthUri": {
+            "type": "string"
+          },
+          "pendingExpiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "secret": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "otpauthUri",
+          "secret",
+          "pendingExpiresAt"
         ],
         "type": "object"
       },
@@ -15094,6 +16201,325 @@
         "x-permission": "assert-in-handler"
       }
     },
+    "/api/v1/admin/audit-logs": {
+      "get": {
+        "operationId": "admin.auditLog.list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stream",
+            "required": false,
+            "schema": {
+              "default": "ops",
+              "enum": [
+                "ops",
+                "access"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actorType",
+            "required": false,
+            "schema": {
+              "enum": [
+                "staff",
+                "merchant",
+                "system"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actorId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "targetType",
+            "required": false,
+            "schema": {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "targetId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "targetKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "entityId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "storeId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "createdFrom",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "createdTo",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AuditLogPage"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          }
+        },
+        "summary": "操作日志列表：时间范围、类型、操作人（含“系统”），游标分页",
+        "x-auth": "staff",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "纯查询（GET 不写库，A19）",
+        "x-permission": "assert-in-handler"
+      }
+    },
+    "/api/v1/admin/audit-logs/{auditLogId}": {
+      "get": {
+        "operationId": "admin.auditLog.get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "auditLogId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AuditLogDetail"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "资源不存在，或不在当前门店、主体、数据范围内"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          }
+        },
+        "summary": "操作日志详情：键值、变更前后、登录方式、来源 IP（脱敏）、关联页面",
+        "x-auth": "staff",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "纯查询（GET 不写库，A19）",
+        "x-permission": "assert-in-handler"
+      }
+    },
     "/api/v1/admin/auth/activate": {
       "post": {
         "operationId": "admin.auth.activate",
@@ -15186,6 +16612,231 @@
         "x-idempotent": "none",
         "x-idempotent-reason": "登录前的激活与首次绑定，此时没有会话（C47 本稿归入登录与换会话）",
         "x-rate-limit": "admin.login"
+      }
+    },
+    "/api/v1/admin/auth/bind-wecom": {
+      "post": {
+        "operationId": "admin.auth.bindWecom",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindWecomSelfBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/StaffWecom"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "外部能力不可用、系统繁忙或停机维护"
+          }
+        },
+        "summary": "员工本人扫码绑定企业微信",
+        "x-auth": "staff",
+        "x-idempotent": "required",
+        "x-idempotent-reason": "状态写入；扫码分支为三段式用例（C51，先调外部、再开事务）"
+      }
+    },
+    "/api/v1/admin/auth/change-password": {
+      "post": {
+        "operationId": "admin.auth.changePassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "type": "null"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "外部能力不可用、系统繁忙或停机维护"
+          }
+        },
+        "summary": "修改本人登录密码",
+        "x-auth": "staff",
+        "x-idempotent": "required"
       }
     },
     "/api/v1/admin/auth/confirm-totp": {
@@ -15553,6 +17204,227 @@
         "x-idempotent-reason": "纯查询（GET 不写库，A19）"
       }
     },
+    "/api/v1/admin/auth/me/confirm-totp": {
+      "post": {
+        "operationId": "admin.auth.me.confirmTotp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmTotpSelfBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/TotpReEnrollResult"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "外部能力不可用、系统繁忙或停机维护"
+          }
+        },
+        "summary": "本人重新绑定动态口令：校验新密钥的口令后替换密钥、换发 10 个恢复码、吊销本人其他会话",
+        "x-auth": "staff",
+        "x-idempotent": "required",
+        "x-idempotent-reason": "有业务写入（替换密钥、重发恢复码、吊销其他会话）；结果脱敏 x-redact-on-replay recoveryCodes（A80、C50）",
+        "x-permission": "self.mfa.reset",
+        "x-redact-on-replay": [
+          "recoveryCodes"
+        ]
+      }
+    },
+    "/api/v1/admin/auth/me/enroll-totp": {
+      "post": {
+        "operationId": "admin.auth.me.enrollTotp",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/TotpReEnrollment"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "外部能力不可用、系统繁忙或停机维护"
+          }
+        },
+        "summary": "本人重新绑定动态口令：生成新的待确认密钥（用户菜单“动态口令设置”）",
+        "x-auth": "staff",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "结果只有一次性的新密钥，重放没有意义（C50 与 none 的分工）；重复调用只覆盖待确认密钥；已登记进 C47 的 none 清单（A139）",
+        "x-permission": "self.mfa.reset"
+      }
+    },
     "/api/v1/admin/auth/set-password": {
       "post": {
         "operationId": "admin.auth.setPassword",
@@ -15833,6 +17705,639 @@
         "x-idempotent": "none",
         "x-idempotent-reason": "登录与换会话（A18）",
         "x-rate-limit": "admin.login"
+      }
+    },
+    "/api/v1/admin/calendar-days": {
+      "get": {
+        "operationId": "admin.calendarDay.list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "year",
+            "required": true,
+            "schema": {
+              "maximum": 2100,
+              "minimum": 2024,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "includeAllDays",
+            "required": false,
+            "schema": {
+              "default": "false",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "properties": {
+                        "calendarVersion": {
+                          "type": "integer"
+                        },
+                        "days": {
+                          "items": {
+                            "properties": {
+                              "date": {
+                                "format": "date",
+                                "type": "string"
+                              },
+                              "isWorkday": {
+                                "type": "boolean"
+                              },
+                              "kind": {
+                                "enum": [
+                                  "weekday",
+                                  "weekend",
+                                  "holiday",
+                                  "adjusted_workday"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "date",
+                              "kind",
+                              "isWorkday"
+                            ],
+                            "type": "object"
+                          },
+                          "type": [
+                            "array",
+                            "null"
+                          ]
+                        },
+                        "holidays": {
+                          "items": {
+                            "properties": {
+                              "days": {
+                                "type": "integer"
+                              },
+                              "from": {
+                                "format": "date",
+                                "type": "string"
+                              },
+                              "kind": {
+                                "enum": [
+                                  "holiday",
+                                  "adjusted_workday"
+                                ],
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "to": {
+                                "format": "date",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "kind",
+                              "from",
+                              "to",
+                              "days"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "importedAt": {
+                          "anyOf": [
+                            {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "items": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "date": {
+                                "format": "date",
+                                "type": "string"
+                              },
+                              "kind": {
+                                "enum": [
+                                  "holiday",
+                                  "adjusted_workday"
+                                ],
+                                "type": "string"
+                              },
+                              "note": {
+                                "maxLength": 20,
+                                "minLength": 1,
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "date",
+                              "kind",
+                              "note"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "workHours": {
+                          "properties": {
+                            "end": {
+                              "type": "string"
+                            },
+                            "start": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "start",
+                            "end"
+                          ],
+                          "type": "object"
+                        },
+                        "year": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "items",
+                        "year",
+                        "calendarVersion",
+                        "holidays",
+                        "days",
+                        "importedAt",
+                        "workHours"
+                      ],
+                      "type": "object"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "资源不存在，或不在当前门店、主体、数据范围内"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "外部能力不可用、系统繁忙或停机维护"
+          }
+        },
+        "summary": "某年的工作日历（放假、调休上班），参数页的节假日表",
+        "x-auth": "staff",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "纯查询（GET 不写库，A19）"
+      }
+    },
+    "/api/v1/admin/calendar-days/import": {
+      "post": {
+        "operationId": "admin.calendarDay.batchImport",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "days": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "date": {
+                          "format": "date",
+                          "type": "string"
+                        },
+                        "kind": {
+                          "enum": [
+                            "holiday",
+                            "adjusted_workday"
+                          ],
+                          "type": "string"
+                        },
+                        "note": {
+                          "maxLength": 20,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "date",
+                        "kind",
+                        "note"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "type": "array"
+                  },
+                  "source": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "year": {
+                    "maximum": 2100,
+                    "minimum": 2024,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "year"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "properties": {
+                        "adjustedWorkdayCount": {
+                          "type": "integer"
+                        },
+                        "calendar": {
+                          "properties": {
+                            "calendarVersion": {
+                              "type": "integer"
+                            },
+                            "days": {
+                              "items": {
+                                "properties": {
+                                  "date": {
+                                    "format": "date",
+                                    "type": "string"
+                                  },
+                                  "isWorkday": {
+                                    "type": "boolean"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "weekday",
+                                      "weekend",
+                                      "holiday",
+                                      "adjusted_workday"
+                                    ],
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "date",
+                                  "kind",
+                                  "isWorkday"
+                                ],
+                                "type": "object"
+                              },
+                              "type": [
+                                "array",
+                                "null"
+                              ]
+                            },
+                            "holidays": {
+                              "items": {
+                                "properties": {
+                                  "days": {
+                                    "type": "integer"
+                                  },
+                                  "from": {
+                                    "format": "date",
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "holiday",
+                                      "adjusted_workday"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "to": {
+                                    "format": "date",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "name",
+                                  "kind",
+                                  "from",
+                                  "to",
+                                  "days"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "importedAt": {
+                              "anyOf": [
+                                {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "items": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "date": {
+                                    "format": "date",
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "holiday",
+                                      "adjusted_workday"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "note": {
+                                    "maxLength": 20,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "date",
+                                  "kind",
+                                  "note"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "workHours": {
+                              "properties": {
+                                "end": {
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            },
+                            "year": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "items",
+                            "year",
+                            "calendarVersion",
+                            "holidays",
+                            "days",
+                            "importedAt",
+                            "workHours"
+                          ],
+                          "type": "object"
+                        },
+                        "calendarVersion": {
+                          "type": "integer"
+                        },
+                        "changedDays": {
+                          "items": {
+                            "format": "date",
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "holidayCount": {
+                          "type": "integer"
+                        },
+                        "isChanged": {
+                          "type": "boolean"
+                        },
+                        "source": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "year": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "year",
+                        "isChanged",
+                        "changedDays",
+                        "calendarVersion",
+                        "holidayCount",
+                        "adjustedWorkdayCount",
+                        "source",
+                        "calendar"
+                      ],
+                      "type": "object"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "资源不存在，或不在当前门店、主体、数据范围内"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "外部能力不可用、系统繁忙或停机维护"
+          }
+        },
+        "summary": "导入年度放假安排（按年幂等；有变化才升日历批次并重算各类工作日时限）",
+        "x-auth": "staff",
+        "x-idempotent": "required",
+        "x-permission": "sys.param.edit"
       }
     },
     "/api/v1/admin/channel-account-submissions/{channelAccountSubmissionId}": {
@@ -16648,6 +19153,435 @@
         "x-idempotent": "none",
         "x-idempotent-reason": "纯查询（GET 不写库，A19）",
         "x-permission": "assert-in-handler"
+      },
+      "post": {
+        "operationId": "admin.checklistTemplate.create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "enum": [
+                      "qc.sample",
+                      "qc.episode",
+                      "qc.package",
+                      "delivery.precheck",
+                      "launch.verify",
+                      "patrol.check",
+                      "takedown.check",
+                      "takedown.absence_check",
+                      "account.verify"
+                    ],
+                    "type": "string"
+                  },
+                  "items": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "allowNa": {
+                          "type": "boolean"
+                        },
+                        "hint": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "pattern": "^[A-Za-z][A-Za-z0-9_]{0,39}$",
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "merchantVisible": {
+                          "type": "boolean"
+                        },
+                        "required": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "label",
+                        "required",
+                        "allowNa",
+                        "merchantVisible"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "code",
+                  "items"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ChecklistTemplateView"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "资源不存在，或不在当前门店、主体、数据范围内"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "外部能力不可用、系统繁忙或停机维护"
+          }
+        },
+        "summary": "新建清单模板版本（草稿）",
+        "x-auth": "staff",
+        "x-idempotent": "required",
+        "x-permission": "flow.checklist.manage"
+      }
+    },
+    "/api/v1/admin/checklist-templates/{checklistTemplateId}/activate": {
+      "post": {
+        "operationId": "admin.checklistTemplate.activate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "checklistTemplateId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ChecklistTemplateView"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "资源不存在，或不在当前门店、主体、数据范围内"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "外部能力不可用、系统繁忙或停机维护"
+          }
+        },
+        "summary": "启用清单模板版本（同编码旧版本退役）",
+        "x-auth": "staff",
+        "x-idempotent": "required",
+        "x-permission": "flow.checklist.manage"
+      }
+    },
+    "/api/v1/admin/checklist-templates/{checklistTemplateId}/discard": {
+      "post": {
+        "operationId": "admin.checklistTemplate.discard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "checklistTemplateId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ChecklistTemplateView"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "资源不存在，或不在当前门店、主体、数据范围内"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "外部能力不可用、系统繁忙或停机维护"
+          }
+        },
+        "summary": "放弃清单模板草稿",
+        "x-auth": "staff",
+        "x-idempotent": "required",
+        "x-permission": "flow.checklist.manage"
       }
     },
     "/api/v1/admin/delivery-plans/{deliveryPlanId}": {
@@ -19088,6 +22022,1113 @@
         "x-idempotent": "none",
         "x-idempotent-reason": "纯查询（GET 不写库，A19）",
         "x-permission": "assert-in-handler"
+      },
+      "post": {
+        "operationId": "admin.dictItem.create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "description": {
+                    "maxLength": 40,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "ext": {
+                    "additionalProperties": {},
+                    "type": "object"
+                  },
+                  "name": {
+                    "maxLength": 20,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "parentCode": {
+                    "minLength": 1,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "tags": {
+                    "items": {
+                      "maxLength": 20,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "maxItems": 20,
+                    "type": "array"
+                  },
+                  "typeKey": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "typeKey",
+                  "name"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DictItemView"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "资源不存在，或不在当前门店、主体、数据范围内"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "外部能力不可用、系统繁忙或停机维护"
+          }
+        },
+        "summary": "新增字典项（编码由系统按顺序生成，保存后不可改；同级不重名）",
+        "x-auth": "staff",
+        "x-idempotent": "required",
+        "x-permission": "sys.dict.edit"
+      }
+    },
+    "/api/v1/admin/dict-items/{dictItemId}": {
+      "patch": {
+        "operationId": "admin.dictItem.update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dictItemId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "description": {
+                    "maxLength": 40,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "ext": {
+                    "additionalProperties": {},
+                    "type": "object"
+                  },
+                  "isEnabled": {
+                    "type": "boolean"
+                  },
+                  "lockVersion": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "name": {
+                    "maxLength": 20,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "position": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "tags": {
+                    "items": {
+                      "maxLength": 20,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "maxItems": 20,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "lockVersion"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DictItemView"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "资源不存在，或不在当前门店、主体、数据范围内"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "外部能力不可用、系统繁忙或停机维护"
+          }
+        },
+        "summary": "修改字典项名称、说明，或启用 / 停用",
+        "x-auth": "staff",
+        "x-idempotent": "required",
+        "x-permission": "sys.dict.edit"
+      }
+    },
+    "/api/v1/admin/dict-types": {
+      "get": {
+        "operationId": "admin.dictType.list",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "properties": {
+                        "items": {
+                          "items": {
+                            "properties": {
+                              "canCreate": {
+                                "type": "boolean"
+                              },
+                              "disablePolicy": {
+                                "enum": [
+                                  "free",
+                                  "block_if_referenced",
+                                  "never"
+                                ],
+                                "type": "string"
+                              },
+                              "enabledCount": {
+                                "type": "integer"
+                              },
+                              "isMerchantVisible": {
+                                "type": "boolean"
+                              },
+                              "isSystem": {
+                                "type": "boolean"
+                              },
+                              "itemCount": {
+                                "type": "integer"
+                              },
+                              "levelCounts": {
+                                "items": {
+                                  "type": "integer"
+                                },
+                                "type": "array"
+                              },
+                              "maxDepth": {
+                                "type": "integer"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "structure": {
+                                "enum": [
+                                  "flat",
+                                  "tree"
+                                ],
+                                "type": "string"
+                              },
+                              "typeKey": {
+                                "type": "string"
+                              },
+                              "versionNo": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "typeKey",
+                              "name",
+                              "structure",
+                              "maxDepth",
+                              "isSystem",
+                              "canCreate",
+                              "disablePolicy",
+                              "isMerchantVisible",
+                              "versionNo",
+                              "itemCount",
+                              "enabledCount",
+                              "levelCounts"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "items"
+                      ],
+                      "type": "object"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "资源不存在，或不在当前门店、主体、数据范围内"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "外部能力不可用、系统繁忙或停机维护"
+          }
+        },
+        "summary": "字典类型列表（项数、启用数、是否可新增）",
+        "x-auth": "staff",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "纯查询（GET 不写库，A19）"
+      }
+    },
+    "/api/v1/admin/feature-flags": {
+      "get": {
+        "operationId": "admin.featureFlag.list",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "properties": {
+                        "items": {
+                          "items": {
+                            "properties": {
+                              "defaultValue": {},
+                              "description": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "exposedTo": {
+                                "enum": [
+                                  "client",
+                                  "server"
+                                ],
+                                "type": "string"
+                              },
+                              "flagKey": {
+                                "type": "string"
+                              },
+                              "lockVersion": {
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "options": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": [
+                                  "array",
+                                  "null"
+                                ]
+                              },
+                              "rules": {
+                                "items": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "value": {
+                                      "$ref": "#/components/schemas/SystemConfigJsonValue"
+                                    },
+                                    "when": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "clientVersion": {
+                                          "pattern": "^(?:>=|<=|>|<|=)\\d{1,5}\\.\\d{1,5}\\.\\d{1,5}(?: (?:>=|<=|>|<|=)\\d{1,5}\\.\\d{1,5}\\.\\d{1,5})*$",
+                                          "type": "string"
+                                        },
+                                        "entityIds": {
+                                          "items": {
+                                            "format": "uuid",
+                                            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                                            "type": "string"
+                                          },
+                                          "maxItems": 500,
+                                          "minItems": 1,
+                                          "type": "array"
+                                        },
+                                        "envVersion": {
+                                          "items": {
+                                            "enum": [
+                                              "develop",
+                                              "trial",
+                                              "release"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "minItems": 1,
+                                          "type": "array"
+                                        },
+                                        "platform": {
+                                          "items": {
+                                            "maxLength": 32,
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "minItems": 1,
+                                          "type": "array"
+                                        }
+                                      },
+                                      "type": "object"
+                                    }
+                                  },
+                                  "required": [
+                                    "when",
+                                    "value"
+                                  ],
+                                  "type": "object"
+                                },
+                                "maxItems": 50,
+                                "type": "array"
+                              },
+                              "updatedAt": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "updatedBy": {
+                                "anyOf": [
+                                  {
+                                    "$ref": "#/components/schemas/StaffBrief"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "valueType": {
+                                "enum": [
+                                  "bool",
+                                  "enum",
+                                  "json"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "flagKey",
+                              "valueType",
+                              "rules",
+                              "exposedTo",
+                              "description",
+                              "options",
+                              "updatedAt",
+                              "updatedBy",
+                              "lockVersion"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "items"
+                      ],
+                      "type": "object"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "资源不存在，或不在当前门店、主体、数据范围内"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "外部能力不可用、系统繁忙或停机维护"
+          }
+        },
+        "summary": "特性开关列表：键、说明、默认值、规则（平台、版本、环境、主体白名单）",
+        "x-auth": "staff",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "纯查询（GET 不写库，A19）",
+        "x-permission": "sys.super_admin"
+      }
+    },
+    "/api/v1/admin/feature-flags/{flagKey}": {
+      "patch": {
+        "operationId": "admin.featureFlag.update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "flagKey",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "defaultValue": {},
+                  "description": {
+                    "maxLength": 100,
+                    "type": "string"
+                  },
+                  "lockVersion": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "rules": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "value": {
+                          "$ref": "#/components/schemas/SystemConfigJsonValue"
+                        },
+                        "when": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "clientVersion": {
+                              "pattern": "^(?:>=|<=|>|<|=)\\d{1,5}\\.\\d{1,5}\\.\\d{1,5}(?: (?:>=|<=|>|<|=)\\d{1,5}\\.\\d{1,5}\\.\\d{1,5})*$",
+                              "type": "string"
+                            },
+                            "entityIds": {
+                              "items": {
+                                "format": "uuid",
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                                "type": "string"
+                              },
+                              "maxItems": 500,
+                              "minItems": 1,
+                              "type": "array"
+                            },
+                            "envVersion": {
+                              "items": {
+                                "enum": [
+                                  "develop",
+                                  "trial",
+                                  "release"
+                                ],
+                                "type": "string"
+                              },
+                              "minItems": 1,
+                              "type": "array"
+                            },
+                            "platform": {
+                              "items": {
+                                "maxLength": 32,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "minItems": 1,
+                              "type": "array"
+                            }
+                          },
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "when",
+                        "value"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 50,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "lockVersion"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "properties": {
+                        "defaultValue": {},
+                        "description": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "exposedTo": {
+                          "enum": [
+                            "client",
+                            "server"
+                          ],
+                          "type": "string"
+                        },
+                        "flagKey": {
+                          "type": "string"
+                        },
+                        "lockVersion": {
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "options": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": [
+                            "array",
+                            "null"
+                          ]
+                        },
+                        "rules": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "value": {
+                                "$ref": "#/components/schemas/SystemConfigJsonValue"
+                              },
+                              "when": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "clientVersion": {
+                                    "pattern": "^(?:>=|<=|>|<|=)\\d{1,5}\\.\\d{1,5}\\.\\d{1,5}(?: (?:>=|<=|>|<|=)\\d{1,5}\\.\\d{1,5}\\.\\d{1,5})*$",
+                                    "type": "string"
+                                  },
+                                  "entityIds": {
+                                    "items": {
+                                      "format": "uuid",
+                                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                                      "type": "string"
+                                    },
+                                    "maxItems": 500,
+                                    "minItems": 1,
+                                    "type": "array"
+                                  },
+                                  "envVersion": {
+                                    "items": {
+                                      "enum": [
+                                        "develop",
+                                        "trial",
+                                        "release"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "minItems": 1,
+                                    "type": "array"
+                                  },
+                                  "platform": {
+                                    "items": {
+                                      "maxLength": 32,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "minItems": 1,
+                                    "type": "array"
+                                  }
+                                },
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "when",
+                              "value"
+                            ],
+                            "type": "object"
+                          },
+                          "maxItems": 50,
+                          "type": "array"
+                        },
+                        "updatedAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "updatedBy": {
+                          "anyOf": [
+                            {
+                              "$ref": "#/components/schemas/StaffBrief"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "valueType": {
+                          "enum": [
+                            "bool",
+                            "enum",
+                            "json"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "flagKey",
+                        "valueType",
+                        "rules",
+                        "exposedTo",
+                        "description",
+                        "options",
+                        "updatedAt",
+                        "updatedBy",
+                        "lockVersion"
+                      ],
+                      "type": "object"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "资源不存在，或不在当前门店、主体、数据范围内"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "外部能力不可用、系统繁忙或停机维护"
+          }
+        },
+        "summary": "修改开关的默认值或规则（写审计，触发即时播报）",
+        "x-auth": "staff",
+        "x-idempotent": "required",
+        "x-permission": "sys.super_admin"
       }
     },
     "/api/v1/admin/files": {
@@ -20520,6 +24561,1041 @@
         "x-idempotent-reason": "纯查询（GET 不写库，A19）"
       }
     },
+    "/api/v1/admin/param-values": {
+      "get": {
+        "operationId": "admin.paramValue.list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "group",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "keys",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "properties": {
+                        "groups": {
+                          "items": {
+                            "properties": {
+                              "group": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "group",
+                              "title"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "items": {
+                          "items": {
+                            "properties": {
+                              "defaultValue": {},
+                              "description": {
+                                "type": "string"
+                              },
+                              "effectiveAt": {
+                                "anyOf": [
+                                  {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "group": {
+                                "type": "string"
+                              },
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "latestRev": {
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "pending": {
+                                "items": {
+                                  "properties": {
+                                    "canWithdraw": {
+                                      "type": "boolean"
+                                    },
+                                    "effectiveAt": {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    "paramValueId": {
+                                      "format": "uuid",
+                                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                                      "type": "string"
+                                    },
+                                    "reason": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "rev": {
+                                      "type": "string"
+                                    },
+                                    "savedAt": {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    "savedBy": {
+                                      "anyOf": [
+                                        {
+                                          "$ref": "#/components/schemas/StaffBrief"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "value": {}
+                                  },
+                                  "required": [
+                                    "paramValueId",
+                                    "rev",
+                                    "effectiveAt",
+                                    "reason",
+                                    "savedBy",
+                                    "savedAt",
+                                    "canWithdraw"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
+                              "range": {
+                                "additionalProperties": {},
+                                "type": [
+                                  "object",
+                                  "null"
+                                ]
+                              },
+                              "rev": {
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "savedAt": {
+                                "anyOf": [
+                                  {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "savedBy": {
+                                "anyOf": [
+                                  {
+                                    "$ref": "#/components/schemas/StaffBrief"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "snapshotOn": {
+                                "enum": [
+                                  "create",
+                                  "read"
+                                ],
+                                "type": "string"
+                              },
+                              "type": {
+                                "enum": [
+                                  "int",
+                                  "bp",
+                                  "int_list",
+                                  "time_hm",
+                                  "bool",
+                                  "enum",
+                                  "text",
+                                  "json",
+                                  "sla_policy"
+                                ],
+                                "type": "string"
+                              },
+                              "unit": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "value": {}
+                            },
+                            "required": [
+                              "key",
+                              "group",
+                              "label",
+                              "description",
+                              "type",
+                              "unit",
+                              "range",
+                              "rev",
+                              "latestRev",
+                              "effectiveAt",
+                              "savedBy",
+                              "savedAt",
+                              "pending",
+                              "snapshotOn"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "lastSaved": {
+                          "properties": {
+                            "at": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "staff": {
+                              "$ref": "#/components/schemas/StaffBrief"
+                            }
+                          },
+                          "required": [
+                            "at",
+                            "staff"
+                          ],
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "items",
+                        "groups",
+                        "lastSaved"
+                      ],
+                      "type": "object"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "资源不存在，或不在当前门店、主体、数据范围内"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "外部能力不可用、系统繁忙或停机维护"
+          }
+        },
+        "summary": "系统参数：分组、元数据（类型、范围、单位、默认值）、当前值与待生效值、最近保存人",
+        "x-auth": "staff",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "纯查询（GET 不写库，A19）"
+      },
+      "put": {
+        "operationId": "admin.paramValue.replace",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "items": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "effectiveAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "expectedRev": {
+                          "pattern": "^[1-9][0-9]*$",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "key": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "value": {
+                          "$ref": "#/components/schemas/SystemConfigJsonValue"
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "value",
+                        "expectedRev"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "reason": {
+                    "maxLength": 100,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "items"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "properties": {
+                        "groups": {
+                          "items": {
+                            "properties": {
+                              "group": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "group",
+                              "title"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "items": {
+                          "items": {
+                            "properties": {
+                              "defaultValue": {},
+                              "description": {
+                                "type": "string"
+                              },
+                              "effectiveAt": {
+                                "anyOf": [
+                                  {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "group": {
+                                "type": "string"
+                              },
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "latestRev": {
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "pending": {
+                                "items": {
+                                  "properties": {
+                                    "canWithdraw": {
+                                      "type": "boolean"
+                                    },
+                                    "effectiveAt": {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    "paramValueId": {
+                                      "format": "uuid",
+                                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                                      "type": "string"
+                                    },
+                                    "reason": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "rev": {
+                                      "type": "string"
+                                    },
+                                    "savedAt": {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    "savedBy": {
+                                      "anyOf": [
+                                        {
+                                          "$ref": "#/components/schemas/StaffBrief"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "value": {}
+                                  },
+                                  "required": [
+                                    "paramValueId",
+                                    "rev",
+                                    "effectiveAt",
+                                    "reason",
+                                    "savedBy",
+                                    "savedAt",
+                                    "canWithdraw"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
+                              "range": {
+                                "additionalProperties": {},
+                                "type": [
+                                  "object",
+                                  "null"
+                                ]
+                              },
+                              "rev": {
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "savedAt": {
+                                "anyOf": [
+                                  {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "savedBy": {
+                                "anyOf": [
+                                  {
+                                    "$ref": "#/components/schemas/StaffBrief"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "snapshotOn": {
+                                "enum": [
+                                  "create",
+                                  "read"
+                                ],
+                                "type": "string"
+                              },
+                              "type": {
+                                "enum": [
+                                  "int",
+                                  "bp",
+                                  "int_list",
+                                  "time_hm",
+                                  "bool",
+                                  "enum",
+                                  "text",
+                                  "json",
+                                  "sla_policy"
+                                ],
+                                "type": "string"
+                              },
+                              "unit": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "value": {}
+                            },
+                            "required": [
+                              "key",
+                              "group",
+                              "label",
+                              "description",
+                              "type",
+                              "unit",
+                              "range",
+                              "rev",
+                              "latestRev",
+                              "effectiveAt",
+                              "savedBy",
+                              "savedAt",
+                              "pending",
+                              "snapshotOn"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "lastSaved": {
+                          "properties": {
+                            "at": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "staff": {
+                              "$ref": "#/components/schemas/StaffBrief"
+                            }
+                          },
+                          "required": [
+                            "at",
+                            "staff"
+                          ],
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "items",
+                        "groups",
+                        "lastSaved"
+                      ],
+                      "type": "object"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "资源不存在，或不在当前门店、主体、数据范围内"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "外部能力不可用、系统繁忙或停机维护"
+          }
+        },
+        "summary": "整批保存参数（[{key, value, expectedRev, effectiveFrom?}]，整批乐观锁）",
+        "x-auth": "staff",
+        "x-idempotent": "required",
+        "x-permission": "sys.param.edit"
+      }
+    },
+    "/api/v1/admin/param-values/{paramValueId}/withdraw": {
+      "post": {
+        "operationId": "admin.paramValue.withdraw",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "paramValueId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "reason": {
+                    "maxLength": 100,
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "properties": {
+                        "defaultValue": {},
+                        "description": {
+                          "type": "string"
+                        },
+                        "effectiveAt": {
+                          "anyOf": [
+                            {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "group": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "latestRev": {
+                          "pattern": "^[1-9][0-9]*$",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "pending": {
+                          "items": {
+                            "properties": {
+                              "canWithdraw": {
+                                "type": "boolean"
+                              },
+                              "effectiveAt": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "paramValueId": {
+                                "format": "uuid",
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                                "type": "string"
+                              },
+                              "reason": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "rev": {
+                                "type": "string"
+                              },
+                              "savedAt": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "savedBy": {
+                                "anyOf": [
+                                  {
+                                    "$ref": "#/components/schemas/StaffBrief"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "value": {}
+                            },
+                            "required": [
+                              "paramValueId",
+                              "rev",
+                              "effectiveAt",
+                              "reason",
+                              "savedBy",
+                              "savedAt",
+                              "canWithdraw"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "range": {
+                          "additionalProperties": {},
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "rev": {
+                          "pattern": "^[1-9][0-9]*$",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "savedAt": {
+                          "anyOf": [
+                            {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "savedBy": {
+                          "anyOf": [
+                            {
+                              "$ref": "#/components/schemas/StaffBrief"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "snapshotOn": {
+                          "enum": [
+                            "create",
+                            "read"
+                          ],
+                          "type": "string"
+                        },
+                        "type": {
+                          "enum": [
+                            "int",
+                            "bp",
+                            "int_list",
+                            "time_hm",
+                            "bool",
+                            "enum",
+                            "text",
+                            "json",
+                            "sla_policy"
+                          ],
+                          "type": "string"
+                        },
+                        "unit": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "value": {}
+                      },
+                      "required": [
+                        "key",
+                        "group",
+                        "label",
+                        "description",
+                        "type",
+                        "unit",
+                        "range",
+                        "rev",
+                        "latestRev",
+                        "effectiveAt",
+                        "savedBy",
+                        "savedAt",
+                        "pending",
+                        "snapshotOn"
+                      ],
+                      "type": "object"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "资源不存在，或不在当前门店、主体、数据范围内"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "外部能力不可用、系统繁忙或停机维护"
+          }
+        },
+        "summary": "撤销一条尚未生效的预约参数值",
+        "x-auth": "staff",
+        "x-idempotent": "required",
+        "x-permission": "sys.param.edit"
+      }
+    },
     "/api/v1/admin/payment-orders/{paymentOrderId}": {
       "get": {
         "operationId": "admin.paymentOrder.get",
@@ -20633,6 +25709,120 @@
         "x-auth": "staff",
         "x-idempotent": "none",
         "x-idempotent-reason": "纯查询（GET 不写库，A19）"
+      }
+    },
+    "/api/v1/admin/pii-reveals": {
+      "post": {
+        "operationId": "admin.piiReveal.create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PiiRevealBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PiiRevealResult"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "资源不存在，或不在当前门店、主体、数据范围内"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "内部错误"
+          }
+        },
+        "summary": "查看字段明文（手机号、信用代码、银行账号等）：先写 access 审计再返回；限频",
+        "x-auth": "staff",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "明文查看，结果含明文，不进幂等记录（A51）",
+        "x-permission": "assert-in-handler"
       }
     },
     "/api/v1/admin/qualification-submissions/{qualificationSubmissionId}": {
@@ -21114,6 +26304,319 @@
           }
         },
         "summary": "8 个内置角色：名称、职责、成员数、是否锁定、未保存标记由前端维护",
+        "x-auth": "staff",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "纯查询（GET 不写库，A19）"
+      }
+    },
+    "/api/v1/admin/roles/{roleKey}": {
+      "get": {
+        "operationId": "admin.role.get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "roleKey",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RoleDetail"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "资源不存在，或不在当前门店、主体、数据范围内"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          }
+        },
+        "summary": "角色详情：13 个模块等级、按角色预置的敏感权限点（含“仅主管”）、数据范围",
+        "x-auth": "staff",
+        "x-idempotent": "none",
+        "x-idempotent-reason": "纯查询（GET 不写库，A19）"
+      },
+      "put": {
+        "operationId": "admin.role.replace",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "roleKey",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleReplaceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RoleDetail"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "入参不合约定，或业务规则拒绝了输入本身"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "资源不存在，或不在当前门店、主体、数据范围内"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "状态不允许、版本冲突、唯一性冲突或幂等键冲突"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          }
+        },
+        "summary": "保存角色权限（整体替换，带 lockVersion），员工刷新页面后生效",
+        "x-auth": "staff",
+        "x-idempotent": "required",
+        "x-permission": "sys.role.edit"
+      }
+    },
+    "/api/v1/admin/roles/{roleKey}/defaults": {
+      "get": {
+        "operationId": "admin.role.defaults.get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "roleKey",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "enum": [
+                        0
+                      ],
+                      "type": "number"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RoleConfig"
+                    },
+                    "message": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "未登录或会话失效"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "已登录但无权"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "资源不存在，或不在当前门店、主体、数据范围内"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "限流"
+          }
+        },
+        "summary": "角色的代码默认配置（“恢复默认”回填用，保存后才生效）",
         "x-auth": "staff",
         "x-idempotent": "none",
         "x-idempotent-reason": "纯查询（GET 不写库，A19）"

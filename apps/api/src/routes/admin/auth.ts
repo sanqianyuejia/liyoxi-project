@@ -3,6 +3,10 @@
 // 登录前的六条是公开路由（持票据的三条凭请求体里的 ticket），用 defineHandler；要会话的三条用 defineAdminHandler。
 // 响应里有票据、密钥、恢复码或个人数据的都标 Cache-Control: no-store（约定 C18）。
 import {
+  adminAuthBindWecom,
+  adminAuthChangePassword,
+  adminAuthMeEnrollTotp,
+  adminAuthMeConfirmTotp,
   adminAuthActivate,
   adminAuthConfirmTotp,
   adminAuthEnrollTotp,
@@ -24,6 +28,7 @@ import {
   requestMetaOf,
   setSessionCookies,
 } from "../../http/admin/cookies.js";
+import { idemOf } from "../../http/idempotency.js";
 import { ok } from "../../http/errors.js";
 import { defineAdminHandler } from "../../routing/admin.js";
 import { defineHandler } from "../../routing/define.js";
@@ -126,5 +131,37 @@ export const adminAuthHandlers = [
     await authOf(c).logout({ principal: me.principal, meta: requestMetaOf(c) });
     clearSessionCookie(c);
     return ok(c, null);
+  }),
+  defineAdminHandler(adminAuthChangePassword, null, async (c, me) => {
+    const result = await c.var.runtime.staffSelfSecurity.changePassword(
+      me.principal,
+      { ...c.req.valid("json"), meta: requestMetaOf(c) },
+      { idem: idemOf(c) },
+    );
+    noStore(c);
+    return ok(c, result);
+  }),
+  defineAdminHandler(adminAuthBindWecom, null, async (c, me) => {
+    const result = await c.var.runtime.staffSelfSecurity.bindWecom(
+      me.principal,
+      { ...c.req.valid("json"), meta: requestMetaOf(c) },
+      { idem: idemOf(c) },
+    );
+    noStore(c);
+    return ok(c, result);
+  }),
+  defineAdminHandler(adminAuthMeEnrollTotp, null, async (c, me) => {
+    const result = await c.var.runtime.staffSelfSecurity.enrollTotp(me.principal);
+    noStore(c);
+    return ok(c, result);
+  }),
+  defineAdminHandler(adminAuthMeConfirmTotp, null, async (c, me) => {
+    const result = await c.var.runtime.staffSelfSecurity.confirmTotp(
+      me.principal,
+      { ...c.req.valid("json"), meta: requestMetaOf(c) },
+      { idem: idemOf(c) },
+    );
+    noStore(c);
+    return ok(c, result);
   }),
 ];

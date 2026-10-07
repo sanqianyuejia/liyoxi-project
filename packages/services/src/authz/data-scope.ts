@@ -27,13 +27,13 @@ function issue<T extends object>(value: T): T & Branded {
 }
 
 /** 核对范围确由本文件给出；不是即抛 TypeError。范围谓词入口都先过它 */
-export function assertIssuedScope(scope: DataScope): DataScope {
+export function assertIssuedScope(scope: unknown): DataScope {
   if (typeof scope !== "object" || scope === null || !issued.has(scope)) {
     throw new TypeError(
       "数据范围只能由 authz 的 scopeOf（或 SYSTEM_SCOPE、ownTaskScope）给出，不能自己拼",
     );
   }
-  return scope;
+  return scope as DataScope;
 }
 
 const ALL_SCOPE: AllScope = issue({ kind: "all" as const });

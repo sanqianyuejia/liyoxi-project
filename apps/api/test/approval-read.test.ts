@@ -472,7 +472,7 @@ describe("admin.approval.list", () => {
 });
 
 describe("admin.dictItem.list", () => {
-  it("种子场景、版本、停用项、权限和M1引用计数；GET不写库", SLOW, async () => {
+  it("种子场景、版本、停用项、权限和引用计数；GET不写库", SLOW, async () => {
     const w = await world();
     const disabled = await w.prisma.dictItem.findFirstOrThrow({
       where: { dictTypeKey: "reject_reason", ext: { path: ["scene"], equals: "store_review" } },
@@ -525,8 +525,11 @@ describe("admin.dictItem.list", () => {
         headers: w.admin.headers,
       },
     );
-    expect(ref.status).toBe(400);
-    expect(await ref.json()).toMatchObject({ error: "VALIDATION_FAILED" });
+    // W2-05 已实现有权限的引用查询；reject_reason 还没有引用来源，正式契约保留 null，不能伪造 0。
+    expect(ref.status).toBe(200);
+    const references = await dataOf<{ items: Array<{ refCount: null }> }>(ref);
+    expect(references.items.length).toBeGreaterThan(0);
+    expect(references.items.every((item) => item.refCount === null)).toBe(true);
     expect(
       (
         await w.request("/api/v1/admin/dict-items?typeKey=reject_reason&includeDisabled=1", {

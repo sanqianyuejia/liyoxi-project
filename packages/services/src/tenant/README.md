@@ -13,7 +13,7 @@ W1-03 交最小集：懒创建主体、成员关系解析、门店列表与额�
 | `stores.ts` | 门店列表、记住当前门店 |
 | `qualification.ts` | 给 profile 的三个写函数 |
 | `machines.ts` | 五条状态链的登记：随迁列、活动流默认描述、本包十行迁移的守卫 |
-| `ports.ts` | 计费账户端口（实现在 billing） |
+| `ports.ts` | 计费账户端口（billing）与精准下载页授权吊销端口（identity） |
 | `invariants.ts`、`register.ts` | `tenant.I1`、`I7`、`I27`、`I29` 与本模块的登记 |
 | `repo.ts` | 本模块的查询 |
 
@@ -60,3 +60,13 @@ pnpm --filter @liyoxi/services exec vitest run src/tenant/
 - 门店卡的 `actions` 只按“是不是最后一家启用中的门店、有没有提交过资质”给；有没有业务数据、在办事项的判断在停用与删除的接口里（M2）。
 - 撤回回到“提交前的值”取自本链的状态历史（最近一次进入 `pending` 的那一行）。
 - 资质撤回的守卫只认“操作人是系统”；主体关闭或放弃的联动随 M2 接上时再核对触发条件。
+
+## 6. 精准下载页授权吊销前置（W2-10 PR1）
+
+`membershipAuthorizationsPort` 的名字是 `tenant.membership_authorizations`，无默认实现；identity 登记 `MembershipAuthorizations`，api/worker 的既有组合根自动收集。缺实现即装配失败，不能当作零授权。依据 [02 分组第 5 节](../../../../docs/data-model/02-identity-tenant.md)；不新增 tenant→identity 同步调用。
+
+调用方先用公开 `lockRows` 按顺序持主体及相关成员锁，再在同一事务调用 `assembly.port(membershipAuthorizationsPort).revokePortalGrants(tx, input)`。`input` 为 `{ scope: "entity", entityId, now }` 或 `{ scope: "owner", entityId, merchantUserId, now }`；`now` 来自调用方业务时钟，返回本次实际撤销数。
+
+只改该主体中尚未撤销的 portal_session；owner 范围再限定原授权人。已过期但未撤销的行仍计入，旧撤销证据不覆盖。不动商家登录会话、票据或授权归属。by_owner 门店归档仍允许老板下载，不由此触发全老板授权吊销。PR1 没接成员移除/主体关闭入口；17 接口主包和 M6 票据 producer 后续交付。
+
+`pnpm exec vitest run --project services packages/services/src/identity/portal-grants.db.test.ts packages/services/src/tenant/portal-grants.test.ts` 验证真实隔离、回滚、两连接重复计数、伴随表零变化和 api/worker 强制装配。
