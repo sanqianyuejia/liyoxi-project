@@ -2,6 +2,9 @@
 // 拿不到数据库连接、时钟与装配结果。进程装配时（createRuntime、buildWorkerServices）建好这些之后调 bindOps 绑上。
 // 一个进程一份：后绑的顶掉先绑的。没绑时处理器抛错、上报端口只记日志（kernel 的外壳吞掉）。
 import type { Assembly, Clock, TxRunner } from "../kernel/index.js";
+import type { OpsAlerts } from "./alerts.js";
+import type { createBackup } from "./backup.js";
+import type { createCertChecker } from "./cert.js";
 
 /** 能直接发一条语句的东西：Prisma 客户端（自动提交）或事务句柄 */
 export interface SqlRunner {
@@ -14,6 +17,11 @@ export interface OpsBinding {
   readonly tx: TxRunner;
   readonly clock: Clock;
   readonly assembly: Assembly;
+  readonly operations?: {
+    readonly alerts: OpsAlerts;
+    readonly backup: ReturnType<typeof createBackup>;
+    readonly cert: ReturnType<typeof createCertChecker>;
+  };
 }
 
 let current: OpsBinding | undefined;

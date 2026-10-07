@@ -73,6 +73,7 @@ export interface WorkerRuntime {
 
 export function createWorkerRuntime(options: WorkerRuntimeOptions): WorkerRuntime {
   const { services, channel, lease, logger, monotonic } = options;
+  services.setProbeHolder?.(lease?.holder);
   const onError = (name: string, error: unknown): void =>
     logger.error({ loop: name, err: error }, "循环的这一轮出错，下一轮照常");
   const loop = (name: WorkerLoop, run: (beat: () => void) => Promise<unknown>): Loop =>
@@ -188,6 +189,7 @@ export function createWorkerRuntime(options: WorkerRuntimeOptions): WorkerRuntim
           services.closePublish?.();
           services.closeDelivery?.();
           services.closeWebhooks?.();
+          await services.closeOps?.();
         }
       })());
     },

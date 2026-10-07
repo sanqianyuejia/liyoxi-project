@@ -32,6 +32,7 @@ export interface FakeContactWay {
 export interface FakeWecom extends WecomProvider, FakeControl<Method> {
   /** 发出去的应用消息 */
   readonly messages: FakeWecomMessage[];
+  readonly robotMessages: Array<{ title: string; content: string; mentionAll: boolean }>;
   /** 生成过的“联系我”二维码 */
   readonly contactWays: FakeContactWay[];
   /** 把一个事件编成回调请求，交给被测的回调入口 */
@@ -48,6 +49,7 @@ export function createFakeWecom(options: { clock?: FakeClock } = {}): FakeWecom 
   const clock = options.clock ?? systemClock;
   const core = createFakeCore<Method>(clock);
   const messages: FakeWecomMessage[] = [];
+  const robotMessages: Array<{ title: string; content: string; mentionAll: boolean }> = [];
   const contactWays: FakeContactWay[] = [];
   let nonceSeq = 0;
 
@@ -56,6 +58,7 @@ export function createFakeWecom(options: { clock?: FakeClock } = {}): FakeWecom 
     configured: true,
     ...core.control,
     messages,
+    robotMessages,
     contactWays,
     encodeCallback(event) {
       const rawBody = JSON.stringify(event);
@@ -67,6 +70,11 @@ export function createFakeWecom(options: { clock?: FakeClock } = {}): FakeWecom 
       };
     },
 
+    sendRobotMessage: (input) =>
+      core.run("sendRobotMessage", input, () => {
+        robotMessages.push({ ...input });
+        return ok(undefined);
+      }),
     sendAppMessage: (input) =>
       core.run("sendAppMessage", input, () => {
         messages.push({ ...input });

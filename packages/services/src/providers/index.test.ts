@@ -40,24 +40,24 @@ describe("十二个接口", () => {
     ]);
   });
 
-  it("方法按 01 第 9 节“用途”列一项一个，一共 37 个", () => {
+  it("方法按用途登记，含备份与群机器人能力，一共 43 个", () => {
     expect(
       Object.fromEntries(PROVIDER_NAMES.map((name) => [name, PROVIDER_METHODS[name].length])),
     ).toEqual({
       wechat: 6, // 登录、手机号、订阅消息、小程序码、图片与文本内容安全
       wechatPay: 6, // 预下单、回调验签、查单、关单、退款、账单
       sms: 3, // 员工激活码、订阅消息的补发、值班告警
-      storage: 8, // 签名（写、读）、临时密钥、复制入库，加对象头与删除两个原语
+      storage: 11, // 原八个业务原语，加备份流式上传、对象头与条件复制
       media: 4, // 体检、转码、打包、视频审核
       ocr: 2, // 营业执照识别、行业许可证字段抽取
       asr: 1, // 录音转写
       llm: 2, // 素材识别打标、要点提炼
-      wecom: 4, // 员工通知、“联系我”二维码、加好友回调、微信客服
+      wecom: 5, // 原四个能力，加告警群机器人
       esign: 1, // 授权书数字签名
       invoice: 1, // 自动开票
       mail: 1, // 电子发票发送
     });
-    expect(ALL_PROVIDER_METHODS).toHaveLength(39);
+    expect(ALL_PROVIDER_METHODS).toHaveLength(43);
   });
 
   it("环境的取值与 kernel 的 APP_ENV 相同", () => {

@@ -53,6 +53,9 @@ async function main(): Promise<void> {
     report: (violation) => logger.error({ err: violation }, "内核违规"),
     logger,
     keys: env,
+    opsEnv: env,
+    probeConnectionString: env.DATABASE_URL,
+    probeRedis: values.check ? undefined : { url: env.REDIS_URL, prefix: bullPrefix(env.APP_ENV) },
   });
   await services.selfCheck();
   const summary = {
@@ -65,6 +68,7 @@ async function main(): Promise<void> {
   };
   if (channel === undefined) {
     logger.info(summary, "装配与自检通过");
+    await services.closeOps?.();
     await database.close();
     return;
   }

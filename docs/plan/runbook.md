@@ -2,7 +2,7 @@
 
 | 项 | 内容 |
 | --- | --- |
-| 状态 | 空表（W0-04 交付章节与表头）。从 G2-D 起随告警规则累积，G8 定稿（[开发计划](../08-development-plan.md) 第 13 节、第 6.11 节） |
+| 状态 | W2-24 补探针/告警/备份处置；平台和演练项仍待填写。从 G2-D 起随告警规则累积，G8 定稿（[开发计划](../08-development-plan.md) 第 13 节、第 6.11 节） |
 | 内容 | 告警处置、对账处理、密钥轮换步骤、恢复步骤、演练记录 |
 | 依据 | 开发计划 第 5.1、6.5、6.11、13 节；[D7](../appendix/design/d7-platform.md) 第 7.5、7.8、9.4 节 |
 | 旧名 | D7 原写作 `docs/09-deployment.md`，已勘误（D7 文末勘误表） |
@@ -41,30 +41,32 @@ E18 没到位时告警只落库（开发计划 第 4.1 节）。上线首月哪�
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 支付回调处理失败 | 待填 | 待填 | 待填 | 是 | 待填 |
 | 2 | 回调验签失败 | 待填 | 待填 | 待填 | | 待填 |
-| 3 | 已付未履约 | 待填 | 待填 | 待填 | 是 | 待填 |
-| 4 | 付款单超期未关 | 待填 | 待填 | 待填 | | 待填 |
-| 5 | 退款卡住 | 待填 | 待填 | 待填 | | 待填 |
-| 6 | 出站表积压 | 待填 | 待填（D7 写 `outbox:retry`） | 待填 | 是（清空预发 Redis 触发） | 待填 |
-| 7 | 定时器滞后 | 待填 | 待填 | 待填 | 是 | 待填 |
-| 8 | 队列积压 | 待填 | 待填 | 待填 | 是 | 待填 |
+| 3 | 已付未履约 | payment_txn成功时间与billing_order履约状态；alert_event指纹billing.unfulfilled | 待填（资金入账包的受控重试，不能手改余额） | 财务与研发 | 是 | 已填 |
+| 4 | 付款单超期未关 | billing_order.expires_at/status、到期timer与查询回包 | 待填（付款关单包；先查渠道状态） | 财务与研发 |  | 已填 |
+| 5 | 退款卡住 | refund_txn.status/created_at；区分processing与abnormal | 待填（退款包的受控查单/线下处理） | 财务 |  | 已填 |
+| 6 | 出站表积压 | outbox_event未发布年龄、outbox_delivery重试/死信；probe.sample/outbox.exhausted | 待填（W2-05的受控outbox retry；未actual前不执行） | 研发 | 是（清空预发 Redis 触发） | 已填 |
+| 7 | 定时器滞后 | timer到期scheduled、failed与dispatched租约；timer.lag/failures | 待填（W2-05的timer操作；未actual前不执行） | 研发 | 是 | 已填 |
+| 8 | 队列积压 | outbox_delivery/timer_run/promote等待量、最老与暂停时长；不凭空查未来队列 | 待填（对应队列受控恢复入口） | 研发 | 是 | 已填 |
 | 9 | 对账差异 | 见第 3 节 | 待填 | 待填 | 是 | 待填 |
-| 10 | 不变量校验失败 | 待填 | 待填 | 待填 | 是 | 待填 |
+| 10 | 不变量校验失败 | invariant_violation未resolved与invariant_run；资金P1/其余P2 | 待填（W2-23受控检查/处理） | 财务与研发 | 是 | 已填 |
 | 11 | worker 失联 | 待填 | 待填 | 待填 | 是 | 待填 |
-| 12 | 周期任务漏跑 | 待填 | 待填 | 待填 | 是（清空预发 Redis 触发） | 待填 |
+| 12 | 周期任务漏跑 | 最近已到slot的timer.dedupe_key、status/last_error；deadline来自真实装配 | 待填（W2-23周期补跑CLI） | 对应任务拥有者/研发 | 是（清空预发 Redis 触发） | 已填 |
 | 13 | 接口错误率与延迟 | 待填 | 待填 | 待填 | | 待填 |
 | 14 | 滥用 | 待填 | 待填 | 待填 | | 待填 |
 | 15 | 通知失败 | 待填 | 待填 | 待填 | | 待填 |
 | 16 | 外部额度 | 待填 | 待填 | 待填 | | 待填 |
-| 17 | 数据库 | 待填 | 待填 | 待填 | | 待填 |
+| 17 | 数据库 | 当前库pg_stat_activity长事务；云CPU/磁盘/复制指标另由平台接 | 待填（平台已授权只读诊断） | 研发与平台 |  | 已填 |
 | 18 | Redis 内存 | 待填 | 待填 | 待填 | | 待填 |
-| 19 | 证书到期 | 待填 | 待填 | 待填 | | 待填 |
-| 20 | 备份 | 待填 | 待填 | 待填 | | 待填 |
+| 19 | 证书到期 | 显式CERT_DOMAINS的TLS检查摘要；区分不可信/不可达/未配置 | 待填（证书续签/部署需逐步授权） | 域名/平台负责人 |  | 已填 |
+| 20 | 备份 | backup.pgdump的timer.result key/bytes/seconds/version，backup.stale与backup.failed | 待填（W2-23受控补跑备份） | 研发与两位离线私钥保管人 |  | 已填 |
 | 21 | 工作日历缺失 | 待填 | 待填 | 待填 | | 待填 |
 | 22 | 端上异常 | 待填 | 待填 | 待填 | | 待填 |
 | 23 | 对外不可用 | 待填 | 待填 | 待填 | | 待填 |
 | 24 | 开关与购买策略变更 | 待填（非故障，知会） | — | 待填 | | 待填 |
 | 25 | 对象清除超限 | 待填；恢复步骤见第 5.1 节 | 待填 | 待填 | | 待填 |
 | 26 | 编码纪律被绕过 | 待填 | 待填 | 待填 | | 待填 |
+
+以上“已填”仅指处置说明；真实云通知、证书、备份恢复和预发人为触发均未演练。
 
 “要演练”一栏照 D7 第 9.4 节：上线前把 1、3、6、7、8、9、10、11、12 人为触发一遍。
 
@@ -81,6 +83,52 @@ E18 没到位时告警只落库（开发计划 第 4.1 节）。上线首月哪�
 | 不要做 | 会把事情弄糟的动作 |
 | 升级 | 多久没恢复找谁 |
 | 事后 | 要不要补不变量校验、补对账、记一条演练或事故记录 |
+
+### 2.4 W2-24 当前来源与第一处置
+
+告警先持久化真实 `alert_event`；机器人/短信未配时保持未配，三severity后台铃铛仍由真实场景/在职super收件人决定。处理时先按指纹和UUID看固定脱敏诊断；unknown_rule 是登记遗漏而不是业务健康。认领/关闭与死信重置CLI由W2-23交付，未落地前不直接改表，不删除故障事实。修复后观察三轮正常/事件静默期并补对应不变量检查；跨过重复提醒仍未恢复，升级到相应拥有者和E18值班名单。
+
+D7第9.4节26条是跨里程碑清单，下表明确当前真实测量和剩余拥有者，尚无来源的项不出零样本绿色：
+
+| 规则# | 当前本包来源 | 尚未接入与接收方 |
+| --- | --- | --- |
+| 1–2 支付回调/验签 | 既有webhook.dead/failing事件与收到/失败积压；不冒充网关5/10分钟支付专用计数 | M4支付回调包按实际签名探测/来源接资金规则 |
+| 3–5 履约/超期/退款 | actual payment_txn、billing_order、refund_txn SQL；付款成功未履约、超期待支付与退款卡住分别告警 | M4真实渠道查单/退款处置；不手改余额或生成渠道成功 |
+| 6 出站 | 未发布年龄、待投递滞后、dead数与outbox.exhausted事件 | 人工重试由W2-05；先找根因，死信不自动清 |
+| 7 定时器 | 到期scheduled、failed、dispatch租约失效，原timer事件 | W2-05/23处置；检查kind的业务幂等，不补造已执行行 |
+| 8 队列 | 真BullMQ三队列等待/活跃/失败与最老/暂停；发布期间应由部署控制恢复 | W2-17及后继media/docs/export/maintenance队列实际运行后扩展；累计failed与近10分钟finishedOn真实计数分开；最多读2000失败行，超限明确truncated，不当作精确全量 |
+| 9 对账 | 未在本包造零差异 | M4对账包交真实账单/差异 producer |
+| 10 不变量 | 当前未解决P1/P2事实，已有check/run引用 | 修业务原因后由W2-23公口处理；不能删违规行冒充修复 |
+| 11 worker失联 | 原租约heartbeat与health probeAgeSec | W2-27外部拨测（由平台直接通知，不由失联worker自告） |
+| 12 周期漏跑 | 真实assembly每项kind最近slot/status/deadline/missSeverity | 未来任务注册后自动消费同口径；补跑CLI W2-23 |
+| 13 HTTP错误/延迟 | 本包真实HTTP P95 CLI与nightly红/报告 | gateway 5分钟错误率/10分钟延迟趋势与看板由G7-B/平台配置 |
+| 14 滥用 | 实际staff_untrusted_locked、pii.reveal_limit事件键 | 登录/SMS限流10分钟聚合由身份/日志来源接，非此包空计数 |
+| 15 通知失败 | 独立外呼结果/三次P2机器人失败升级；铃铛事务失败日志 | W2-17/22真实模板字段错/短信30分钟失败率 |
+| 16 外部额度 | 不造无限/零额度 | W2-18/21/22与OCR/ASR producer、购买配置逐项接 |
+| 17 数据库 | 当前库长事务SQL | 云CPU/连接率/磁盘/复制监测由平台配置 |
+| 18 Redis | 实际连接可用性P1 | 使用率75/90%由云监控，不能用PING代替内存指标 |
+| 19 证书 | 显式域名可信TLS/expiry；未配有事实 | W2-27授权真实域名演练/续签 |
+| 20 备份 | timer成功摘要距今、pg_dump/age/上传/HEAD失败 | 托管备份平台事件与COS真实桶由W3-01/部署配置接 |
+| 21 日历 | 既有sla.calendar_fallback真实事件 | 年度导入日期/平台安排由calendar/sla包接 |
+| 22 端上异常 | 不伪造日志窗口 | W2-18端上错误上报与G7-B/平台窗口规则 |
+| 23 对外不可用 | 原真实health入口 | W2-27外部拨测连续失败直接到人 |
+| 24 策略变更 | 原业务审计保留 | config/资金策略拥有者接实际知会producer；不把P3日汇总冒充即时变更通知 |
+| 25 对象清除 | 不伪造尚未运行清除 | M3 media.sweep实际删除上限producer |
+| 26 编码纪律 | 原kernel Provider/TX/幂等运行守卫仍生效 | G7-B/错误上报接真实违规producer，不能用测试异常冒充线上事故 |
+
+具体规则键、默认阈值/可配置数值键见 `packages/services/src/ops/README.md` 与登记源码。正式部署数值由 PROBE_THRESHOLDS_FILE 显式文件提供，未知键拒绝；不能提高20秒/2秒/3并发预算。事件只保留有界无个人信息诊断，不从日志抄号码、token、密文或Provider原错误进alert_event。
+
+### 2.5 备份、证书与P95操作
+
+W2-27经授权把备份只读连接、公钥收件人文件、桶/前缀和明确域名挂给worker；stg/prod只认敏感URL_FILE。先以既有库权限核对确认登录角色是lyx_readonly成员、没有写权限，公钥文件不含私钥。没有任何一项时本包失败/未配并留事实，不临时借asset桶或应用写账号。私钥仍在两位E14保管人手中，worker不读取。
+
+03:10 backup.pgdump使用现server镜像PostgreSQL17客户端和age；原job租约续租/三次重试。观察timer.result的key/bytes/seconds/pgDumpVersion/etag/monthlyKey，与HEAD大小和上一成功摘要比较。失败先查客户端版本、只读权限、公钥/桶配置与StorageProvider错误类别；不要把上传完成当解密恢复已经做过。月首保留monthly副本。
+
+09:00 ops.cert_check只检查CERT_DOMAINS指定DNS的443证书；无域名=unconfigured，连接不可达/不可信也不是到期健康。凭部署摘要找到受影响域名，续签/重载必须按授权操作，随后观察真实检查与恢复轮次。注入TLS假响应仅证明代码分支。
+
+P95本机/CI入口是 `APP_ENV=test node infra/ci/p95.mjs --concurrency 20 --scale 10 --seed 42`，前置仅公开本机PG/Redis测试连接。既有owned守卫新建本轮隔离库/Redis前缀，真实订单/账本原型加历史配套、UUID精确映射短TX图复制，当前全部可运行full检查89项/17模块；flow.STUCK_TICKET仅上报端口。原型出站事件经既有真实中继/消费路径排空；无匹配的已实现订阅者时消费0如实记录，不能称云通知已发。约5000店/2万订单/98万流水，精确表/type数写报告。付款创建现只新开通，额外100个有完整资格历史的新购门店单列，HTTP采样前再次全89校验覆盖全部新增输入，不伪造active套餐续费；演示银行占位经过真实双人审批，不涉及外部支付。真实TCP HTTP/鉴权/限流/幂等保留，100样本/接口，500ms或错误非0，未来工作台四路逐项excluded→G7-B/M7未拆编号读侧包。小烟测不可替代默认规模验收。
+
+nightly独立p95 job冻结安装、生成客户端、准备本作业PG/Redis、正反例、默认测量、always上传报告；失败产生GitHub作业红与错误报告，保留Node26原检查/required名单。失败先看报告前置/不变量/错误率/逐接口P95与机器load，再定点查索引和聚合；不能调高500ms、缩规模或择优重测。预发2核/1.87GB与实际云通道验收仍留D7-16/V17，不能拿本机数字关闭。
 
 ## 3. 对账处理
 
@@ -112,16 +160,16 @@ E18 没到位时告警只落库（开发计划 第 4.1 节）。上线首月哪�
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | JWT 密钥 | “当前 + 上一把”（D7 第 7.5 节） | 待填 | 待填 | 待填 | 待填 |
 | 2 | 微信支付验签身份 | 同时接受平台证书与微信支付公钥，按回调头里的序列号选（D7 第 7.5 节） | 待填 | 待填 | 待填 | 待填 |
-| 3 | 微信支付商户私钥与 APIv3 密钥 | 待填 | 待填 | 待填 | 待填 | 待填 |
-| 4 | `lyx_app` 的数据库口令 | 预发：应用连库用的是登录账号（`lyx_app` 的成员），口令在节点的密钥文件 `database-url` 里。不并存：改口令到容器重启之间新建的连接会失败，预发可接受 | 预发，节点上以 root：① 把旧文件另存到密钥目录之外的安全处，删掉 `database-url`，跑 `infra/bootstrap/gen-secrets.sh` 生成新的（或自己改文件里的口令，改完权限 0400）；② `infra/bootstrap/db-init.sh`（按文件重设口令）；③ `systemctl restart lyx-worker lyx-api` | `node-step.sh status` 通过；`node-step.sh verify-db <标签>` 通过 | 把另存的旧文件放回去，重跑 ②、③ | 已填（预发；生产随生产） |
-| 5 | `lyx_migrator` 的数据库口令 | 预发：密钥文件 `migrator-database-url`，只挂给迁移与库核对两个一次性容器，常驻的容器都没有。不用并存 | 预发：同第 4 项的 ①、②，文件换成 `migrator-database-url`；不用重启任何容器 | `node-step.sh verify-db <标签>` 通过（它用迁移账号连库） | 把另存的旧文件放回去，重跑 `db-init.sh` | 已填（预发；生产随生产） |
-| 6 | `lyx_readonly` 的口令 | 预发：备份登录账号（`lyx_readonly` 的成员），密钥文件 `backup-database-url`；现在还没有挂给任何容器（等每日备份的包） | 预发：同第 4 项的 ①、②，文件换成 `backup-database-url`；挂给 worker 之后另加一步重启 worker | 待填（等每日备份的包） | 把另存的旧文件放回去，重跑 `db-init.sh` | 已填（预发；生产随生产） |
-| 7 | 各 Provider 密钥 | 待填 | 待填 | 待填 | 待填 | 待填 |
-| 8 | COS 的 `signer`、`sts-issuer`、`worker` 三把子账号密钥 | 待填 | 待填 | 待填 | 待填 | 待填 |
+| 3 | 已付未履约 | payment_txn成功时间与billing_order履约状态；alert_event指纹billing.unfulfilled | 待填（资金入账包的受控重试，不能手改余额） | 财务与研发 | 待填 | 已填 |
+| 4 | 付款单超期未关 | billing_order.expires_at/status、到期timer与查询回包 | 待填（付款关单包；先查渠道状态） | 财务与研发 | 把另存的旧文件放回去，重跑 ②、③ | 已填 |
+| 5 | 退款卡住 | refund_txn.status/created_at；区分processing与abnormal | 待填（退款包的受控查单/线下处理） | 财务 | 把另存的旧文件放回去，重跑 `db-init.sh` | 已填 |
+| 6 | 出站表积压 | outbox_event未发布年龄、outbox_delivery重试/死信；probe.sample/outbox.exhausted | 待填（W2-05的受控outbox retry；未actual前不执行） | 研发 | 把另存的旧文件放回去，重跑 `db-init.sh` | 已填 |
+| 7 | 定时器滞后 | timer到期scheduled、failed与dispatched租约；timer.lag/failures | 待填（W2-05的timer操作；未actual前不执行） | 研发 | 待填 | 已填 |
+| 8 | 队列积压 | outbox_delivery/timer_run/promote等待量、最老与暂停时长；不凭空查未来队列 | 待填（对应队列受控恢复入口） | 研发 | 待填 | 已填 |
 | 9 | 备份桶的写入密钥 | 待填 | 待填 | 待填 | 待填 | 待填 |
-| 10 | 小程序代码上传密钥（同一个 AppID 只有一套，ADR-041） | 待填 | 待填 | 待填 | 待填 | 待填 |
+| 10 | 不变量校验失败 | invariant_violation未resolved与invariant_run；资金P1/其余P2 | 待填（W2-23受控检查/处理） | 财务与研发 | 待填 | 已填 |
 | 11 | 备份加密的公私钥对（私钥离线，两人各持一份） | 待填 | 待填 | 待填 | 待填 | 待填 |
-| 12 | 构建期密钥：镜像仓库推送凭证、发布角色调用凭证、源码映射上传令牌 | 待填 | 待填 | 待填 | 待填 | 待填 |
+| 12 | 周期任务漏跑 | 最近已到slot的timer.dedupe_key、status/last_error；deadline来自真实装配 | 待填（W2-23周期补跑CLI） | 对应任务拥有者/研发 | 待填 | 已填 |
 
 每次轮换后核对启动日志里的 `providers ready` 一行（D7 第 7.5 节）。
 
@@ -133,11 +181,19 @@ E18 没到位时告警只落库（开发计划 第 4.1 节）。上线首月哪�
 | --- | --- | --- | --- | --- | --- |
 | 5.1 | 对象被误删：从桶的历史版本恢复（`asset`、`media` 30 天内，`secure` 90 天内） | 待填 | 待填 | 待填 | 待填 |
 | 5.2 | 数据库按时间点恢复：克隆新实例、核对、切换 | 待填 | 待填（实测值记 platform-config.md 第 2.5 节） | 全量不变量校验（D7 第 9.6 节） | 待填 |
-| 5.3 | 从异地逻辑备份恢复：取离线私钥、解密、导入空实例 | 待填 | 待填 | `prisma migrate status` 与不变量校验 | 待填 |
+| 5.3 | 从异地逻辑备份恢复：取离线私钥、解密、导入空实例 | 按5.3.1受控步骤；私钥只在保管人临时离线环境，绝不放worker | 待真实演练测量 | `prisma migrate status`、全量不变量与单号/余额比对 | 已填方法（未演练） |
 | 5.4 | 按时间点恢复后的单号流水处理 | 待填（D2 第 9.5 节的手册） | 待填 | 待填 | 待填 |
 | 5.5 | Redis 清空后的自愈 | 预发：认准容器名 `lyx-redis`（同机留着参考工程已停的 Redis 容器，不要碰）。清空用容器里的 `redis-cli`，口令在只挂给它的 `/run/secrets/redis-auth.conf`；清空后不用重启，队列、限流、缓存由 worker 与 api 按 PostgreSQL 重建（D7 第 7.3 节）。连数据卷一起重来：`systemctl stop lyx-redis` → `docker rm lyx-redis` → `docker volume rm lyx-node-redisdata` → `systemctl start lyx-redis` | 待填（演练时量） | `node-step.sh status` 通过；自愈的判据见外部验证 `d6-09-redis-flush-self-heal.md` | 已填（预发的操作；自愈本身未演练） |
 | 5.6 | 发布回滚 | 经任务书第 8 节授权后：`node infra/deploy/orchestrate.mjs --node <发布用户>@<节点> --rollback --summary rollback.json`；目标缺省上一成功版，可指定 `--tag`。先 api/gateway 后 worker，不迁移、不补种、不重新预置资源；目标镜像须已在本地。跨过任一“回滚不安全”记录即拒绝，只有 `--force --reason <说明>` 越过并记录。也可在 main 手动触发默认关闭的 .github/workflows/rollback-stg.yml，须 STG_DEPLOY_ENABLED=true 且 execute=true；与发布共用deploy-stg串行锁，保存回滚/持续探测摘要，仍须任务书第8节逐步授权 | 待实跑量 | JSON 摘要 exitCode=0、节点 releases.log 有成功记录、smoke 的真实版本与目标一致；b1用成对 --probe-config / --probe-summary 保存持续探测，全资源与DB核对失败非0 | 已填执行方法；预发未演练 |
 | 5.7 | 节点与桶重建 | 独占机器的节点重建：照 `infra/bootstrap/README.md` 从第 1 步重走，脚本都可以重复执行；当前预发节点还挂着公司官网，按 ADR-041 不重建节点；数据卷 `lyx-node-pgdata` 还在则库不丢，密钥目录还在则不用重新生成。桶：待填（W2-25 的第二步交桶配置脚本）。D7 第 10.6 节第 18 项 | 待填 | 重建后的预发通过冒烟；桶配置无差异 | 待填 |
+
+### 5.3.1 逻辑备份恢复方法（尚未真实演练）
+
+1. 经授权选择明确成功timer摘要与对象key，下载加密对象，核对摘要大小/etag、月首副本和来源版本；不操作正在使用的库。
+2. 两位E14保管人取离线私钥到隔离临时环境，用 `age --decrypt --identity <离线身份文件> --output <本轮临时dump> <已核对的加密对象>`；私钥不上传服务器。解密失败立即停止，不能换未验证文件。
+3. 经授权建独立空实例/库，使用同主版本PostgreSQL17 `pg_restore --no-owner --dbname <本轮空库连接> <临时dump>`；目标连接由受控文件/环境提供，不记录凭据。约束/恢复报错非成功。
+4. 以对应迁移工具核 `prisma migrate status`、结构/权限/分区；在恢复库跑实际full不变量，比较源备份摘要、单号序列、账本余额/持有/分配/付款引用。任何不一致停止切换。
+5. 完成授权切换与业务核对后，把私钥归还离线保管、清理明确本轮临时明文dump和临时环境；记录第6.1节真实耗时/结果。当前代码测试只证明加密上传及本地流程分支，未执行真实离线解密/生产恢复。
 
 ## 6. 演练记录
 

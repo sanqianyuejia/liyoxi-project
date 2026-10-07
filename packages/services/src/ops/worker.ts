@@ -32,6 +32,7 @@ import type {
   Assembly,
   BidxKeysConfig,
   Clock,
+  Env,
   DataKeysConfig,
   KernelViolation,
   QueueChannel,
@@ -48,6 +49,8 @@ import type {
   Timers,
 } from "../timers/index.js";
 import { bindOps } from "./binding.js";
+import { createOpsRuntime } from "./runtime.js";
+import type { ProbeResult } from "./probe.js";
 import { bindWebhooks, createWebhooks } from "../security/index.js";
 import type { WebhookSource } from "../security/index.js";
 import { createStartupChecks, runStartupChecks } from "./startup.js";
@@ -69,6 +72,12 @@ export function connectWorkerDatabase(connectionString: string): {
 
 export interface WorkerServicesOptions {
   readonly webhookSources?: readonly WebhookSource[];
+  readonly opsEnv?: Pick<
+    Env,
+    "BACKUP" | "CERT_DOMAINS" | "ALERT_ONCALL_PHONES" | "ALERT_P2_IMMEDIATE" | "PROBE_THRESHOLDS"
+  >;
+  readonly probeConnectionString?: string;
+  readonly probeRedis?: { readonly url: string; readonly prefix: string };
   readonly appEnv: AppEnv;
   /** 业务连接池：connectWorkerDatabase 给的；用例传测试库的客户端 */
   readonly prisma: PrismaClient;
@@ -91,6 +100,9 @@ export interface WorkerServicesOptions {
 }
 
 export interface WorkerServices {
+  readonly closeOps?: () => Promise<void>;
+  readonly setProbeHolder?: (holder: string | undefined) => void;
+  readonly probe?: (beat?: () => void) => Promise<ProbeResult>;
   readonly closeWebhooks?: () => void;
   reprocessWebhooks(beat?: () => void): Promise<number>;
   readonly closeOrder?: () => void;
@@ -154,7 +166,15 @@ export function buildWorkerServices(options: WorkerServicesOptions): WorkerServi
     timers,
   });
   const logger = options.logger ?? silent;
-  const providers = options.providers ?? assembleProviders({ appEnv: options.appEnv, logger });
+  const providers =
+    options.providers ??
+    assembleProviders({
+      appEnv: options.appEnv,
+      logger,
+      ...(options.opsEnv?.BACKUP === undefined
+        ? {}
+        : { settings: { storage: { minio: { backupBucket: options.opsEnv?.BACKUP.bucket } } } }),
+    });
   const media = createMedia({ tx, clock, assembly, events, storage: providers.storage, channel });
   const startupChecks = createStartupChecks({
     db: prisma,
@@ -164,7 +184,19 @@ export function buildWorkerServices(options: WorkerServicesOptions): WorkerServi
   });
   const alerts = alertsOf(assembly);
   // ops 的周期任务与违规上报端口要连接、时钟与装配结果（W0-24）
-  bindOps({ db: prisma, tx, clock, assembly });
+  const operations = createOpsRuntime({
+    db: prisma,
+    tx,
+    clock,
+    assembly,
+    providers,
+    logger,
+    timers,
+    env: options.opsEnv,
+    probeConnectionString: options.probeConnectionString,
+    probeRedis: options.probeRedis,
+  });
+  const closeOpsBinding = bindOps({ db: prisma, tx, clock, assembly, operations });
   bindContent(assembly);
   const closePublish = bindPublish(assembly);
   const deliveryCore = {
@@ -193,6 +225,12 @@ export function buildWorkerServices(options: WorkerServicesOptions): WorkerServi
   const laggards = new Map<string, number>();
   const timing = { tx, assembly, registry: timers.registry, clock, alerts, channel };
   return {
+    probe: operations.probe,
+    setProbeHolder: operations.setHolder,
+    closeOps: async () => {
+      closeOpsBinding();
+      await operations.close();
+    },
     closeWebhooks,
     reprocessWebhooks: (beat) => webhooks.scan(beat),
     closeOrder: () => {

@@ -16,6 +16,7 @@ export type {
   ConsentReceiptItem,
   ConsentScene,
   ConsentSigner,
+  TransactionConsentsInput,
 } from "./consents.js";
 export type { Page } from "./cursor.js";
 export { stampOf } from "./pending.js";

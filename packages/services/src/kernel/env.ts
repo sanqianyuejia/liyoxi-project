@@ -16,6 +16,7 @@
 // 本文件不写相对导入：infra/ci/check-env-example.mjs 用 Node 自带的类型擦除直接加载它。
 
 import { readFileSync } from "node:fs";
+import { BlockList, isIP } from "node:net";
 
 import { z } from "zod";
 
@@ -46,6 +47,17 @@ export const ENV_KEYS: readonly string[] = [
   "DATA_KEYS_FILE",
   "BIDX_KEYS_FILE",
   "AUTH_KEYS_FILE",
+  "ADMIN_IP_ALLOWLIST",
+  "CERT_DOMAINS",
+  "BACKUP_READONLY_URL",
+  "BACKUP_READONLY_URL_FILE",
+  "BACKUP_RECIPIENTS_FILE",
+  "BACKUP_BUCKET",
+  "BACKUP_PREFIX",
+  "BACKUP_MAX_BYTES",
+  "ALERT_ONCALL_PHONES_FILE",
+  "ALERT_P2_IMMEDIATE",
+  "PROBE_THRESHOLDS_FILE",
 ];
 
 /** 数据加密密钥文件的内容：current 是当前 kid，keys 是 kid → base64 写的 32 字节 */
@@ -62,6 +74,14 @@ export interface AuthKeysConfig {
   readonly mfa: DataKeysConfig;
 }
 
+export interface BackupEnvConfig {
+  readonly readOnlyUrl: string;
+  readonly recipients: readonly string[];
+  readonly bucket: string;
+  readonly prefix: string;
+  readonly maxBytes: number;
+}
+
 export interface Env {
   readonly APP_ENV: AppEnv;
   readonly LOG_LEVEL: LogLevel;
@@ -73,6 +93,12 @@ export interface Env {
   readonly BIDX_KEYS?: BidxKeysConfig;
   /** 后台登录的三把密钥；没配 AUTH_KEYS_FILE 时没有这一项 */
   readonly AUTH_KEYS?: AuthKeysConfig;
+  readonly ADMIN_IP_ALLOWLIST?: readonly string[];
+  readonly CERT_DOMAINS?: readonly string[];
+  readonly BACKUP?: BackupEnvConfig;
+  readonly ALERT_ONCALL_PHONES?: readonly string[];
+  readonly ALERT_P2_IMMEDIATE?: readonly string[];
+  readonly PROBE_THRESHOLDS?: Readonly<Record<string, { p2: number; p1?: number }>>;
 }
 
 export type EnvSource = Readonly<Record<string, string | undefined>>;
@@ -135,7 +161,7 @@ export function groupIssues(source: EnvSource, groups: readonly EnvGroup[]): Env
 /** 按规则 2 取出一个连接串：明文或 *_FILE 二选一 */
 function readConnection(
   source: EnvSource,
-  key: ConnectionKey,
+  key: ConnectionKey | "BACKUP_READONLY_URL",
   appEnv: string | undefined,
   issues: EnvIssue[],
 ): string | undefined {
@@ -171,6 +197,7 @@ function readConnection(
     }
     return content;
   }
+  if (key === "BACKUP_READONLY_URL") return undefined;
   issues.push({
     key,
     reason: `必填，未配置（local、test 可以直接给，其余环境给 ${fileKey}）`,
@@ -282,6 +309,162 @@ const EnvSchema = z.object({
     .optional(),
 });
 
+/** W2-24：只读备份连接/public age recipient/来源网段。报错不包含配置值。 */
+function opsEnv(source: EnvSource, appEnv: string | undefined, issues: EnvIssue[]): Partial<Env> {
+  const result: {
+    ADMIN_IP_ALLOWLIST?: readonly string[];
+    CERT_DOMAINS?: readonly string[];
+    BACKUP?: BackupEnvConfig;
+    ALERT_ONCALL_PHONES?: readonly string[];
+    ALERT_P2_IMMEDIATE?: readonly string[];
+    PROBE_THRESHOLDS?: Readonly<Record<string, { p2: number; p1?: number }>>;
+  } = {};
+  const csv = (key: string) =>
+    read(source, key)
+      ?.split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+  const cidrs = csv("ADMIN_IP_ALLOWLIST");
+  if (cidrs !== undefined) {
+    for (const cidr of cidrs) {
+      const [address = "", prefix, extra] = cidr.split("/");
+      const version = isIP(address),
+        max = version === 4 ? 32 : 128;
+      const bits = prefix === undefined ? max : Number(prefix);
+      try {
+        if (
+          !version ||
+          extra !== undefined ||
+          (prefix !== undefined && !/^\d+$/.test(prefix)) ||
+          !Number.isInteger(bits) ||
+          bits < 0 ||
+          bits > max
+        )
+          throw new Error();
+        new BlockList().addSubnet(address, bits, version === 4 ? "ipv4" : "ipv6");
+      } catch {
+        issues.push({ key: "ADMIN_IP_ALLOWLIST", reason: "必须是合法 IP 或 CIDR 列表" });
+        break;
+      }
+    }
+    result.ADMIN_IP_ALLOWLIST = cidrs;
+  }
+  const domains = csv("CERT_DOMAINS");
+  if (domains !== undefined) {
+    if (
+      domains.some(
+        (domain) =>
+          domain.length > 253 ||
+          !/^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$/.test(domain),
+      )
+    )
+      issues.push({
+        key: "CERT_DOMAINS",
+        reason: "必须是明确部署的 DNS 域名列表，不能含协议、路径或端口",
+      });
+    result.CERT_DOMAINS = domains;
+  }
+  const backupUrl = readConnection(source, "BACKUP_READONLY_URL", appEnv, issues);
+  const recipientFile = read(source, "BACKUP_RECIPIENTS_FILE"),
+    bucket = read(source, "BACKUP_BUCKET");
+  const backupPresent = [backupUrl, recipientFile, bucket].filter(
+    (value) => value !== undefined,
+  ).length;
+  if (backupPresent > 0 && backupPresent < 3) {
+    for (const [key, value] of [
+      ["BACKUP_READONLY_URL_FILE", backupUrl],
+      ["BACKUP_RECIPIENTS_FILE", recipientFile],
+      ["BACKUP_BUCKET", bucket],
+    ])
+      if (value === undefined)
+        issues.push({
+          key: key ?? "BACKUP_BUCKET",
+          reason: "备份连接、公钥文件与显式目标桶须成组配置",
+        });
+  }
+  if (backupUrl !== undefined && recipientFile !== undefined && bucket !== undefined) {
+    let recipients: string[] = [];
+    try {
+      recipients = readFileSync(recipientFile, "utf8").trim().split(/\s+/);
+    } catch {
+      issues.push({ key: "BACKUP_RECIPIENTS_FILE", reason: "所指公钥文件读不了" });
+    }
+    if (
+      recipients.length === 0 ||
+      recipients.some(
+        (recipient) => !/^age1[023456789acdefghjklmnpqrstuvwxyz]{58}$/.test(recipient),
+      )
+    )
+      issues.push({
+        key: "BACKUP_RECIPIENTS_FILE",
+        reason: "只能包含 age X25519 公钥 recipient，不接受私钥",
+      });
+    if (!hasProtocol(backupUrl, CONNECTION_KEYS.DATABASE_URL))
+      issues.push({ key: "BACKUP_READONLY_URL_FILE", reason: "必须是 PostgreSQL 只读连接" });
+    if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket))
+      issues.push({ key: "BACKUP_BUCKET", reason: "目标桶名不合法" });
+    const prefix = read(source, "BACKUP_PREFIX") ?? "backups";
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9_/-]{0,199}$/.test(prefix) || prefix.includes(".."))
+      issues.push({ key: "BACKUP_PREFIX", reason: "必须是有界相对对象前缀" });
+    const maxBytes = Number(read(source, "BACKUP_MAX_BYTES") ?? 10 * 1024 ** 3);
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 1024 || maxBytes > 50_000 * 1024 ** 2)
+      issues.push({ key: "BACKUP_MAX_BYTES", reason: "须在 1KiB 与 50,000MiB 之间" });
+    result.BACKUP = { readOnlyUrl: backupUrl, recipients, bucket, prefix, maxBytes };
+  } else if (
+    read(source, "BACKUP_PREFIX") !== undefined ||
+    read(source, "BACKUP_MAX_BYTES") !== undefined
+  )
+    issues.push({ key: "BACKUP_BUCKET", reason: "备份调优项必须与备份配置同时给出" });
+  const phonesFile = read(source, "ALERT_ONCALL_PHONES_FILE");
+  if (phonesFile !== undefined) {
+    try {
+      const phones = readFileSync(phonesFile, "utf8")
+        .trim()
+        .split(/[\s,]+/)
+        .filter(Boolean);
+      if (
+        phones.length === 0 ||
+        phones.length > 20 ||
+        phones.some((phone) => !/^1\d{10}$/.test(phone))
+      )
+        issues.push({ key: "ALERT_ONCALL_PHONES_FILE", reason: "值班人必须是 1–20 个合法手机号" });
+      else result.ALERT_ONCALL_PHONES = phones;
+    } catch {
+      issues.push({ key: "ALERT_ONCALL_PHONES_FILE", reason: "所指的文件读不了" });
+    }
+  }
+  const immediate = csv("ALERT_P2_IMMEDIATE");
+  if (immediate !== undefined) {
+    if (immediate.some((rule) => !/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$/.test(rule)))
+      issues.push({ key: "ALERT_P2_IMMEDIATE", reason: "必须是已登记告警规则键的列表" });
+    result.ALERT_P2_IMMEDIATE = immediate;
+  }
+  const thresholdsFile = read(source, "PROBE_THRESHOLDS_FILE");
+  if (thresholdsFile !== undefined) {
+    try {
+      const schema = z.record(
+        z.string().regex(/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$/),
+        z
+          .object({
+            p2: z.number().finite().min(0).max(1_000_000_000),
+            p1: z.number().finite().min(0).max(1_000_000_000).optional(),
+          })
+          .strict()
+          .refine((v) => v.p1 === undefined || v.p1 >= v.p2),
+      );
+      const parsed = schema.safeParse(JSON.parse(readFileSync(thresholdsFile, "utf8")));
+      if (!parsed.success) throw new Error("invalid");
+      result.PROBE_THRESHOLDS = parsed.data;
+    } catch {
+      issues.push({
+        key: "PROBE_THRESHOLDS_FILE",
+        reason: "必须是已登记探针键到有界p2/p1数值的JSON对象",
+      });
+    }
+  }
+  return result;
+}
+
 /**
  * 读取并校验环境变量。任何一项不合格即抛 EnvError，一次列出全部问题。
  * @param source 缺省读 process.env；测试里传对象
@@ -303,6 +486,7 @@ export function loadEnv(
   const dataKeys = readKeyFile(source, "DATA_KEYS", issues, parseDataKeys);
   const bidxKeys = readKeyFile(source, "BIDX_KEYS", issues, parseBidxKeys);
   const authKeys = readKeyFile(source, "AUTH_KEYS", issues, parseAuthKeys);
+  const ops = opsEnv(source, appEnv, issues);
   if (!parsed.success) {
     for (const issue of parsed.error.issues) {
       issues.push({ key: issue.path.join("."), reason: issue.message });
@@ -330,5 +514,6 @@ export function loadEnv(
     REDIS_URL,
     ...(dataKeys && bidxKeys ? { DATA_KEYS: dataKeys, BIDX_KEYS: bidxKeys } : {}),
     ...(authKeys ? { AUTH_KEYS: authKeys } : {}),
+    ...ops,
   });
 }

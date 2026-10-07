@@ -2,6 +2,25 @@ import { PlanContentSchema } from "@liyoxi/contract";
 import type { Tx } from "../kernel/index.js";
 import { getLaunchReviewSummary } from "../publish/index.js";
 import { iso } from "./repo.js";
+const ticketBriefColumns = {
+  id: true,
+  ticketNo: true,
+  step: true,
+  pauseCount: true,
+  waitingOn: true,
+  stepDueAt: true,
+  deliveryManagerId: true,
+  editorId: true,
+  publisherId: true,
+  orderItemId: true,
+  assignedAt: true,
+  planConfirmedAt: true,
+  adsReadyAt: true,
+  sampleConfirmedAt: true,
+  deliveredAt: true,
+  liveAt: true,
+  usageEndedAt: true,
+} as const;
 const brief = (r: {
   id: string;
   ticketNo: string;
@@ -52,20 +71,42 @@ async function launchBrief(tx: Tx, r: Parameters<typeof brief>[0]) {
 }
 /** 仅同事务内部聚合使用；HTTP 范围由调用的订单用例判定。 */
 export async function getTicketBriefByOrderItem(tx: Tx, orderItemId: string) {
-  const r = await tx.deliveryTicket.findUnique({ where: { orderItemId } });
+  const r = await tx.deliveryTicket.findUnique({
+    where: { orderItemId },
+    select: ticketBriefColumns,
+  });
   return r ? launchBrief(tx, r) : null;
+}
+/** 全量不变量只取状态事实，不计算页面的上线审核投影；调用方分批传已确认的订单项。 */
+export async function getTicketStateBriefsByOrderItems(tx: Tx, ids: readonly string[]) {
+  if (ids.length === 0) return [];
+  return tx.deliveryTicket.findMany({
+    where: { orderItemId: { in: [...ids] } },
+    select: { orderItemId: true, step: true },
+    orderBy: { orderItemId: "asc" },
+  });
 }
 export async function getTicketBriefsByOrder(tx: Tx, dramaOrderId: string) {
   const rows = await tx.deliveryTicket.findMany({
     where: { dramaOrderId },
     orderBy: { id: "asc" },
+    select: ticketBriefColumns,
   });
   return Promise.all(rows.map((r) => launchBrief(tx, r)));
 }
 export async function getPlanBriefByOrder(tx: Tx, dramaOrderId: string) {
   const p = await tx.deliveryPlan.findUnique({
     where: { dramaOrderId },
-    include: { deliveryPlanVersions: true, dramaOrder: { include: { orderItems: true } } },
+    select: {
+      id: true,
+      status: true,
+      currentVersionNo: true,
+      confirmedVersionNo: true,
+      pushedAt: true,
+      confirmedAt: true,
+      deliveryPlanVersions: { select: { versionNo: true, contentSnapshot: true } },
+      dramaOrder: { select: { orderItems: { select: { phase: true, agreedLaunchDate: true } } } },
+    },
   });
   if (!p) return null;
   const summaryVersionNo = p.confirmedVersionNo ?? (p.currentVersionNo || null);

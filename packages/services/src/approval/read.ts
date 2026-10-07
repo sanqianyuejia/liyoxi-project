@@ -51,7 +51,7 @@ interface ReadDeps {
 interface Visible {
   row: ApprovalRow;
   kind: ApprovalKindRegistration;
-  handlerId: string | null;
+  handlerId: string | null | undefined;
   scoped: boolean;
   overdue: boolean;
   actions: ApprovalItem["actions"];
@@ -148,32 +148,59 @@ export function createApprovalReads(deps: ReadDeps): ApprovalReads {
             hours,
           );
     const result: Visible[] = [];
+    const permissions = new Map(
+      [...deps.kinds].map(([key, kind]) => [
+        key,
+        {
+          readable: readable(kind, ctx),
+          roleQueue: roleQueue(kind, ctx),
+          decide: hasPermission(ctx, kind.decidePermission),
+        },
+      ]),
+    );
+    const overdueBySubmittedAt = new Map<number, boolean>();
     for (const row of rows) {
       const kind = deps.kinds.get(row.kind);
-      if (kind === undefined || !readable(kind, ctx)) continue;
-      const handlerId = (await kind.handlerOf?.(tx, row)) ?? null;
-      const scoped = roleQueue(kind, ctx) || scope(row, handlerId);
+      const permission = permissions.get(row.kind);
+      if (kind === undefined || !permission?.readable) continue;
+      // 全部范围与角色队列已确定 scoped；列表只给实际分页项解析当前处理人。
+      const globallyScoped = permission.roleQueue || ctx.scope.kind === "all";
+      const handlerId = globallyScoped ? undefined : ((await kind.handlerOf?.(tx, row)) ?? null);
+      const scoped = globallyScoped || scope(row, handlerId ?? null);
       if (!scoped && !mine(row, ctx)) continue;
-      const overdue =
-        row.status === "pending" &&
-        (row.dueAt !== null
-          ? row.dueAt < now
-          : calendar !== null &&
-            dueAt(calendar, row.submittedAt, {
-              amount: values["approval.escalate_workdays"],
-              unit: "work_days",
-            }).at < now);
+      let overdue = false;
+      if (row.status === "pending") {
+        if (row.dueAt !== null) overdue = row.dueAt < now;
+        else if (calendar !== null) {
+          const submittedAt = row.submittedAt.getTime();
+          let calculated = overdueBySubmittedAt.get(submittedAt);
+          if (calculated === undefined) {
+            calculated =
+              dueAt(calendar, row.submittedAt, {
+                amount: values["approval.escalate_workdays"],
+                unit: "work_days",
+              }).at < now;
+            overdueBySubmittedAt.set(submittedAt, calculated);
+          }
+          overdue = calculated;
+        }
+      }
       if (filterOverdue !== undefined && overdue !== filterOverdue) continue;
       const actions: ApprovalItem["actions"] = [];
       if (row.status === "pending") {
-        const permission = hasPermission(ctx, kind.decidePermission);
         const group =
           !kind.groupBound ||
           ctx.staff.roleKey === "super_admin" ||
           (ctx.staff.isLead &&
             ctx.staff.staffGroupId !== null &&
             ctx.staff.staffGroupId === row.requesterStaffGroupId);
-        if (permission && scoped && !mine(row, ctx) && row.submitActorId !== ctx.staff.id && group)
+        if (
+          permission.decide &&
+          scoped &&
+          !mine(row, ctx) &&
+          row.submitActorId !== ctx.staff.id &&
+          group
+        )
           actions.push(
             ...(row.kind === "transfer_confirm"
               ? (["approve-review", "reject-review"] as const)
@@ -183,7 +210,7 @@ export function createApprovalReads(deps: ReadDeps): ApprovalReads {
           row.category === "approval" &&
           kind.operations.withdraw !== null &&
           (mine(row, ctx) ||
-            (permission &&
+            (permission.decide &&
               scoped &&
               group &&
               row.requesterStaffId !== null &&
@@ -196,7 +223,16 @@ export function createApprovalReads(deps: ReadDeps): ApprovalReads {
     return result;
   }
 
-  async function items(tx: Tx, rows: readonly Visible[]): Promise<ApprovalItem[]> {
+  async function items(tx: Tx, visibleRows: readonly Visible[]): Promise<ApprovalItem[]> {
+    const rows: Array<Visible & { handlerId: string | null }> = [];
+    for (const entry of visibleRows)
+      rows.push({
+        ...entry,
+        handlerId:
+          entry.handlerId === undefined
+            ? ((await entry.kind.handlerOf?.(tx, entry.row)) ?? null)
+            : entry.handlerId,
+      });
     const [staff, merchants, reasons] = await Promise.all([
       staffBriefs(
         tx,

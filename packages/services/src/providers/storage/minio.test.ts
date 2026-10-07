@@ -65,6 +65,134 @@ afterAll(async () => {
   storage.close();
 });
 
+live("备份专用有界流", () => {
+  it("上游next一直等待时取消仍中止分块，不等待新字节", async () => {
+    const backup = createMinioStorage({ ...LOCAL_MINIO, backupBucket: LOCAL_MINIO.buckets.secure });
+    const key = `backup-tests/${runId}/pending-next.dump.age`;
+    created.push({ bucket: "secure", key });
+    const abort = new AbortController();
+    let entered!: () => void;
+    const waiting = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    try {
+      const uploading = backup.backupPutStream({
+        bucket: LOCAL_MINIO.buckets.secure,
+        key,
+        signal: abort.signal,
+        maxBytes: 8 * 1024 ** 2,
+        body: {
+          async *[Symbol.asyncIterator]() {
+            yield new Uint8Array(5 * 1024 ** 2);
+            entered();
+            await new Promise<void>(() => {});
+          },
+        },
+      });
+      await waiting;
+      abort.abort();
+      expect(await uploading).toMatchObject({ ok: false, reason: "unavailable" });
+      expect(await backup.backupHead({ bucket: LOCAL_MINIO.buckets.secure, key })).toEqual({
+        ok: true,
+        value: { exists: false, size: 0 },
+      });
+    } finally {
+      backup.close();
+    }
+  });
+  it("显式目标流式分块上传、HEAD与条件月度复制，不扩四个业务桶", async () => {
+    const backup = createMinioStorage({ ...LOCAL_MINIO, backupBucket: LOCAL_MINIO.buckets.secure });
+    const key = `backup-tests/${runId}/daily.dump.age`,
+      monthly = `backup-tests/${runId}/monthly.dump.age`;
+    created.push({ bucket: "secure", key }, { bucket: "secure", key: monthly });
+    try {
+      const chunk = new Uint8Array(3 * 1024 ** 2).fill(42);
+      const result = await backup.backupPutStream({
+        bucket: LOCAL_MINIO.buckets.secure,
+        key,
+        body: {
+          async *[Symbol.asyncIterator]() {
+            yield chunk;
+            yield chunk;
+          },
+        },
+        maxBytes: chunk.byteLength * 2,
+        signal: new AbortController().signal,
+      });
+      expect(result).toMatchObject({ ok: true, value: { size: chunk.byteLength * 2 } });
+      const head = await backup.backupHead({ bucket: LOCAL_MINIO.buckets.secure, key });
+      expect(head).toMatchObject({ ok: true, value: { exists: true, size: chunk.byteLength * 2 } });
+      if (!head.ok || !head.value.etag) throw new Error("缺少备份etag");
+      expect(
+        await backup.backupCopy({
+          src: { bucket: LOCAL_MINIO.buckets.secure, key },
+          dst: { bucket: LOCAL_MINIO.buckets.secure, key: monthly },
+          ifMatchEtag: head.value.etag,
+        }),
+      ).toMatchObject({ ok: true });
+      expect(
+        await backup.backupHead({ bucket: LOCAL_MINIO.buckets.secure, key: monthly }),
+      ).toMatchObject({ ok: true, value: { exists: true, size: chunk.byteLength * 2 } });
+      expect(
+        await backup.backupCopy({
+          src: { bucket: LOCAL_MINIO.buckets.secure, key },
+          dst: { bucket: LOCAL_MINIO.buckets.secure, key: monthly },
+          ifMatchEtag: '"wrong-etag"',
+        }),
+      ).toMatchObject({ ok: false, reason: "rejected" });
+    } finally {
+      backup.close();
+    }
+  });
+  it.each(["limit", "stream", "abort"] as const)("%s中断不完成对象", async (failure) => {
+    const backup = createMinioStorage({ ...LOCAL_MINIO, backupBucket: LOCAL_MINIO.buckets.secure });
+    const key = `backup-tests/${runId}/${failure}.dump.age`;
+    created.push({ bucket: "secure", key });
+    const abort = new AbortController();
+    try {
+      const result = await backup.backupPutStream({
+        bucket: LOCAL_MINIO.buckets.secure,
+        key,
+        maxBytes: 8 * 1024 ** 2,
+        signal: abort.signal,
+        body: {
+          async *[Symbol.asyncIterator]() {
+            yield new Uint8Array(5 * 1024 ** 2);
+            if (failure === "stream") throw new Error("private-stream-error");
+            if (failure === "abort") abort.abort();
+            yield new Uint8Array(4 * 1024 ** 2);
+          },
+        },
+      });
+      expect(result.ok).toBe(false);
+      expect(JSON.stringify(result)).not.toContain("private-stream-error");
+      expect(await backup.backupHead({ bucket: LOCAL_MINIO.buckets.secure, key })).toEqual({
+        ok: true,
+        value: { exists: false, size: 0 },
+      });
+    } finally {
+      backup.close();
+    }
+  });
+});
+
+describe("备份目标边界", () => {
+  it("缺配和不匹配明确失败，不借四个业务桶或任意桶兜底", async () => {
+    expect(
+      await storage.backupHead({ bucket: LOCAL_MINIO.buckets.secure, key: "daily/test.dump.age" }),
+    ).toMatchObject({ ok: false, reason: "unconfigured" });
+    const backup = createMinioStorage({ ...LOCAL_MINIO, backupBucket: LOCAL_MINIO.buckets.secure });
+    try {
+      expect(
+        await backup.backupHead({ bucket: LOCAL_MINIO.buckets.asset, key: "daily/test.dump.age" }),
+      ).toMatchObject({ ok: false, reason: "rejected" });
+    } finally {
+      backup.close();
+    }
+    expect([...STORAGE_BUCKETS]).toEqual(["secure", "asset", "media", "pub"]);
+  });
+});
+
 describe("连接参数", () => {
   it("LOCAL_MINIO 与 infra/compose/local.yml 一致；桶名照任务书 第 11 节第 4 项", () => {
     const compose = readFileSync(

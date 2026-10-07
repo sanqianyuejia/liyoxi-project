@@ -11,13 +11,28 @@ import { assertProfileComplete } from "../profile/index.js";
 import type { OrderActor, OrderDeps } from "./context.js";
 import { qualification, openIndustry, earliestLaunch, currentLicense } from "./checks.js";
 import { orderAccounts } from "./accounts.js";
-export async function dictRefs(tx: Tx, type: string, codes: readonly string[]) {
+/** 本请求内的真实字典名，按type+code隔离；映射保留输入次序、重复与缺码回落。 */
+export async function dictRefsFor(
+  tx: Tx,
+  groups: readonly { type: string; codes: readonly string[] }[],
+) {
   const rows = await tx.dictItem.findMany({
-    where: { dictTypeKey: type, code: { in: [...codes] } },
-    select: { code: true, name: true },
+    where: {
+      OR: groups.map(({ type, codes }) => ({ dictTypeKey: type, code: { in: [...codes] } })),
+    },
+    select: { dictTypeKey: true, code: true, name: true },
   });
-  const names = new Map(rows.map((r) => [r.code, r.name]));
-  return codes.map((code) => ({ code, name: names.get(code) ?? code }));
+  const names = new Map<string, Map<string, string>>();
+  for (const row of rows) {
+    const type = names.get(row.dictTypeKey) ?? new Map<string, string>();
+    type.set(row.code, row.name);
+    names.set(row.dictTypeKey, type);
+  }
+  return (type: string, codes: readonly string[]) =>
+    codes.map((code) => ({ code, name: names.get(type)?.get(code) ?? code }));
+}
+export async function dictRefs(tx: Tx, type: string, codes: readonly string[]) {
+  return (await dictRefsFor(tx, [{ type, codes }]))(type, codes);
 }
 // 只读批次筛选与账本扣减口径一致；分配算法复用 shared，报价不锁账户、不推进周期。
 export async function previewAllocation(

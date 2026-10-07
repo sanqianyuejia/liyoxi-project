@@ -62,7 +62,7 @@ import type {
 } from "./kernel/index.js";
 import { createLogger } from "./logger.js";
 import type { Logger } from "./logger.js";
-import { bindOps, createHealth, createStartupChecks } from "./ops/index.js";
+import { bindOps, createHealth, createStartupChecks, createOpsRuntime } from "./ops/index.js";
 import type { Health, StartupCheck } from "./ops/index.js";
 import type { Providers } from "./providers/types.js";
 import { createContent, bindContent } from "./content/index.js";
@@ -239,8 +239,15 @@ export function createRuntime(options: RuntimeOptions): Runtime {
   });
   const assembly = assembleServices({ entry, appEnv: env.APP_ENV });
   // 违规上报端口（invariants.report）的实现在 ops，要连接、时钟与装配结果（W0-24）
-  const unbindOps = bindOps({ db: prisma, tx, clock, assembly });
-  const providers = options.providers ?? assembleProviders({ appEnv: env.APP_ENV, logger });
+  const providers =
+    options.providers ??
+    assembleProviders({
+      appEnv: env.APP_ENV,
+      logger,
+      ...(env?.BACKUP === undefined
+        ? {}
+        : { settings: { storage: { minio: { backupBucket: env?.BACKUP.bucket } } } }),
+    });
   const events = createEvents({ assembly, clock, tx });
   const webhooks = createWebhooks({
     tx,
@@ -251,6 +258,17 @@ export function createRuntime(options: RuntimeOptions): Runtime {
   });
   const unbindWebhooks = bindWebhooks(webhooks);
   const timers = createTimers({ assembly });
+  const operations = createOpsRuntime({
+    db: prisma,
+    tx,
+    clock,
+    assembly,
+    providers,
+    logger,
+    env,
+    timers,
+  });
+  const unbindOps = bindOps({ db: prisma, tx, clock, assembly, operations });
   const flow = createFlow({ assembly, clock, events });
   const unbindOrder = bindOrder({ assembly, clock, flow });
   const mediaChannel = createQueueChannel({ redisUrl: env.REDIS_URL, prefix: `${keyPrefix}bull` });
@@ -393,6 +411,7 @@ export function createRuntime(options: RuntimeOptions): Runtime {
       unbindDelivery();
       unbindOps();
       unbindWebhooks();
+      await operations.close();
       await mediaChannel.close();
       redis.disconnect();
       await prisma.$disconnect();

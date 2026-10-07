@@ -1,3 +1,4 @@
+import type { Drama } from "@liyoxi/db";
 import { calendarDate } from "@liyoxi/shared/time";
 import { stopDate, permitCovers } from "@liyoxi/shared/catalog";
 import { AppError } from "../kernel/index.js";
@@ -26,6 +27,43 @@ export async function dramaFacts(tx: Tx, id: string) {
     drama.posterFileId ? tx.fileObject.findUnique({ where: { id: drama.posterFileId } }) : null,
   ]);
   return { drama, copyright, permits, episodes, poster };
+}
+/** 可订入口只消费当前剧目、授权和许可；完整上架检查仍用dramaFacts。 */
+export async function orderableFacts(tx: Tx, id: string) {
+  const [facts] = await tx.$queryRaw<
+    (Pick<
+      Drama,
+      | "status"
+      | "archivedAt"
+      | "title"
+      | "totalEpisodes"
+      | "dramaClass"
+      | "genreCodes"
+      | "posterFileId"
+      | "allowedPlacements"
+      | "isAiGenerated"
+    > & {
+      hasCopyright: boolean;
+      licenseEndDate: Date | null;
+      platforms: string[] | null;
+      permits: { platform: string; permitKind: string; permitNo: string; status: string }[];
+    })[]
+  >`
+    SELECT d.status, d.archived_at AS "archivedAt", d.title, d.total_episodes AS "totalEpisodes",
+           d.drama_class AS "dramaClass", d.genre_codes AS "genreCodes", d.poster_file_id AS "posterFileId",
+           d.allowed_placements AS "allowedPlacements", d.is_ai_generated AS "isAiGenerated",
+           c.drama_id IS NOT NULL AS "hasCopyright", c.license_end_date AS "licenseEndDate", c.platforms,
+           COALESCE((SELECT jsonb_agg(jsonb_build_object(
+             'platform', p.platform, 'permitKind', p.permit_kind, 'permitNo', p.permit_no, 'status', p.status)
+             ORDER BY p.id ASC) FROM drama_permit p WHERE p.drama_id = d.id AND p.status = 'active'),
+             '[]'::jsonb) AS permits
+    FROM drama d LEFT JOIN drama_copyright c ON c.drama_id = d.id
+    WHERE d.id = ${id}::uuid`;
+  if (!facts) throw new AppError("NOT_FOUND");
+  const { hasCopyright, licenseEndDate, platforms, permits, ...drama } = facts;
+  // platforms自身非空；只有LEFT JOIN没有版权行时才会是SQL NULL。
+  const copyright = hasCopyright ? { licenseEndDate, platforms: platforms! } : null;
+  return { drama, copyright, permits };
 }
 export type DramaFacts = Awaited<ReturnType<typeof dramaFacts>>;
 export interface ListingItem {

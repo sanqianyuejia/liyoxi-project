@@ -86,7 +86,7 @@ async function consents(
       where: { id: actor.membership.entityId },
       select: { name: true, usccEnc: true, usccMask: true },
     });
-  await deps.docs.assertConsents(tx, actor.ctx, {
+  await deps.docs.recordTransactionConsents(tx, actor.ctx, {
     scene: "plan_purchase",
     method: "by_action",
     consents: versions.map((agreementVersionId) => ({ agreementVersionId })),

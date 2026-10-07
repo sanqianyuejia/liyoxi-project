@@ -15,3 +15,5 @@ export { createWebhooks } from "./webhooks/runtime.js";
 export type * from "./webhooks/types.js";
 export { bindWebhooks } from "./webhooks/binding.js";
 export { registration } from "./register.js";
+// W2-24：后台来源检查只记录认证前的独立安全事实。
+export { recordOffnetDenied } from "./offnet-denied.js";

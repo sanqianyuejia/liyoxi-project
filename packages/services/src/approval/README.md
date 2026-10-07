@@ -137,7 +137,7 @@ P2、只在 full 运行里查，各至多报 500 条。`approval.I3`、`I5` 随�
 
 `approval.list(tx, staff, query)`、`summary(tx, staff, filter)`、`get(tx, staff, id)` 都只读。先按登记的 `viewModules` 筛可读类型，再套 authz 的本人、本组或全部范围；发起人自读只越过范围，账号核验的角色队列凭 `publish.account.verify` 可跨范围。列表显式传不可读类型回 403，计数忽略，详情回 404。
 
-`handlerOf` 有当前处理人时用处理人套范围，其他类型用门店、主体；展示的员工姓名、角色与状态是仓储批量查询的当前值，没有调用同层 staff。`badges` 从登记的读函数取得，另加 `overdue`：待审且超过 `dueAt`，或没有时限时超过 `approval.escalate_workdays` 个工作日。后一项只读 sla 的日历和工时，调用 shared 的纯计算，不触发日历缺失告警写入。
+`handlerOf` 有当前处理人时用处理人套范围，其他类型用门店、主体；all与有权限的roleQueue不靠处理人判范围，延迟到实际分页/详情项才真实解析处理人，计数不解析未消费的处理人字段。非all范围即时解析保持不变；展示的员工姓名、角色与状态是仓储批量查询的当前值，没有调用同层 staff。`badges` 从登记的读函数取得，另加 `overdue`：待审且超过 `dueAt`，或没有时限时超过 `approval.escalate_workdays` 个工作日。后一项只读 sla 的日历和工时，调用 shared 的纯计算，不触发日历缺失告警写入。
 
 `todo` 必须是当前能决定的待审单，发起人不算；`submitted` 看发起员工；`done_today` 按北京时间决定日；`all` 看全部可读单。列表和计数的 todo 均调用同一个 `countTodo`。上层可调用 `approval.countTodo(tx, staff, filter)` 做菜单角标，或 `decisionView(tx, staff, id)` 返回与详情同源的决定面板。领域类型须在摘要里给 `domain`；a 写侧允许缺省，历史缺省摘要读回时使用对象引用。
 

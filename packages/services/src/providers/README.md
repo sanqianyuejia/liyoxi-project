@@ -66,7 +66,7 @@ import type { StorageProvider } from "../providers/types.js";
 - AWS SDK 缺省会去读环境变量与 `~/.aws` 下的文件找配置。驱动把这些选项全部写明，SDK 就不读那些文件；升级 AWS SDK 后要重查一遍（看有没有新增的这类选项）。
 - 四个桶：`lyx-local-secure`、`lyx-local-asset`、`lyx-local-media`、`lyx-local-pub`，都是私有桶。驱动第一次用到时建好，已有的不动；compose 里不另建桶。
 - 直传只能落在写入区 `incoming/`；入库是条件复制到正式区（对上源对象的 etag 才复制）。
-- 没有临时密钥、没有版本控制：分块上传与续传在这里测不到。
+- 没有临时密钥、没有版本控制：端侧大文件分块上传与续传在这里测不到。备份仅在服务端使用下面独立的分块能力。
 - MinIO 没起来不影响启动，调用时返回 `unavailable`。用例要连它：先 `pnpm infra:up`。连不上时 `storage/minio.test.ts` 里要连它的几组跳过并在标准错误里提示；带 `LYX_TEST_MINIO=required` 跑则直接失败（CI 的那一步与验收都带着它）。
 - 那套容器由几个 worktree 共用：用例每次运行用自己的键前缀，只删自己建的对象，不删桶。
 
@@ -96,3 +96,15 @@ fakes.wechatPay.failNext("createJsapiOrder");
 - 假微信：文本检测可切到“服务不可用”；图片审核直接放行。
 - 假媒体：体检给预置报告；转码、打包直接完成；视频审核直接放行。
 - 假存储：对象在内存里，不依赖 MinIO；到期与否按替身的时钟判。
+
+## 9. 备份专用存储与告警群
+
+`backupPutStream`、`backupHead`、`backupCopy` 使用 `BackupObjectRef` 的显式目标桶名。四个业务桶与原八个业务方法保持原样；备份没有端侧签名或任意桶回退。MinIO 只有配置 `storage.minio.backupBucket` 后支持，目标必须严格匹配；未配返回 `unconfigured`。真实 COS 适配交 W3-01，当前没有真实云备份验收。
+
+上传串行发送 5 MiB 分块，内存只保留一个分块；`maxBytes` 最多 50,000 MiB，默认备份用 10 GiB。取消、流错误、大小超限或子进程失败均中止未完成分块；清理失败保留明确失败结果，部署应配置未完成分块的生命周期清理。复制必须匹配源 etag，同一显式目标内生成月度副本。调用仍通过统一 Provider 外呼钩子，不允许在事务中上传。
+
+`wecom.sendRobotMessage` 是独立群机器人方法，自建应用的 `sendAppMessage` 不能冒充群通知。未配返回未到达失败；替身记录调用，真实机器人驱动与配置接 W2-31。备份对象流的替身只在独立 `backupObjects` 命名空间保存有界的小测试样本，不代表真实云上传。
+
+备份业务管道不落盘：只读连接拆成子进程 libpq 环境变量，`pg_dump -Fc --no-owner --no-password` 的输出经 `age -r` 公钥加密后才进入 StorageProvider。凭据不进入 argv、日志或摘要；stderr 持续消费但丢弃，解密私钥从不进入服务端。仅两子进程成功退出才提交流 EOF，HEAD 大小不低于上次成功值的 50%，每月 1 日另条件复制。租约、续租、最多三次重试及结果写入由原周期任务机制提供。
+
+常规 `backup.db.test.ts` 以现有 PostgreSQL 17 镜像对真实隔离库做只读导出，注入 age 边界替身；它明确不声称验过真实 age。另以 `LYX_TEST_BACKUP_IMAGE=liyoxi/server:<已构建标签>` 跑同一文件时复用现有 server 镜像的真实 pg_dump 17 与 age，验证加密格式、大小、月度副本与上传中止。测试合成公钥，不生成或读取解密私钥，不拉镜像、不安装依赖、不上传云端。

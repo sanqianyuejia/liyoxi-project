@@ -1,6 +1,6 @@
 // 本域仓储。字典/员工只读当前数据库值；敏感字段只在这里解密，不流入日志或公开 DTO。
 import { IndustryExtSchema, PermitTypeExtSchema } from "@liyoxi/contract";
-import type { QualificationDoc, StoreProfile } from "@liyoxi/db";
+import type { QualificationDoc, StoreProfile, StoreProfileMedia } from "@liyoxi/db";
 import { profileCompleteness } from "@liyoxi/shared/profile";
 import { AppError, lockRows } from "../kernel/index.js";
 import type { Tx } from "../kernel/index.js";
@@ -52,6 +52,97 @@ export const roundInclude = {
   qualificationDocs: { where: { removedAt: null }, orderBy: { createdAt: "asc" as const } },
   approvalRequest: true,
 };
+type BasicProfile = Pick<
+  StoreProfile,
+  | "brandName"
+  | "industryCode"
+  | "categoryCode"
+  | "provinceCode"
+  | "cityCode"
+  | "districtCode"
+  | "addressDetail"
+  | "businessHours"
+  | "storeTel"
+  | "avgSpendFen"
+  | "sellingPointCodes"
+>;
+function basicFilled(
+  storeName: string | null,
+  profile: BasicProfile | null,
+  media: readonly Pick<StoreProfileMedia, "mediaGroup" | "fileId">[],
+  serviceCount: number,
+  usable: (id: string) => boolean,
+) {
+  return {
+    brand_name: !!profile?.brandName,
+    store_name: !!storeName,
+    industry: !!profile?.industryCode && !!profile.categoryCode,
+    address:
+      !!profile?.provinceCode &&
+      !!profile.cityCode &&
+      !!profile.districtCode &&
+      !!profile.addressDetail,
+    business_hours: Array.isArray(profile?.businessHours) && profile.businessHours.length > 0,
+    store_tel: !!profile?.storeTel,
+    avg_spend: profile?.avgSpendFen != null,
+    door_photos: media.filter((m) => m.mediaGroup === "door" && usable(m.fileId)).length >= 1,
+    interior_photos:
+      media.filter((m) => m.mediaGroup === "interior" && usable(m.fileId)).length >= 3,
+    service_items: serviceCount > 0,
+    selling_points: (profile?.sellingPointCodes.length ?? 0) > 0,
+  };
+}
+/** 订购只消费前三步；每次读取当前基础档案和媒体，不读取未消费的资质历史。 */
+export async function basicCompleteness(tx: Tx, storeId: string) {
+  const [row] = await tx.$queryRaw<
+    {
+      name: string | null;
+      profile: BasicProfile | null;
+      media: {
+        mediaGroup: string;
+        fileId: string;
+        status: string | null;
+        moderationState: string | null;
+      }[];
+      serviceCount: number;
+    }[]
+  >`
+    SELECT s.name,
+           CASE WHEN p.store_id IS NULL THEN NULL ELSE jsonb_build_object(
+             'brandName', p.brand_name, 'industryCode', p.industry_code,
+             'categoryCode', p.category_code, 'provinceCode', p.province_code,
+             'cityCode', p.city_code, 'districtCode', p.district_code,
+             'addressDetail', p.address_detail, 'businessHours', p.business_hours,
+             'storeTel', p.store_tel, 'avgSpendFen', p.avg_spend_fen,
+             'sellingPointCodes', p.selling_point_codes
+           ) END AS profile,
+           COALESCE((SELECT jsonb_agg(jsonb_build_object(
+             'mediaGroup', m.media_group, 'fileId', m.file_id,
+             'status', f.status, 'moderationState', f.moderation_state
+           ) ORDER BY m.position ASC)
+             FROM store_profile_media m LEFT JOIN file_object f ON f.id = m.file_id
+             WHERE m.store_id = s.id AND m.removed_at IS NULL), '[]'::jsonb) AS media,
+           (SELECT count(*)::int FROM store_service_item si
+             WHERE si.store_id = s.id AND si.removed_at IS NULL) AS "serviceCount"
+      FROM store s LEFT JOIN store_profile p ON p.store_id = s.id
+      WHERE s.id = ${storeId}::uuid`;
+  if (!row) throw new AppError("NOT_FOUND");
+  const usable = new Map(
+    row.media.map((m) => [m.fileId, m.status === "stored" && m.moderationState !== "block"]),
+  );
+  return profileCompleteness({
+    filled: basicFilled(
+      row.name,
+      row.profile,
+      row.media,
+      row.serviceCount,
+      (id) => usable.get(id) === true,
+    ),
+    requiredPermits: [],
+    providedPermits: [],
+  }).steps.slice(0, 3);
+}
+
 export async function snapshot(tx: Tx, storeId: string) {
   const store = await storeOf(tx, storeId);
   const profile = await tx.storeProfile.findUnique({ where: { storeId } });
@@ -98,22 +189,7 @@ export async function snapshot(tx: Tx, storeId: string) {
   const docs = current?.qualificationDocs ?? [];
   const completeness = profileCompleteness({
     filled: {
-      brand_name: !!profile?.brandName,
-      store_name: !!store.name,
-      industry: !!profile?.industryCode && !!profile.categoryCode,
-      address:
-        !!profile?.provinceCode &&
-        !!profile.cityCode &&
-        !!profile.districtCode &&
-        !!profile.addressDetail,
-      business_hours: Array.isArray(profile?.businessHours) && profile.businessHours.length > 0,
-      store_tel: !!profile?.storeTel,
-      avg_spend: profile?.avgSpendFen != null,
-      door_photos: media.filter((m) => m.mediaGroup === "door" && usable(m.fileId)).length >= 1,
-      interior_photos:
-        media.filter((m) => m.mediaGroup === "interior" && usable(m.fileId)).length >= 3,
-      service_items: services.length > 0,
-      selling_points: (profile?.sellingPointCodes.length ?? 0) > 0,
+      ...basicFilled(store.name, profile, media, services.length, usable),
       entity_type: store.entity.verificationStatus === "verified" || !!current?.claimedEntityType,
       business_license:
         store.entity.verificationStatus === "verified" ||

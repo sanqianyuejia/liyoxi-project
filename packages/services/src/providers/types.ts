@@ -200,6 +200,12 @@ export interface ObjectRef {
   key: string;
 }
 
+/** 备份目标由部署显式配置，不属于四个业务桶，也不向客户端签名。 */
+export interface BackupObjectRef {
+  bucket: string;
+  key: string;
+}
+
 export interface PresignedPost {
   url: string;
   /** 表单字段，原样放进 multipart 表单；文件字段名是 file，放最后 */
@@ -225,6 +231,21 @@ export interface ObjectHead {
 export interface StorageProvider extends ProviderBase {
   /** sts：能不能签发临时密钥（大文件分块上传要用）；versioning：桶有没有开版本控制 */
   readonly capabilities: { readonly sts: boolean; readonly versioning: boolean };
+  /** 已加密的备份流；最多 maxBytes，取消或流错误必须中止未完成上传。 */
+  backupPutStream(
+    input: BackupObjectRef & {
+      body: AsyncIterable<Uint8Array>;
+      maxBytes: number;
+      signal: AbortSignal;
+    },
+  ): Promise<ProviderResult<{ etag: string; size: number }>>;
+  backupHead(input: BackupObjectRef): Promise<ProviderResult<ObjectHead>>;
+  /** 同一备份目标内按 etag 条件复制到 monthly 前缀。 */
+  backupCopy(input: {
+    src: BackupObjectRef;
+    dst: BackupObjectRef;
+    ifMatchEtag: string;
+  }): Promise<ProviderResult<{ etag: string }>>;
   /** 签名（写）：≤20MB 的预签名表单，直传到写入区。key 不以 incoming/ 开头即 rejected */
   presignPost(input: {
     bucket: StorageBucket;
@@ -403,6 +424,12 @@ export type WecomCallbackEvent =
   | { kind: "other"; eventType: string };
 
 export interface WecomProvider extends ProviderBase {
+  /** 告警群机器人；未配置时明确失败，不借自建应用消息冒充群消息。 */
+  sendRobotMessage(input: {
+    title: string;
+    content: string;
+    mentionAll: boolean;
+  }): Promise<ProviderResult<void>>;
   /** 员工通知：自建应用消息 */
   sendAppMessage(input: {
     toUser: string;
@@ -535,6 +562,9 @@ export const PROVIDER_METHODS = {
   ],
   sms: ["sendActivationCode", "sendSubscribeFallback", "sendOncallAlert"],
   storage: [
+    "backupPutStream",
+    "backupHead",
+    "backupCopy",
     "presignPost",
     "issueSts",
     "head",
@@ -548,7 +578,13 @@ export const PROVIDER_METHODS = {
   ocr: ["recognizeBusinessLicense", "extractLicenseFields"],
   asr: ["transcribe"],
   llm: ["tagAsset", "extractKeyPoints"],
-  wecom: ["sendAppMessage", "createContactWay", "verifyAndDecryptCallback", "getKfLink"],
+  wecom: [
+    "sendAppMessage",
+    "createContactWay",
+    "verifyAndDecryptCallback",
+    "getKfLink",
+    "sendRobotMessage",
+  ],
   esign: ["seal"],
   invoice: ["issue"],
   mail: ["send"],

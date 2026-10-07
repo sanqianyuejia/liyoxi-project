@@ -14,8 +14,13 @@ import type {
 } from "@liyoxi/contract";
 
 import type { Clock, IdempotencyContext, IdentityContext, Tx, TxRunner } from "../kernel/index.js";
-import { assertConsents } from "./consents.js";
-import type { AssertConsentsInput, AssertConsentsResult } from "./consents.js";
+import { assertConsents, recordTransactionConsents } from "./consents.js";
+import type {
+  AssertConsentsInput,
+  AssertConsentsResult,
+  ConsentReceiptItem,
+  TransactionConsentsInput,
+} from "./consents.js";
 import type { Page } from "./cursor.js";
 import { consentStamps, pendingConsents } from "./pending.js";
 import type { ConsentStamps } from "./pending.js";
@@ -72,6 +77,12 @@ export interface Docs {
     ctx: IdentityContext,
     input: AssertConsentsInput,
   ): Promise<AssertConsentsResult>;
+  /** 四个交易场景的真实凭据 producer：与业务同 TX，服务入口取一次 Tc。 */
+  recordTransactionConsents(
+    tx: Tx,
+    ctx: IdentityContext,
+    input: TransactionConsentsInput,
+  ): Promise<ConsentReceiptItem[]>;
   /** 本人此刻待同意的用户级协议：现算，不写库 */
   pendingConsents(db: DocsReader, merchantUserId: string): Promise<PendingConsent[]>;
   /** 两个指纹：用户级协议的、全部协议的 */
@@ -99,6 +110,7 @@ export function createDocs(deps: DocsDeps): Docs {
       read((tx) => countSignedAgreements(tx, now(), viewer, filter)),
     currentVersions: (db) => currentVersions(db, now()),
     assertConsents: (tx, ctx, input) => assertConsents(tx, now(), ctx, input),
+    recordTransactionConsents: (tx, ctx, input) => recordTransactionConsents(tx, now(), ctx, input),
     pendingConsents: (db, merchantUserId) => pendingConsents(db, now(), merchantUserId),
     consentStamps: (db) => consentStamps(db, now()),
   };

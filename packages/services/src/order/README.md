@@ -19,6 +19,8 @@ W1-15a 交 `m.order.quote`、`m.order.create`；a 的 #91 已合主干；W1-15b 
 5. 首次 HoldResult.now 的复制为 Tf。再次核对不可变标题用到的 P/R/T（即使变化抵消为相同 S 也拒绝），并在公共 currentVersions 的真实 Tv 晚检协议版本；标准 stale 整笔回滚。Tc/Tf/Tv 不保证相等，既不回填证据也不预锁账户。
 6. 以 Tf 插完整订单/项/账号行，fresh `created:true` 初始迁移的专用 Flow 仅把时钟适配为该真实 Tf，仍依赖实际 assembly/events；普通后继迁移继续用 runtime.clock。逐项与整单产生历史/审计，清理本次选剧单，full 闸门 arm 真正 scheduled 的 order.start，最后发唯一 order.submitted。parallel 不 arm，子状态 qualification_reviewing。
 
+新建 submit 的响应使用本事务实际 INSERT RETURNING 的母单和各项（包括数据库默认值）；纯 DTO mapper 与正常详情 GET 共用。GET 始终 fresh 回库；新建响应的套餐、协议版本/名称及账号关联/名称仍在事务末尾读取。详情内字典一次按 type+code 批读，保留输入顺序、重复、停用名称和缺码回落；没有跨请求缓存或手造默认值。`detail-created.db.test.ts` 将三剧新建结果每字段与同TX fresh详情比较，并验证末尾名称变更。
+
 提交入口只 freeze，不 capture、不建 placement/工单。首响应提交后签海报；幂等持久结果及重放 `items[].posterUrl` 为 null，重放不再签发。真正扣减与工单交给下述异步开工入口。
 
 ## 移交

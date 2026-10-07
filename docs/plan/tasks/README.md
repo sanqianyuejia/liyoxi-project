@@ -293,6 +293,10 @@ W1-23a交[分配表](../changes/W1-23-m2-m4-package-map.md)、M2共25本（01–
 | W1-23a | W2-03/17/22 | 激活码短信经注入端口，staff不直接同步导入notify；实际短信由driver接 |
 | W1-23a | W2-24 | PR1独立kernel.detach；PR2 actual后再probe/alerts，整包两PR齐才完成 |
 | W1-23a | W2-18/24、W2-27 | 错误转发与探针告警为代码包；环境接通分别等18与24第二PR，未真实部署不称已验 |
+| W2-24 PR2 | W2-17 | actual合入后复用owned notify.sendSystemAlert(tx,{alertId,fingerprint,severity,recovered,noticeNo,at})、s.system_alert/N0/vars/模板与唯一去重；notification/staff_message/inbox delivery同TX真实写；不另造告警producer/第二框架 |
+| W2-24 PR2 | W2-31拆G7-A企业微信包、W2-22 | actual合入后真实driver实现WecomProvider.sendRobotMessage({title,content,mentionAll})；群机器人不能拿sendAppMessage冒充；独立值班SMS仍走SmsProvider.sendOncallAlert。当前unconfigured/fake证明独立发送/失败，不证明云端到达 |
+| W2-24 PR2 | W3-01、W2-27 | actual合入后StorageProvider备份专用backupPutStream/head/copy有界方法与显式目标；四业务桶枚举不变。部署挂只读URL_FILE/公钥/桶、明确证书DNS；真实COS/备份恢复/域名证书/告警到达另授权验 |
+| W2-24 PR2 | G7-B/M7工作台读侧包（尚未拆编号） | 实现四admin.workbench聚合后扩P95真实HTTP样本；当前逐项excluded无假0。D7-16仍待预发机器完整清单验收 |
 | W1-23a → 本段b | W2-01/02及M3/M4各包 | 39本已覆盖全部分配与既有后台页增量、冻结媒体事实及权限/版本；Q8/Q10/Q13按既定默认；G2-0 actual后按本书依赖开工 |
 
 W3-06同编号先交甲级session advisory mutex公开能力与必要工厂接线，后交乙级文件恢复/彻删；领域段必须等待前置PR实际合入，两PR齐才完成。正式a01规定全用例持锁，不能用普通事务行锁或领域裸连接替代；b任务书按此展开。

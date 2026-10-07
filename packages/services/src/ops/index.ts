@@ -36,3 +36,20 @@ export { registration } from "./register.js";
 // KF-1 启动自检：两个进程共用的清单与运行器（runStartupChecks 原在 runtime.ts，挪到这里，那边照旧转导出）
 export { createStartupChecks, runStartupChecks, StartupCheckError } from "./startup.js";
 export type { StartupCheck, StartupCheckDeps } from "./startup.js";
+
+export { createAlerts } from "./alerts.js";
+export type { OpsAlerts, AlertOptions } from "./alerts.js";
+export { createOpsRuntime } from "./runtime.js";
+export type { OpsRuntime } from "./runtime.js";
+export {
+  createProbe,
+  PROBE_INTERVAL_MS,
+  PROBE_BUDGET_MS,
+  PROBE_QUERY_MS,
+  PROBE_CONCURRENCY,
+} from "./probe.js";
+export type { ProbeResult, ProbeOptions } from "./probe.js";
+export { createBackup } from "./backup.js";
+export type { BackupConfig, BackupSummary } from "./backup.js";
+export { createCertChecker } from "./cert.js";
+export { EVENT_ALERT_RULES, PROBE_ALERT_RULES } from "./alert-rules.js";

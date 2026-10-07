@@ -10,7 +10,7 @@ import type { Media } from "../media/index.js";
 import { record } from "../audit/index.js";
 import { paramsAt } from "../config/index.js";
 import { DramaPricePort } from "./ports.js";
-import { assertListing, dateOf, dramaFacts, listingChecks, permitsOf } from "./checks.js";
+import { assertListing, dateOf, listingChecks, orderableFacts, permitsOf } from "./checks.js";
 import { basicInput, commercialInput, copyrightInput, permitInput, rolesInput } from "./inputs.js";
 import type {
   BasicInput,
@@ -451,7 +451,7 @@ export function createContent(deps: ContentDeps) {
       platforms: readonly string[],
       today = calendarDate(deps.clock.now()),
     ) {
-      const facts = await dramaFacts(tx, id),
+      const facts = await orderableFacts(tx, id),
         months = await prices.minLicenseMonths(tx, deps.clock.now()),
         params = await paramsAt(tx, ["content.permit.platform_check"], deps.clock.now());
       const { drama: d, copyright: c, permits } = facts,

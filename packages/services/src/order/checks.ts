@@ -82,15 +82,20 @@ export async function dramaSnapshots(
 ) {
   const result = new Map<string, DramaSnapshot>();
   for (const id of ids) {
-    const exists = await tx.drama.findUnique({ where: { id }, select: { id: true } });
-    if (!exists)
-      throw new AppError("DRAMA_NOT_ORDERABLE", { details: { dramaId: id, reason: "not_listed" } });
-    result.set(
-      id,
-      DramaSnapshotSchema.parse(
-        await deps.content.assertOrderable(tx, id, platforms, calendarDate(at)),
-      ),
-    );
+    try {
+      result.set(
+        id,
+        DramaSnapshotSchema.parse(
+          await deps.content.assertOrderable(tx, id, platforms, calendarDate(at)),
+        ),
+      );
+    } catch (error) {
+      if (error instanceof AppError && error.error === "NOT_FOUND")
+        throw new AppError("DRAMA_NOT_ORDERABLE", {
+          details: { dramaId: id, reason: "not_listed" },
+        });
+      throw error;
+    }
   }
   return result;
 }

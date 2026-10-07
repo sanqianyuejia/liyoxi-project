@@ -306,16 +306,28 @@ export async function refreshNextDue(
 ): Promise<Date | null> {
   let next: Date | null = null;
   if (account.currentSubscriptionTermId !== null) {
-    const term = await tx.subscriptionTerm.findUniqueOrThrow({
-      where: { id: account.currentSubscriptionTermId },
-      select: { endsAt: true },
-    });
-    const pending = await tx.grantSchedule.findFirst({
-      where: { subscriptionTermId: account.currentSubscriptionTermId, status: "pending" },
-      orderBy: { monthNo: "asc" },
-      select: { dueAt: true },
-    });
-    next = pending && pending.dueAt < term.endsAt ? pending.dueAt : term.endsAt;
+    let [facts] = await tx.$queryRaw<{ endsAt: Date; pendingDueAt: Date | null }[]>`
+      SELECT t.ends_at AS "endsAt", pending.due_at AS "pendingDueAt"
+      FROM subscription_term t LEFT JOIN LATERAL (
+        SELECT due_at FROM grant_schedule
+        WHERE subscription_term_id = t.id AND status = 'pending'
+        ORDER BY month_no ASC LIMIT 1
+      ) pending ON true WHERE t.id = ${account.currentSubscriptionTermId}::uuid`;
+    if (!facts) {
+      // 缺周期不伪成null：保留原findUniqueOrThrow错误，罕见的并发补行仍真实读后续计划。
+      const term = await tx.subscriptionTerm.findUniqueOrThrow({
+        where: { id: account.currentSubscriptionTermId },
+        select: { endsAt: true },
+      });
+      const pending = await tx.grantSchedule.findFirst({
+        where: { subscriptionTermId: account.currentSubscriptionTermId, status: "pending" },
+        orderBy: { monthNo: "asc" },
+        select: { dueAt: true },
+      });
+      facts = { endsAt: term.endsAt, pendingDueAt: pending?.dueAt ?? null };
+    }
+    next =
+      facts.pendingDueAt && facts.pendingDueAt < facts.endsAt ? facts.pendingDueAt : facts.endsAt;
   }
   if (next?.getTime() !== account.nextDueAt?.getTime()) {
     await tx.billingAccount.update({

@@ -39,7 +39,8 @@ export async function selfCheck(
   last?: Pick<WrittenOperation, "spendableAfterQty" | "heldAfterQty"> &
     Partial<Pick<WrittenOperation, "pointHoldId">>,
 ): Promise<void> {
-  const [row] = await tx.$queryRaw<Recomputed[]>`
+  const [combined] = await tx.$queryRaw<(Recomputed & { hold: HoldSums | null })[]>`
+    SELECT account.*, allocation.hold FROM (
     SELECT a.sub_status,
            a.plan_available_qty AS plan_cached,
            a.addon_available_qty AS addon_cached,
@@ -62,9 +63,21 @@ export async function selfCheck(
     FROM billing_account a
     LEFT JOIN point_lot l ON l.entity_id = a.entity_id
     WHERE a.entity_id = ${clock.entityId}::uuid
-    GROUP BY a.entity_id`;
-  if (!row) throw new LedgerError("self_check", "计费账户不存在", { entityId: clock.entityId });
+    GROUP BY a.entity_id
+    ) account LEFT JOIN LATERAL (
+      SELECT jsonb_build_object(
+        'qty', h.qty, 'returned_qty', h.returned_qty, 'forfeited_qty', h.forfeited_qty,
+        'alloc_qty', COALESCE(sum(a.qty), 0)::int,
+        'alloc_returned', COALESCE(sum(a.returned_qty), 0)::int,
+        'alloc_forfeited', COALESCE(sum(a.forfeited_qty), 0)::int
+      ) AS hold
+      FROM point_hold h LEFT JOIN point_hold_alloc a ON a.point_hold_id = h.id
+      WHERE h.id = ${last?.pointHoldId ?? null}::uuid GROUP BY h.id
+    ) allocation ON true`;
+  if (!combined)
+    throw new LedgerError("self_check", "计费账户不存在", { entityId: clock.entityId });
 
+  const { hold, ...row } = combined;
   const spendable =
     row.sub_status === "active" && row.refund_marks === 0 ? row.plan_sum + row.addon_sum : 0;
   const problems: string[] = [];
@@ -79,14 +92,7 @@ export async function selfCheck(
   // 这次操作涉及的冻结单：应扣 = 分摊之和；累计退回、不予退回 = 分摊行对应列之和
   let holdRow: HoldSums | undefined;
   if (last?.pointHoldId) {
-    [holdRow] = await tx.$queryRaw<HoldSums[]>`
-      SELECT h.qty, h.returned_qty, h.forfeited_qty,
-             COALESCE(sum(a.qty), 0)::int AS alloc_qty,
-             COALESCE(sum(a.returned_qty), 0)::int AS alloc_returned,
-             COALESCE(sum(a.forfeited_qty), 0)::int AS alloc_forfeited
-      FROM point_hold h LEFT JOIN point_hold_alloc a ON a.point_hold_id = h.id
-      WHERE h.id = ${last.pointHoldId}::uuid
-      GROUP BY h.id`;
+    holdRow = hold ?? undefined;
     if (
       !holdRow ||
       holdRow.qty !== holdRow.alloc_qty ||

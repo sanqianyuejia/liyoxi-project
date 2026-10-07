@@ -10,6 +10,9 @@
 import { createHash } from "node:crypto";
 import {
   CopyObjectCommand,
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
   CreateBucketCommand,
   DeleteObjectCommand,
   GetObjectCommand,
@@ -17,6 +20,7 @@ import {
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
+  UploadPartCommand,
 } from "@aws-sdk/client-s3";
 import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -37,6 +41,8 @@ export interface MinioConfig {
   secretKey: string;
   /** 四个桶各自的桶名 */
   buckets: Readonly<Record<StorageBucket, string>>;
+  /** 仅显式配置后支持备份原语；不会添加到业务桶或签名入口。 */
+  backupBucket?: string;
 }
 
 /**
@@ -145,6 +151,31 @@ export function createMinioStorage(config: MinioConfig = LOCAL_MINIO): MinioStor
     return ready;
   }
 
+  let backupReady: Promise<void> | undefined;
+  async function ensureBackupBucket(): Promise<void> {
+    backupReady ??= (async () => {
+      try {
+        await client.send(new HeadBucketCommand({ Bucket: config.backupBucket }));
+      } catch (error) {
+        if (httpStatusOf(error) !== 404) throw error;
+        try {
+          await client.send(new CreateBucketCommand({ Bucket: config.backupBucket }));
+        } catch (createError) {
+          if (httpStatusOf(createError) !== 409) throw createError;
+        }
+      }
+    })().catch((error: unknown) => {
+      backupReady = undefined;
+      throw error;
+    });
+    return backupReady;
+  }
+  function backupTarget(bucket: string): ProviderFailure | undefined {
+    if (!config.backupBucket) return failed("unconfigured", "备份目标未配置");
+    if (bucket !== config.backupBucket) return failed("rejected", "备份目标不匹配");
+    return undefined;
+  }
+
   async function run<T>(
     what: string,
     action: () => Promise<ProviderResult<T>>,
@@ -164,6 +195,137 @@ export function createMinioStorage(config: MinioConfig = LOCAL_MINIO): MinioStor
     capabilities: { sts: false, versioning: false },
     ensureBuckets,
     close: () => client.destroy(),
+
+    async backupPutStream({ bucket, key, body, maxBytes, signal }) {
+      const denied = backupTarget(bucket);
+      if (denied) return denied;
+      if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0 || maxBytes > 50_000 * 1024 ** 2)
+        return failed("rejected", "备份大小上限不合格");
+      let uploadId: string | undefined;
+      let stopBody: (() => void) | undefined;
+      let iterator: AsyncIterator<Uint8Array> | undefined;
+      try {
+        signal.throwIfAborted();
+        await ensureBackupBucket();
+        const started = await client.send(
+          new CreateMultipartUploadCommand({
+            Bucket: bucket,
+            Key: key,
+            ContentType: "application/octet-stream",
+          }),
+          { abortSignal: signal },
+        );
+        uploadId = started.UploadId;
+        if (!uploadId) return failed("rejected", "备份上传未返回标识");
+        // 串行写5MiB分块，最多保留一个块，不聚合整份dump。最后一个块可小于5MiB。
+        const partBytes = 5 * 1024 ** 2;
+        let part = Buffer.allocUnsafe(partBytes);
+        let used = 0;
+        let size = 0;
+        const parts: Array<{ ETag: string; PartNumber: number }> = [];
+        const sendPart = async () => {
+          signal.throwIfAborted();
+          const PartNumber = parts.length + 1;
+          const sent = await client.send(
+            new UploadPartCommand({
+              Bucket: bucket,
+              Key: key,
+              UploadId: uploadId,
+              PartNumber,
+              Body: part.subarray(0, used),
+              ContentLength: used,
+            }),
+            { abortSignal: signal },
+          );
+          if (!sent.ETag) throw new Error("MissingPartEtag");
+          parts.push({ ETag: sent.ETag, PartNumber });
+          part = Buffer.allocUnsafe(partBytes);
+          used = 0;
+        };
+        iterator = body[Symbol.asyncIterator]();
+        const cancelled = new Promise<IteratorResult<Uint8Array>>((_, reject) => {
+          stopBody = () => reject(new Error("BackupAborted"));
+          signal.addEventListener("abort", stopBody, { once: true });
+        });
+        void cancelled.catch(() => {});
+        for (;;) {
+          signal.throwIfAborted();
+          const next = await Promise.race([iterator.next(), cancelled]);
+          if (next.done) break;
+          const chunk = next.value;
+          size += chunk.byteLength;
+          if (size > maxBytes) throw new Error("BackupSizeLimit");
+          for (let offset = 0; offset < chunk.byteLength;) {
+            const count = Math.min(partBytes - used, chunk.byteLength - offset);
+            part.set(chunk.subarray(offset, offset + count), used);
+            used += count;
+            offset += count;
+            if (used === partBytes) await sendPart();
+          }
+        }
+        if (used > 0 || parts.length === 0) await sendPart();
+        const completed = await client.send(
+          new CompleteMultipartUploadCommand({
+            Bucket: bucket,
+            Key: key,
+            UploadId: uploadId,
+            MultipartUpload: { Parts: parts },
+          }),
+          { abortSignal: signal },
+        );
+        if (!completed.ETag) throw new Error("MissingBackupEtag");
+        return ok({ etag: completed.ETag, size });
+      } catch (error) {
+        if (uploadId) {
+          try {
+            await client.send(
+              new AbortMultipartUploadCommand({ Bucket: bucket, Key: key, UploadId: uploadId }),
+            );
+          } catch {
+            /* 清理失败仍报告上传失败，由生命周期清理未完成分块。 */
+          }
+        }
+        return error instanceof Error && error.message === "BackupSizeLimit"
+          ? failed("rejected", "备份超过大小上限")
+          : toFailure(error, "备份上传");
+      } finally {
+        if (stopBody) signal.removeEventListener("abort", stopBody);
+        // 生产流会自行销毁；异步迭代器若在等待上游，return不可反过来卡住中止结果。
+        if (iterator?.return) void iterator.return().catch(() => {});
+      }
+    },
+    async backupHead({ bucket, key }) {
+      const denied = backupTarget(bucket);
+      if (denied) return denied;
+      try {
+        await ensureBackupBucket();
+        const head = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+        return ok({ exists: true, size: head.ContentLength ?? 0, etag: head.ETag });
+      } catch (error) {
+        if (httpStatusOf(error) === 404) return ok({ exists: false, size: 0 });
+        return toFailure(error, "备份对象头");
+      }
+    },
+    async backupCopy({ src, dst, ifMatchEtag }) {
+      const denied = backupTarget(src.bucket) ?? backupTarget(dst.bucket);
+      if (denied) return denied;
+      try {
+        await ensureBackupBucket();
+        const copied = await client.send(
+          new CopyObjectCommand({
+            Bucket: dst.bucket,
+            Key: dst.key,
+            CopySource: `${src.bucket}/${encodeKey(src.key)}`,
+            CopySourceIfMatch: ifMatchEtag,
+          }),
+        );
+        return copied.CopyObjectResult?.ETag
+          ? ok({ etag: copied.CopyObjectResult.ETag })
+          : failed("rejected", "备份复制未返回etag");
+      } catch (error) {
+        return toFailure(error, "备份复制");
+      }
+    },
 
     async presignPost({ bucket, key, mime, maxBytes, expiresSec }) {
       if (!key.startsWith(INCOMING_PREFIX)) {

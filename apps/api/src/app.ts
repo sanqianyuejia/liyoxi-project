@@ -16,6 +16,7 @@ import { Hono } from "hono";
 import type { ApiEnv } from "./context.js";
 import { accessLog } from "./http/access-log.js";
 import { clientIp } from "./http/client-ip.js";
+import { adminIp } from "./http/admin-ip.js";
 import type { TrustedProxySettings } from "./http/client-ip.js";
 import { notFound, onError } from "./http/errors.js";
 import { hostGuard } from "./http/host-guard.js";
@@ -58,6 +59,7 @@ export function createApp(options: CreateAppOptions): Api {
   app.use("*", accessLog());
   app.use("*", clientIp(options.trustedProxy));
   app.use("*", hostGuard(runtime.env.APP_ENV));
+  app.use("*", adminIp(runtime));
   app.onError(onError);
   app.notFound(notFound);
 

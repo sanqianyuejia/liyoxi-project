@@ -9,7 +9,7 @@
 | `service.ts` | `createDocs({ tx, clock })`：装配入口，给出下面全部函数 |
 | `versions.ts` | 当前版本的唯一解析口径 |
 | `read.ts` | 协议清单、版本正文（两条公开接口的取数） |
-| `consents.ts` | `assertConsents`：同意记录的唯一写入口 |
+| `consents.ts` | `recordConsents`：单一校验/幂等写入；`assertConsents`兼容包装与交易凭据公口 |
 | `pending.ts` | 待同意的计算、两个指纹 |
 | `signed.ts` | 已签署协议：老板、店员两种形状，计数 |
 | `invariants.ts`、`register.ts` | `docs.N4`、`docs.N13` 的查询与登记 |
@@ -26,18 +26,20 @@ await docs.getAgreementVersion(agreementVersionId); // 草稿、已撤回、不�
 
 // 别的域在自己的事务里
 const current = await docs.currentVersions(tx); // 协议键 → 当前版本；报价、付款单要给端上版本 id 就取它
-const result = await docs.assertConsents(tx, ctx, {
+const receipts = await docs.recordTransactionConsents(tx, ctx, {
   scene: "order_submit",
   consents: [{ agreementVersionId }], // 交易接口只有版本 id，协议键由版本行补
   signer, // 手机号密文与脱敏串、称呼脱敏串、角色、appid 与 openid 的 HMAC：调用方带入
   entity: { entityId, entityName, usccEnc, usccMask, storeId },
   biz: { type: "drama_order", id: dramaOrderId, no: orderNo },
 });
-// result.consents[n].agreementConsentId 写进单据；result.complete、result.stamp 给 identity 写 consent_stamp
+// receipts[n].agreementConsentId 写进单据。
+// 用户级写入口 docs.assertConsents 的 complete/stamp/pending 输出保持原样，由 identity 写 consent_stamp。
 ```
 
 - **当前版本** = 同一协议在 `pending`、`active` 中 `effective_at <= now` 的最新一条，不看簿记列 `status`。全仓只有 `versions.ts` 这一处，别处一律调 `docs.currentVersions`，不要自己按 `status = 'active'` 取。
 - **`assertConsents`**：每份协议一行，命中唯一索引返回已有记录（同一账号同一版本、同一单据只一条）。协议键与版本不一致、用户级场景里混进别的协议回 `VALIDATION_FAILED`；不是此刻的当前版本回 `AGREEMENT_VERSION_STALE`，`details` 带当前版本 id（交易接口只交版本 id，交成别的协议的版本也按过期处理）。`login`、`reconsent`、`member_join` 只收用户级协议、不带主体与单据；四个交易场景必带主体快照与单据（组合不对抛 `TypeError`，是调用方的代码缺陷）。同意方式不给即取协议清单上的（勾选或付款即同意）；`prior_consent` 由广告需求显式给。
+- **`recordTransactionConsents`**：Tx首参，类型与运行时只收 `plan_purchase`、`topup`、`order_submit`、`ad_request`，主体与真实单据必须提供。服务入口取一次真实Tc，复用同一 `recordConsents` 的当前版本校验、幂等INSERT和真实凭据读取，只省去交易调用方没有使用的用户级pending/stamp读。旧 `assertConsents` 包装仍在同一次Tc下计算全部原输出；同TX回滚与陈旧版本规则不变。W2-12后续扩展沿用同一producer，不复制第二写入口。
 - docs 不读身份表与主体表，也不写 `merchant_user.consent_stamp`：快照由调用方带入，指纹由 identity 写。
 - **待同意**现算、只读：对每份用户级协议，本人有当前版本的同意记录即已同意；当前版本关了“需重新同意”且本人同意过更早的版本也算。
 - **指纹**两个：`consentStamps(db).user`（用户级协议当前版本集合，协议同意中间件用）、`.all`（全部协议，引导数据用）。
@@ -59,3 +61,5 @@ pnpm --filter @liyoxi/services exec vitest run src/docs/
 - `docs.N4` 的哈希一项只比“版本行的内容哈希”与“文件登记行上的哈希”，文件行没有哈希的不比；不读对象存储里的文件本身。
 - 登记给框架的两条不变量拿不到注入的时钟，“现在”取数据库时间。
 - 取不到来源 IP、请求号的同意记录写 `unknown`，不拦业务。
+
+同意 producer 新插入的凭据直接消费真实 INSERT RETURNING 的 id、seq 和 consentedAt；ON CONFLICT 跳过的重复仍按原唯一键回库读。混合新旧版本按原输入去重次序返回，Tc、当前版本检验、pending/stamp 和与业务同事务回滚保持。

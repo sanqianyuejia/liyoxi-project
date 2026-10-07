@@ -210,6 +210,7 @@ export async function inScope(
 
 /** 读列表批量套同一套 authz 谓词，避免每张审批单各查一次门店与主体。 */
 export async function approvalScopes(tx: Tx, scope: DataScope, rows: readonly ApprovalRow[]) {
+  if (scope.kind === "all") return () => true;
   const stores = rows.flatMap((row) => (row.storeId === null ? [] : [row.storeId]));
   const entities = rows.flatMap((row) =>
     row.storeId === null && row.entityId !== null ? [row.entityId] : [],
@@ -227,14 +228,13 @@ export async function approvalScopes(tx: Tx, scope: DataScope, rows: readonly Ap
   const storeIds = new Set(storeRows.map((row) => row.id));
   const entityIds = new Set(entityRows.map((row) => row.id));
   return (row: ApprovalRow, handlerId: string | null): boolean =>
-    scope.kind === "all" ||
-    (handlerId !== null
+    handlerId !== null
       ? scopeCovers(scope, handlerId)
       : row.storeId !== null
         ? storeIds.has(row.storeId)
         : row.entityId !== null
           ? entityIds.has(row.entityId)
-          : true);
+          : true;
 }
 
 /** codes 里不是字典 reject_reason 启用项的那些 */

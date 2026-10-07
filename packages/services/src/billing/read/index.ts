@@ -238,6 +238,16 @@ export async function listOperationsByHold(
   const rows = await db.ledgerOperation.findMany({
     where: { pointHoldId },
     orderBy: { seq: "asc" },
+    select: {
+      id: true,
+      opType: true,
+      occurredAt: true,
+      bizDate: true,
+      planDeltaQty: true,
+      addonDeltaQty: true,
+      titleCode: true,
+      titleArgs: true,
+    },
   });
   return rows.map((row) => ({
     id: row.id,

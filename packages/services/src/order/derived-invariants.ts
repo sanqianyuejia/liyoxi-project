@@ -1,5 +1,5 @@
 import { orderStatus, phaseFromTicket } from "@liyoxi/shared/aggregate";
-import { getTicketBriefByOrderItem } from "../delivery/index.js";
+import { getTicketStateBriefsByOrderItems } from "../delivery/index.js";
 import { AppError, lockRows, savepoint } from "../kernel/index.js";
 import type { InvariantScope, InvariantViolation, Tx } from "../kernel/index.js";
 import { boundOrder } from "./binding.js";
@@ -12,7 +12,7 @@ export async function findDerivedViolations(
   scope: InvariantScope = {},
 ): Promise<InvariantViolation[]> {
   const result: InvariantViolation[] = [];
-  const rows = await tx.dramaOrder.findMany({
+  const initial = await tx.dramaOrder.findMany({
     where: scope.entityIds ? { entityId: { in: [...scope.entityIds] } } : {},
     orderBy: { id: "asc" },
     include: {
@@ -25,14 +25,36 @@ export async function findDerivedViolations(
     await lockRows(
       tx,
       "drama_order",
-      rows.map((o) => o.id),
+      initial.map((o) => o.id),
     );
     if (code === "I3")
       await lockRows(
         tx,
         "order_item",
-        rows.flatMap((o) => o.orderItems.map((i) => i.id)),
+        initial.flatMap((o) => o.orderItems.map((i) => i.id)),
       );
+  }
+  // 父锁取得后重新读同一初始集合，保留并发修正的事实；不逐单产生 N+1 查询。
+  const rows =
+    code === "I1"
+      ? initial
+      : await tx.dramaOrder.findMany({
+          where: { id: { in: initial.map((o) => o.id) } },
+          orderBy: { id: "asc" },
+          include: {
+            orderItems: { orderBy: { id: "asc" } },
+            openCancelRequest: { include: { cancelRequestLines: true } },
+          },
+        });
+  const states = new Map<string, { orderItemId: string; step: string }>();
+  if (code !== "I2") {
+    const ids = rows.flatMap((o) => o.orderItems.map((i) => i.id));
+    for (let start = 0; start < ids.length; start += 1000)
+      for (const ticket of await getTicketStateBriefsByOrderItems(
+        tx,
+        ids.slice(start, start + 1000),
+      ))
+        states.set(ticket.orderItemId, ticket);
   }
   async function heal(fn: () => Promise<void>) {
     try {
@@ -44,17 +66,7 @@ export async function findDerivedViolations(
       throw error;
     }
   }
-  for (const before of rows) {
-    const o =
-      code === "I1"
-        ? before
-        : await tx.dramaOrder.findUniqueOrThrow({
-            where: { id: before.id },
-            include: {
-              orderItems: { orderBy: { id: "asc" } },
-              openCancelRequest: { include: { cancelRequestLines: true } },
-            },
-          });
+  for (const o of rows) {
     if (code === "I2") {
       if (!o.orderItems.length) {
         result.push({
@@ -93,7 +105,7 @@ export async function findDerivedViolations(
       }
     } else
       for (const i of o.orderItems) {
-        const ticket = await getTicketBriefByOrderItem(tx, i.id);
+        const ticket = states.get(i.id);
         if (code === "I1") {
           const expected = !["pending_start", "cancelled"].includes(i.phase);
           if (!!ticket !== expected)

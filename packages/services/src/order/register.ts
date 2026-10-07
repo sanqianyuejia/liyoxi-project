@@ -102,21 +102,19 @@ export const registration = defineRegistration("order", {
         [rowKey("09:355", "package.pushed")]: async (_tx, facts) => isDerivationChecked(facts.args),
         [rowKey("09:356", "launch.changed")]: async (_tx, facts) => isDerivationChecked(facts.args),
         [rowKey("09:351", "order.submit")]: async (tx, facts) => {
-          const item = await tx.orderItem.findUnique({
-            where: { id: facts.subjectId },
-            include: { pointHold: true, orderItemAccounts: true, dramaOrder: true },
-          });
-          return (
-            item !== null &&
-            item.phase === "pending_start" &&
-            item.pointHold.status === "held" &&
-            item.pointHold.refType === "order_item" &&
-            item.pointHold.refId === item.id &&
-            item.pointHold.qty === item.chargePoints &&
-            item.entityId === item.dramaOrder.entityId &&
-            item.storeId === item.dramaOrder.storeId &&
-            item.orderItemAccounts.length > 0
-          );
+          const [row] = await tx.$queryRaw<{ ok: boolean }[]>`
+            SELECT EXISTS (
+              SELECT 1 FROM order_item i
+              JOIN point_hold h ON h.id = i.point_hold_id
+              JOIN drama_order o ON o.id = i.drama_order_id
+              WHERE i.id = ${facts.subjectId}::uuid
+                AND i.phase = 'pending_start' AND h.status = 'held'
+                AND h.ref_type = 'order_item' AND h.ref_id = i.id
+                AND h.qty = i.charge_points
+                AND i.entity_id = o.entity_id AND i.store_id = o.store_id
+                AND EXISTS (SELECT 1 FROM order_item_account a WHERE a.order_item_id = i.id)
+            ) AS ok`;
+          return row?.ok === true;
         },
       },
     }),

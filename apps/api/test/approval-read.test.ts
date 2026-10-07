@@ -575,3 +575,84 @@ describe("admin.dictItem.list", () => {
     }
   });
 });
+
+describe("当前处理人与分页范围", () => {
+  it.each([false, true])(
+    "roleQueue=%s：仅展示项解析处理人，计数仍覆盖整组",
+    SLOW,
+    async (roleQueue) => {
+      const readIds: string[] = [];
+      const w = await world({
+        ...SAMPLE_APPROVAL_KINDS,
+        qualification: {
+          ...SAMPLE_APPROVAL_KINDS.qualification!,
+          roleQueue,
+          ...(roleQueue ? { decidePermission: "publish.account.verify" } : {}),
+          handlerOf: async (tx, row) => {
+            readIds.push(row.id);
+            return (
+              await tx.store.findUniqueOrThrow({
+                where: { id: row.storeId! },
+                select: { deliveryManagerId: true },
+              })
+            ).deliveryManagerId;
+          },
+        },
+      });
+      const first = await w.qualification(w.staff.staff.id);
+      await w.qualification(w.colleague.staff.id);
+      await w.qualification(w.outsider.staff.id);
+      const observer = roleQueue ? w.publisher : w.admin;
+      const page = await dataOf<AdminPage<ApprovalItem>>(
+        await w.request("/api/v1/admin/approvals?kind=qualification&tab=all&pageSize=1&page=2", {
+          headers: observer.headers,
+        }),
+      );
+      expect(page.total).toBe(3);
+      expect(readIds).toEqual([page.items[0]!.approvalId]);
+      expect(page.items[0]!.handler).not.toBeNull();
+      expect(page.items[0]!.actions).toEqual(["approve", "reject"]);
+      await w.prisma.store.update({
+        where: { id: page.items[0]!.storeId! },
+        data: { deliveryManagerId: w.outsider.staff.id },
+      });
+      await w.prisma.staff.update({
+        where: { id: w.outsider.staff.id },
+        data: { name: "实时处理人" },
+      });
+      readIds.length = 0;
+      const detail = await dataOf<ApprovalDetail>(
+        await w.request(`/api/v1/admin/approvals/${page.items[0]!.approvalId}`, {
+          headers: observer.headers,
+        }),
+      );
+      expect(detail.handler).toMatchObject({ staffId: w.outsider.staff.id, name: "实时处理人" });
+      expect(readIds).toEqual([detail.approvalId]);
+      readIds.length = 0;
+      const ctx = await sampleStaffContext(w.prisma, observer.staff.id);
+      expect(
+        (
+          await w.runtime.tx.run((tx) =>
+            w.runtime.approval.summary(tx, ctx, { kind: ["qualification"] }),
+          )
+        ).items[0],
+      ).toMatchObject({ all: 3, todo: 3 });
+      expect(
+        await w.runtime.tx.run((tx) =>
+          w.runtime.approval.countTodo(tx, ctx, { kind: ["qualification"] }),
+        ),
+      ).toBe(3);
+      expect(readIds).toEqual([]);
+      if (!roleQueue) {
+        const personal = await dataOf<AdminPage<ApprovalItem>>(
+          await w.request("/api/v1/admin/approvals?kind=qualification&tab=all", {
+            headers: w.staff.headers,
+          }),
+        );
+        expect(personal.items.map((item) => item.approvalId)).toEqual([first.id]);
+        expect(personal.items[0]!.actions).toEqual([]);
+        expect(readIds).toHaveLength(3);
+      }
+    },
+  );
+});

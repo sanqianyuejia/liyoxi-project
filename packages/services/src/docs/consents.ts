@@ -1,4 +1,4 @@
-// assertConsents：同意记录的唯一写入口（W1-03；m01 第 2.7 节“同意记录的写入口径”；13 分组 第 2.12、5.2 节）。
+// recordConsents：同意记录的唯一写入实现（W1-03；m01 第 2.7 节“同意记录的写入口径”；13 分组 第 2.12、5.2 节）。
 // 登录、重新同意、加入，以及订购、广告需求、付款单四个交易场景都经这里，与各自的业务写同一事务。
 //
 //   每份协议一行，INSERT … ON CONFLICT DO NOTHING；命中唯一索引即返回已有记录（同一账号同一版本重复提交只有一行）。
@@ -76,6 +76,13 @@ export interface AssertConsentsInput {
   readonly device?: DeviceInfo & { appVersion?: string };
 }
 
+/** 四个交易场景：只返回真实同意凭据，不重复读取用户级待同意与指纹。 */
+export type TransactionConsentsInput = Omit<AssertConsentsInput, "scene" | "entity" | "biz"> & {
+  readonly scene: Exclude<ConsentScene, "login" | "reconsent" | "member_join">;
+  readonly entity: ConsentEntity;
+  readonly biz: ConsentBiz;
+};
+
 export interface ConsentReceiptItem {
   readonly agreementConsentId: string;
   /** agreement_consent.seq 的十进制字符串 */
@@ -103,12 +110,12 @@ function invalid(message: string): never {
   throw new AppError("VALIDATION_FAILED", { message });
 }
 
-export async function assertConsents(
+async function recordConsents(
   tx: Tx,
   now: Date,
   ctx: IdentityContext,
   input: AssertConsentsInput,
-): Promise<AssertConsentsResult> {
+): Promise<ConsentReceiptItem[]> {
   const { scene, signer, entity, biz } = input;
   const userScene = USER_CONSENT_SCENES.includes(scene);
   // 入参的组合不对是调用方的代码缺陷，不是用户输入：库的 CHECK 也会拒，这里先说清楚
@@ -120,15 +127,23 @@ export async function assertConsents(
   }
 
   const versionIds = [...new Set(input.consents.map((consent) => consent.agreementVersionId))];
-  const versions = await tx.agreementVersion.findMany({
-    where: { id: { in: versionIds } },
-    select: {
-      id: true,
-      agreementKey: true,
-      contentSha256: true,
-      agreement: { select: { scenes: true, consentMode: true } },
-    },
-  });
+  const versionFacts = await tx.$queryRaw<
+    {
+      id: string;
+      agreementKey: string;
+      contentSha256: string | null;
+      scenes: string[];
+      consentMode: string;
+    }[]
+  >`
+    SELECT v.id::text, v.agreement_key AS "agreementKey", v.content_sha256 AS "contentSha256",
+           a.scenes, a.consent_mode AS "consentMode"
+    FROM agreement_version v JOIN agreement a ON a.key = v.agreement_key
+    WHERE v.id = ANY(${versionIds}::uuid[])`;
+  const versions = versionFacts.map(({ scenes, consentMode, ...version }) => ({
+    ...version,
+    agreement: { scenes, consentMode },
+  }));
   const current = await currentVersions(tx, now);
 
   const rows = versionIds.map((versionId) => {
@@ -194,22 +209,22 @@ export async function assertConsents(
   const created = await tx.agreementConsent.createManyAndReturn({
     data: rows,
     skipDuplicates: true,
-    select: { id: true },
+    select: { id: true, seq: true, consentedAt: true },
   });
-  const createdIds = new Set(created.map((row) => row.id));
+  const createdById = new Map(created.map((row) => [row.id, row]));
   const receipts: ConsentReceiptItem[] = [];
   for (const row of rows) {
-    const stored = await tx.agreementConsent.findFirst({
-      where: createdIds.has(row.id)
-        ? { id: row.id }
-        : {
-            merchantUserId: row.merchantUserId,
-            agreementVersionId: row.agreementVersionId,
-            bizType: row.bizType,
-            bizId: row.bizId,
-          },
-      select: { id: true, seq: true, consentedAt: true },
-    });
+    const stored =
+      createdById.get(row.id) ??
+      (await tx.agreementConsent.findFirst({
+        where: {
+          merchantUserId: row.merchantUserId,
+          agreementVersionId: row.agreementVersionId,
+          bizType: row.bizType,
+          bizId: row.bizId,
+        },
+        select: { id: true, seq: true, consentedAt: true },
+      }));
     if (stored === null) throw new Error("同意记录既没有插入，也没有查到已有的那一行");
     receipts.push({
       agreementConsentId: stored.id,
@@ -220,7 +235,31 @@ export async function assertConsents(
     });
   }
 
-  const pending = await pendingConsents(tx, now, signer.merchantUserId);
+  return receipts;
+}
+
+/** 原用户级/交易兼容入口：同一 Tc 写凭据、查 pending 与 stamp，输出保持不变。 */
+export async function assertConsents(
+  tx: Tx,
+  now: Date,
+  ctx: IdentityContext,
+  input: AssertConsentsInput,
+): Promise<AssertConsentsResult> {
+  const receipts = await recordConsents(tx, now, ctx, input);
+  const pending = await pendingConsents(tx, now, input.signer.merchantUserId);
   const { user: stamp } = await consentStamps(tx, now);
   return { consents: receipts, pendingConsents: pending, complete: pending.length === 0, stamp };
+}
+
+/** 交易 producer 与原 wrapper 共用校验/幂等写入；禁止用户级场景借此略过 pending/stamp。 */
+export async function recordTransactionConsents(
+  tx: Tx,
+  now: Date,
+  ctx: IdentityContext,
+  input: TransactionConsentsInput,
+): Promise<ConsentReceiptItem[]> {
+  if (USER_CONSENT_SCENES.includes(input.scene)) {
+    throw new TypeError(`场景 ${input.scene} 必须使用用户级同意入口`);
+  }
+  return recordConsents(tx, now, ctx, input);
 }

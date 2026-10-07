@@ -62,3 +62,6 @@ export type {
   M1MediaScope,
   M1StateIds,
 } from "./m1-types.js";
+
+// W2-24：APPtest owned 合法规模与真实HTTP基线前置。
+export * from "./p95-fixture.js";

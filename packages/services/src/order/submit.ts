@@ -1,4 +1,5 @@
 import { PricingSnapshotSchema } from "@liyoxi/contract";
+import type { OrderItem } from "@liyoxi/db";
 import type { OrderCreateBody } from "@liyoxi/contract";
 import { AppError, lockRows, uuidv7, notifyReadOf } from "../kernel/index.js";
 import type { Tx } from "../kernel/index.js";
@@ -9,7 +10,7 @@ import { createFlow } from "../flow/index.js";
 import { maskName } from "@liyoxi/shared/mask";
 import type { OrderActor, OrderDeps } from "./context.js";
 import { owner, submitChecks, currentLicense } from "./checks.js";
-import { detail } from "./read.js";
+import { detailFromCreated } from "./read.js";
 const date = (value: string | null | undefined) => (value ? new Date(`${value}T00:00:00Z`) : null);
 async function repriceError(
   tx: Tx,
@@ -84,15 +85,15 @@ export async function submit(tx: Tx, deps: OrderDeps, actor: OrderActor, input: 
     ),
   );
   const orderId = uuidv7(),
-    itemIds = input.dramaIds.map(() => uuidv7()),
-    orderNo = await deps.bizNo.next(tx, "LYX");
+    itemIds = input.dramaIds.map(() => uuidv7());
   await currentLicense(tx, deps, input.agreementVersionId);
   const store = await tx.store.findUniqueOrThrow({
-      where: { id: storeId },
-      include: { entity: true },
-    }),
+    where: { id: storeId },
+    include: { entity: true },
+  });
+  const orderNo = await deps.bizNo.next(tx, "LYX"),
     user = await tx.merchantUser.findUniqueOrThrow({ where: { id: actor.ctx.actor.id! } });
-  const consent = await deps.docs.assertConsents(tx, actor.ctx, {
+  const consent = await deps.docs.recordTransactionConsents(tx, actor.ctx, {
     scene: "order_submit",
     method: "checkbox",
     consents: [{ agreementVersionId: input.agreementVersionId }],
@@ -173,7 +174,7 @@ export async function submit(tx: Tx, deps: OrderDeps, actor: OrderActor, input: 
   if (first.kind !== "drama") throw new TypeError("订剧冻结必须返回 drama 计价快照");
   const plan = await tx.plan.findUniqueOrThrow({ where: { id: first.planId } }),
     total = held.reduce((n, h) => n + h.points, 0);
-  await tx.dramaOrder.create({
+  const createdOrder = await tx.dramaOrder.create({
     data: {
       id: orderId,
       orderNo,
@@ -193,18 +194,19 @@ export async function submit(tx: Tx, deps: OrderDeps, actor: OrderActor, input: 
       focusCodes: input.focusCodes,
       note: input.note ?? null,
       expectedLaunchDate: date(input.expectedLaunchDate),
-      agreementConsentId: consent.consents[0]!.agreementConsentId,
+      agreementConsentId: consent[0]!.agreementConsentId,
       deliveryManagerId: store.deliveryManagerId,
       submittedAt: now,
       createdAt: now,
       updatedAt: now,
     },
   });
+  const createdItems: OrderItem[] = [];
   for (let i = 0; i < itemIds.length; i++) {
     const snapshot = late.snapshots.get(input.dramaIds[i]!)!,
       pricing = PricingSnapshotSchema.parse(held[i]!.snapshot);
     if (pricing.kind !== "drama") throw new TypeError("订剧冻结必须返回 drama 计价快照");
-    await tx.orderItem.create({
+    const createdItem = await tx.orderItem.create({
       data: {
         id: itemIds[i]!,
         dramaOrderId: orderId,
@@ -230,6 +232,7 @@ export async function submit(tx: Tx, deps: OrderDeps, actor: OrderActor, input: 
         updatedAt: now,
       },
     });
+    createdItems.push(createdItem);
     await tx.orderItemAccount.createMany({
       data: late.accounts.map((a) => ({
         orderItemId: itemIds[i]!,
@@ -293,5 +296,13 @@ export async function submit(tx: Tx, deps: OrderDeps, actor: OrderActor, input: 
   });
   await notifyReadOf(deps.assembly).read(tx, "orderForNotify", orderId);
   // order_submit 为 outbox 来源；M7 analytics.fromOutbox 从唯一 order.submitted 派生，不额外直记同名埋点。
-  return { ...(await detail(tx, actor, orderId)), replayed: false };
+  return {
+    ...(await detailFromCreated(tx, {
+      order: createdOrder,
+      items: createdItems,
+      store,
+      receipt: consent[0]!,
+    })),
+    replayed: false,
+  };
 }

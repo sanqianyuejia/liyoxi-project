@@ -126,6 +126,9 @@ const storageOff = unconfigured("对象存储", "只有 local、test 有本地 M
 export const unconfiguredStorage: StorageProvider = {
   ...BASE,
   capabilities: { sts: false, versioning: false },
+  backupPutStream: storageOff,
+  backupHead: storageOff,
+  backupCopy: storageOff,
   presignPost: storageOff,
   issueSts: storageOff,
   head: storageOff,
@@ -194,6 +197,7 @@ export const unconfiguredLlm: LlmProvider = {
 
 export const unconfiguredWecom: WecomProvider = {
   ...BASE,
+  sendRobotMessage: unconfigured("企业微信群机器人", "告警群通知未到达"),
   sendAppMessage: unconfigured("企业微信", "员工只收站内待办"),
   createContactWay: unconfigured("企业微信", "服务经理二维码人工上传"),
   verifyAndDecryptCallback: unconfigured("企业微信", "没有加好友回调，商家与服务经理人工绑定"),

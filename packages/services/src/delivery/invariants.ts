@@ -30,6 +30,24 @@ export async function findDeliveryViolations(tx: Tx, code: string): Promise<Inva
       include: ticketInclude,
       orderBy: { id: "asc" },
     });
+    const initialHistory = new Map<string, { event: string; toState: string }>();
+    if (code === "I5") {
+      // 对原初始票集有界批量读取；保留最早 occurredAt 语义，不为旧查询增加同时间 tie 约定。
+      for (let start = 0; start < rows.length; start += 1_000) {
+        const initial = await tx.statusTransition.findMany({
+          where: {
+            machine: "delivery_ticket",
+            stateField: "step",
+            fromState: null,
+            subjectId: { in: rows.slice(start, start + 1_000).map((r) => r.id) },
+          },
+          select: { subjectId: true, event: true, toState: true },
+          orderBy: { occurredAt: "asc" },
+        });
+        for (const entry of initial)
+          if (!initialHistory.has(entry.subjectId)) initialHistory.set(entry.subjectId, entry);
+      }
+    }
     if (code === "I3") {
       // full 检查是一个事务：先持有全部低级父锁，避免第二张工单在方案锁之后首次加父锁。
       await lockTickets(
@@ -99,15 +117,7 @@ export async function findDeliveryViolations(tx: Tx, code: string): Promise<Inva
       if (code === "I5") {
         const open = r.deliveryTicketStages.filter((s) => s.completedAt === null),
           closed = ["archived", "terminated"].includes(r.step);
-        const initial = await tx.statusTransition.findFirst({
-          where: {
-            machine: "delivery_ticket",
-            subjectId: r.id,
-            stateField: "step",
-            fromState: null,
-          },
-          orderBy: { occurredAt: "asc" },
-        });
+        const initial = initialHistory.get(r.id);
         if (closed ? open.length > 0 : open.length !== 1 || open[0]?.step !== r.step)
           bad("delivery_ticket", r.id, r.entityId, { step: r.step, openCount: open.length });
         if (

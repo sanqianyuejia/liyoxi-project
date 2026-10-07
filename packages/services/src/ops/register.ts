@@ -3,13 +3,40 @@
 //   invariant.full   每日 03:30，job，完成期限 3 小时，漏跑 P2；停机错过的那一期补跑。出错重试，至多 3 次。
 //   invariant.quick  每 10 分钟，job，完成期限 30 分钟，漏跑 P2；出错不重试，下一期 10 分钟后就到。
 //   ops.retention    每小时整点，tx，漏跑 P3；补最近一期（停机跨过 0 点、1 点前恢复时每日项还轮得到）。
-// 探针、告警的实现与 ops.cert_check、backup.pgdump 随 G2-D。
-import { defineRegistration, implement, invariantsPort } from "../kernel/index.js";
+// W2-24实际接探针、告警、ops.cert_check与backup.pgdump；原三个周期保留。
+import { defineRegistration, implement, invariantsPort, alertsPort } from "../kernel/index.js";
 import { reportingInvariants } from "./invariants/report.js";
-import { runScheduledInvariants, runScheduledRetention } from "./jobs.js";
+import {
+  runScheduledInvariants,
+  runScheduledRetention,
+  runScheduledBackup,
+  runScheduledCert,
+} from "./jobs.js";
+import { requireOps } from "./binding.js";
 
 export const registration = defineRegistration("ops", {
   recurringJobs: [
+    {
+      kind: "backup.pgdump",
+      schedule: { every: "day", at: "03:10" },
+      mode: "job",
+      leaseSec: 1800,
+      maxAttempts: 3,
+      deadlineMin: 180,
+      missSeverity: "P1",
+      catchUp: true,
+      run: runScheduledBackup,
+    },
+    {
+      kind: "ops.cert_check",
+      schedule: { every: "day", at: "09:00" },
+      mode: "job",
+      leaseSec: 120,
+      maxAttempts: 1,
+      missSeverity: "P3",
+      catchUp: true,
+      run: runScheduledCert,
+    },
     {
       kind: "invariant.full",
       schedule: { every: "day", at: "03:30" },
@@ -40,5 +67,14 @@ export const registration = defineRegistration("ops", {
       run: runScheduledRetention,
     },
   ],
-  portImplementations: [implement(invariantsPort, reportingInvariants)],
+  portImplementations: [
+    implement(invariantsPort, reportingInvariants),
+    implement(alertsPort, {
+      raise: async (input) => {
+        const ops = requireOps("alerts.raise");
+        if (ops.operations === undefined) throw new Error("ops 告警运行时未绑定");
+        await ops.operations.alerts.raise(input);
+      },
+    }),
+  ],
 });

@@ -64,6 +64,23 @@ export const SAMPLE_PROVIDER_INPUTS: ProviderInputs = {
     sendOncallAlert: { phones: ["13800138000"], title: "样例告警", content: "worker 租约过期" },
   },
   storage: {
+    backupPutStream: {
+      bucket: "lyx-test-backup",
+      key: "daily/sample.dump.age",
+      maxBytes: 1024,
+      body: {
+        async *[Symbol.asyncIterator]() {
+          yield new Uint8Array([1, 2, 3]);
+        },
+      },
+      signal: new AbortController().signal,
+    },
+    backupHead: { bucket: "lyx-test-backup", key: "daily/sample.dump.age" },
+    backupCopy: {
+      src: { bucket: "lyx-test-backup", key: "daily/sample.dump.age" },
+      dst: { bucket: "lyx-test-backup", key: "monthly/sample.dump.age" },
+      ifMatchEtag: '"sample-etag"',
+    },
     presignPost: { ...SAMPLE_REF, mime: "video/mp4", maxBytes: 20 * 1024 * 1024, expiresSec: 600 },
     issueSts: { bucket: "media", keyPrefix: "incoming/sample/", durationSec: 900 },
     head: SAMPLE_REF,
@@ -107,6 +124,7 @@ export const SAMPLE_PROVIDER_INPUTS: ProviderInputs = {
     extractKeyPoints: { text: "招牌菜是酸菜鱼。周末有优惠。门口可以停车。", maxPoints: 3 },
   },
   wecom: {
+    sendRobotMessage: { title: "样例告警", content: "worker租约过期", mentionAll: true },
     sendAppMessage: {
       toUser: "sample-staff",
       title: "新工单",

@@ -770,7 +770,9 @@ describe("nightly.yml", () => {
   it("在 Node 26 上装依赖、查类型、跑测试；关掉 engine-strict", () => {
     expect(nightly).toMatch(/^ {10}node-version: 26$/m);
     expect(nightly).toContain('NPM_CONFIG_ENGINE_STRICT: "false"');
-    const commands = [...nightly.matchAll(/^ {8}run: (.+)$/gm)].map((match) => match[1]);
+    const commands = [...jobBody(nightly, "node26").matchAll(/^ {8}run: (.+)$/gm)].map(
+      (match) => match[1],
+    );
     expect(commands).toEqual([
       "pnpm install --frozen-lockfile",
       // W0-05：数据库客户端不入库，类型检查之前先生成
@@ -796,7 +798,8 @@ describe("nightly.yml", () => {
   });
 
   it("不在必过检查里：ci.yml 的任务清单里没有它", () => {
-    expect(jobIds(nightly)).toEqual(["node26"]);
+    expect(jobIds(nightly)).toEqual(["node26", "p95"]);
+    expect(jobIds(ci)).not.toContain("p95");
     expect(jobIds(ci)).not.toContain("node26");
   });
 });

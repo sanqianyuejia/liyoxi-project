@@ -13,3 +13,5 @@
 `seedDemoContent` 拒绝 prod，以服务函数造 S/A/B、一/二/三类三部双平台/单平台剧；自带纯色 PNG 经 media 入库，按固定剧名跳过已上架行。字典补项只新增缺失编码，保留运营已修改或停用的项。集数、授权平台、两年止日在 `demo-seed.ts` 可核对。
 
 验收：`vitest run src/content/ src/config/insert-dict-items.db.test.ts src/ops/content-worker.db.test.ts`；接口层 `apps/api/test/mall.test.ts` 与全已挂载店员回放。M1 留桩见 docs/plan/status/W1-13.md；四条 route 与输出契约在 m04。Banner 只使用本域契约里已明确的 DeepLink 键和参数，未知规则拒绝下发，后续由 notify/m08 公共 DeepLink 契约包统一并覆盖其余正式合法键，本包 13 键只是 M1 参数已明确的子集。
+
+W2-24 性能伴随将 assertOrderable 的私有 facts 读取收窄到实际消费的剧目快照字段、当前授权平台/止日和按 id 排序的 active 许可。此入口原来未消费的剧集和海报状态不再回读；完整 listingChecks 仍用原完整 dramaFacts，许可/类别/平台/日期判断和返回快照不变。

@@ -52,25 +52,56 @@ export async function priceAt(
   const ids = [...new Set(dramaIds)];
   const result = new Map<string, DramaPrice | PriceUnavailable>();
   if (ids.length === 0) return result;
-  const dramas = await db.drama.findMany({
-    where: { id: { in: ids } },
-    select: { id: true, heatTier: true },
-  });
-  const revisions = await db.$queryRaw<
-    { id: string; drama_id: string; mode: string; custom_points: number | null }[]
+  const facts = await db.$queryRaw<
+    {
+      id: string;
+      heatTier: string | null;
+      revisionId: string | null;
+      revisionMode: string | null;
+      customPoints: number | null;
+      templateId: string | null;
+      templatePoints: number | null;
+    }[]
   >`
-    SELECT DISTINCT ON (drama_id) id::text, drama_id::text, mode, custom_points
-    FROM drama_price_revision
-    WHERE drama_id = ANY(${ids}::uuid[]) AND effective_at <= ${at} AND cancelled_at IS NULL
-    ORDER BY drama_id, effective_at DESC`;
-  const tiers = await db.$queryRaw<{ id: string; tier: string; points: number }[]>`
-    SELECT DISTINCT ON (tier) id::text, tier, points
-    FROM price_tier_revision
-    WHERE effective_at <= ${at}
-    ORDER BY tier, effective_at DESC`;
-  const revisionOf = new Map(revisions.map((row) => [row.drama_id, row]));
-  const templateOf = new Map(tiers.map((row) => [row.tier, row]));
-  const tierOf = new Map(dramas.map((row) => [row.id, row.heatTier as HeatTier | null]));
+    WITH current_revision AS (
+      SELECT DISTINCT ON (drama_id) id, drama_id, mode, custom_points
+      FROM drama_price_revision
+      WHERE drama_id = ANY(${ids}::uuid[]) AND effective_at <= ${at} AND cancelled_at IS NULL
+      ORDER BY drama_id, effective_at DESC
+    ), current_tier AS (
+      SELECT DISTINCT ON (tier) id, tier, points FROM price_tier_revision
+      WHERE effective_at <= ${at} ORDER BY tier, effective_at DESC
+    )
+    SELECT d.id::text, d.heat_tier AS "heatTier", r.id::text AS "revisionId",
+           r.mode AS "revisionMode", r.custom_points AS "customPoints",
+           t.id::text AS "templateId", t.points AS "templatePoints"
+    FROM drama d LEFT JOIN current_revision r ON r.drama_id = d.id
+    LEFT JOIN current_tier t ON t.tier = d.heat_tier
+    WHERE d.id = ANY(${ids}::uuid[])`;
+  const revisionOf = new Map(
+    facts
+      .filter((row) => row.revisionId !== null)
+      .map((row) => [
+        row.id,
+        {
+          id: row.revisionId!,
+          mode: row.revisionMode,
+          custom_points: row.customPoints,
+        },
+      ]),
+  );
+  const templateOf = new Map(
+    facts
+      .filter((row) => row.templateId !== null)
+      .map((row) => [
+        row.heatTier,
+        {
+          id: row.templateId!,
+          points: row.templatePoints!,
+        },
+      ]),
+  );
+  const tierOf = new Map(facts.map((row) => [row.id, row.heatTier as HeatTier | null]));
   for (const dramaId of ids) {
     if (!tierOf.has(dramaId)) {
       result.set(dramaId, "not_found");

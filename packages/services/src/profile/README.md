@@ -8,7 +8,7 @@ qualification 审批类型在 a 登记既定权限与决定 operationId；b 在�
 
 - 阅读顺序：共享 `profileCompleteness` 与契约 → `repo.ts` / `views.ts` → `service.ts` / `write.ts` → `draft.ts` / `documents.ts` → `submit.ts` / `qualification-kind.ts` → `gate.ts` / `assign-manager.ts` → `register.ts` / `invariants.ts`。
 - 基础、服务、联系人保存复用 ThreePhaseRunner：只读 claim、事务外 `wechat.checkText`、settle 锁行重读版本与守卫。done 重放不检测；不可用拒收，业务表不变。当前会话 raw openid 只在该外呼使用，不进响应、审计或日志。
-- GET 现算完整度、不写缓存。写事务末尾同步缓存三列。`assertProfileComplete` 只查前三步，资质提交查四步；`storeGate` 为 full / parallel / blocked；`industryOpen` 按当前行业、品类和区域开放值读取，历史停用字典仍能显示名称和保留。
+- GET 现算完整度、不写缓存。写事务末尾同步缓存三列。`assertProfileComplete` 只查前三步，与完整快照共用基础字段计算；每次真实读基础档案、未移除媒体/服务和媒体stored/moderation状态，未消费的资格历史不参与该守卫。资质提交查四步；`storeGate` 为 full / parallel / blocked；`industryOpen` 按当前行业、品类和区域开放值读取，历史停用字典仍能显示名称和保留。
 - 明文解密集中在仓储；联系人登录号按源列 AAD 解开后按目标列重新加密。DTO 只回 mask。审计公开门店电话以 `publicContactNumber` 记，避免被手机号键词误遮；敏感键规则没改。
 - 文件经真实 media.link/release。先锁完整文件集合再逐项重入；资格草稿替换保留7天，档案引用替换保留30天。DTO 入幂等记录时 URL 均空，首响应与 GET 在事务后签发（含视频封面），done 重放不重新签。
 - 提交锁轮次65→主体100→门店130→档案135；决定由 approval 先锁员工20、审批30，再进入领域回调。tenant 写门店/主体状态与认证字段；审批、资格、租户三条链与事件同事务。认证唯一冲突只在保存点认 `uq_entity_uscc_bidx_verified`，并发失败方保持在审。
@@ -29,3 +29,7 @@ API 的响应沿既有 `respondByRole` 以本请求会员角色裁剪，写路�
 后台首次指派显式 allowArchived；既有商家/系统调用仍默认拒绝归档。锁目标staff20共享、门店130后校验原经理为空，再调用两个同步端口，最后 tenant 写门店及唯一ops审计。同步端口 Promise<void | number> 兼容旧空实现：void记0，实际实现必须返回本次改写数量；响应 synced 与审计 meta.synced 同值，note只写reason_text。同步端口应按明确 input.staffId 写入，调用时门店行已锁、deliveryManager列尚未更新；不得借旧列替代输入。下游新增锁须高于已持store130，order160/delivery180保持原锁序；任何端口失败整事务回滚。W1-15/W1-16a 回补同时补真实数量。
 
 本域 m03 对 named schema 的可空引用改用 common.orNull，避免生成器把 DictRef、MediaFileView 等组件污染为可空或空对象交集；源 schema 行为不变，非空字典/null与媒体必有字段有真实类型消费者回归。没有改全局生成器、内核、DDL、锁序常量、依赖或 layers。
+
+W2-24 的必要性能伴随把 `industryOpen` 当前字典读取合成一次批读，键为 type+code；仍按行业、品类、省市区、功能区的原顺序解析和短路，早项关闭不会触发后项坏ext错误。订购初检和真实Tf后的守卫各自读取当前值，没有跨请求缓存或省略二次守卫。
+
+W2-24 的前三步守卫以一条当前事务查询读取 store LEFT profile、按 position 排列的未删除媒体及其当前 file 状态/检测结果、未删除服务的真实数量，再复用与完整 snapshot 同源的 basicFilled/profileCompleteness。缺档案保持 null，空媒体/服务保持真实空值，缺门店仍 NOT_FOUND；完整四步、资格历史和 I6 自愈不变。

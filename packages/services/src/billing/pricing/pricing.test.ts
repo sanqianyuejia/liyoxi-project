@@ -78,6 +78,78 @@ describe("paramsAt", () => {
 
 describe("priceAt：剧目积分价 P(drama, t)", () => {
   it(
+    "批读保留入参去重顺序、缺模板与无等级区分；custom不依赖模板，未来/取消行不覆盖",
+    async () => {
+      const time = at("2025-12-01T00:00:00");
+      const plain = await make.drama({ heatTier: "S" });
+      const noTier = await make.drama();
+      const custom = await make.drama({ heatTier: "S" });
+      const missing = uuidv7();
+      const staff = await make.staff();
+      const revision = {
+        id: uuidv7(),
+        dramaId: custom.id,
+        mode: "custom",
+        customPoints: 1900,
+        newPoints: 1900,
+        effectiveAt: time,
+        reasonCode: "quality",
+        createdByStaffId: staff.id,
+        createdAt: time,
+      };
+      await prisma.dramaPriceRevision.createMany({
+        data: [
+          revision,
+          {
+            ...revision,
+            id: uuidv7(),
+            customPoints: 2900,
+            newPoints: 2900,
+            effectiveAt: at("2025-12-02T00:00:00"),
+            cancelledAt: at("2025-12-01T12:00:00"),
+          },
+          {
+            ...revision,
+            id: uuidv7(),
+            customPoints: 3900,
+            newPoints: 3900,
+            effectiveAt: at("2025-12-03T00:00:00"),
+          },
+        ],
+      });
+      const ids = [custom.id, missing, plain.id, noTier.id, custom.id];
+      const prices = await priceAt(prisma, ids, at("2025-12-02T12:00:00"));
+      expect([...prices.keys()]).toEqual(ids.slice(0, 4));
+      expect(prices.get(custom.id)).toEqual({
+        dramaId: custom.id,
+        points: 1900,
+        source: {
+          mode: "custom",
+          tier: "S",
+          dramaPriceRevisionId: revision.id,
+          tierRevisionId: null,
+        },
+      });
+      expect(prices.get(missing)).toBe("not_found");
+      expect(prices.get(plain.id)).toBe("no_template");
+      expect(prices.get(noTier.id)).toBe("no_tier");
+      await expect(
+        prisma.dramaPriceRevision.create({
+          data: {
+            ...revision,
+            id: uuidv7(),
+            customPoints: null,
+            effectiveAt: at("2025-12-04T00:00:00"),
+          },
+        }),
+      ).rejects.toThrow(/ck_drama_price_revision_custom_points/);
+      expect((await priceAt(prisma, [custom.id], time)).get(custom.id)).toEqual(
+        prices.get(custom.id),
+      );
+    },
+    SLOW,
+  );
+  it(
     "按模板：取该剧热度等级在 t 的模板价；模板价的新修订到点才算",
     async () => {
       const [s, c] = [await make.drama({ heatTier: "S" }), await make.drama({ heatTier: "C" })];
