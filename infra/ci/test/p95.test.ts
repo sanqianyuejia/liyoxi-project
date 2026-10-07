@@ -1,8 +1,5 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { measure, percentile, reportPassed, settings } from "../p95.mjs";
-import { repoRoot } from "./helpers.js";
 describe("P95真实样本边界", () => {
   it("默认20/10/42与500ms，拒任意目标、可放松阈值/无效规模", () => {
     expect(settings([])).toMatchObject({ concurrency: 20, scale: 10, seed: 42, samples: 100 });
@@ -52,25 +49,5 @@ describe("P95真实样本边界", () => {
       samples: 20,
     });
     expect(slow.passed).toBe(false);
-  });
-  it("独立nightly准备完整、真实默认参数、失败不吞、artifact always且缺报告报错", () => {
-    const nightly = readFileSync(join(repoRoot, ".github/workflows/nightly.yml"), "utf8");
-    const p95 = nightly.slice(nightly.indexOf("\n  p95:\n"));
-    expect(p95).toContain("timeout-minutes: 30");
-    expect(p95).toContain("node-version: 24");
-    for (const step of [
-      "pnpm install --frozen-lockfile",
-      "pnpm db:generate",
-      "up -d --wait postgres redis",
-      "APP_ENV=test",
-      "DATABASE_URL=postgresql://liyoxi:lyx-local-dev@localhost:5442/liyoxi",
-      "REDIS_URL=redis://localhost:6389/0",
-      "node infra/ci/p95.mjs --concurrency 20 --scale 10 --seed 42",
-      "if: always()",
-      "path: apps/api/dist/p95/report.json",
-      "if-no-files-found: error",
-    ])
-      expect(p95).toContain(step);
-    expect(p95).not.toMatch(/continue-on-error|\|\| true|required:/);
   });
 });

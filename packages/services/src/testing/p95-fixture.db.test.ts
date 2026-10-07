@@ -183,13 +183,13 @@ it("真实 prototype 和两个 UUID 克隆保留完整开工方案/工单图、�
     expect(
       found.map(({ code, count, detail }) => ({ code, count: Number(count), detail })),
     ).toEqual([]);
-    expect(checked).toMatchObject({ status: "succeeded", checksRun: 89, violationsFound: 0 });
+    expect(checked).toMatchObject({ status: "succeeded", checksRun: 91, violationsFound: 0 });
   } finally {
     await fixture.close();
   }
 }, 60_000);
 
-it("额外新付款 buyer 有真实完整资格图且没有伪套餐/积分，采样前全89检查覆盖新增输入", async () => {
+it("额外新付款 buyer 有真实完整资格图且没有伪套餐/积分，采样前全91检查覆盖新增输入", async () => {
   const fixture = await createP95Fixture({ scale: 0.002, seed: 42 });
   const { runtime, clock } = fixture.support;
   const tenant = createTenant({ ...runtime });
@@ -210,7 +210,7 @@ it("额外新付款 buyer 有真实完整资格图且没有伪套餐/积分，�
     const actual = await fixture.validatePrepared();
     expect(actual.invariants).toMatchObject({
       status: "succeeded",
-      checksRun: 89,
+      checksRun: 91,
       violations: 0,
       errors: [],
     });
