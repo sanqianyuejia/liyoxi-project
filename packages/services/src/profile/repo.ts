@@ -1,5 +1,6 @@
 // 本域仓储。字典/员工只读当前数据库值；敏感字段只在这里解密，不流入日志或公开 DTO。
 import { IndustryExtSchema, PermitTypeExtSchema } from "@liyoxi/contract";
+import { Prisma } from "@liyoxi/db";
 import type { QualificationDoc, StoreProfile, StoreProfileMedia } from "@liyoxi/db";
 import { profileCompleteness } from "@liyoxi/shared/profile";
 import { AppError, lockRows } from "../kernel/index.js";
@@ -92,22 +93,27 @@ function basicFilled(
     selling_points: (profile?.sellingPointCodes.length ?? 0) > 0,
   };
 }
-/** 订购只消费前三步；每次读取当前基础档案和媒体，不读取未消费的资质历史。 */
-export async function basicCompleteness(tx: Tx, storeId: string) {
-  const [row] = await tx.$queryRaw<
-    {
-      name: string | null;
-      profile: BasicProfile | null;
-      media: {
-        mediaGroup: string;
-        fileId: string;
-        status: string | null;
-        moderationState: string | null;
-      }[];
-      serviceCount: number;
-    }[]
-  >`
-    SELECT s.name,
+type BasicFacts = {
+  name: string | null;
+  profile: BasicProfile | null;
+  media: {
+    mediaGroup: string;
+    fileId: string;
+    status: string | null;
+    moderationState: string | null;
+  }[];
+  serviceCount: number;
+};
+export type IndustryFacts = {
+  industryCode: string | null;
+  categoryCode: string | null;
+  provinceCode: string | null;
+  cityCode: string | null;
+  districtCode: string | null;
+  zoneCode: string | null;
+  dictionary: { dictTypeKey: string; code: string; ext: unknown }[];
+};
+const basicFields = Prisma.sql`s.name,
            CASE WHEN p.store_id IS NULL THEN NULL ELSE jsonb_build_object(
              'brandName', p.brand_name, 'industryCode', p.industry_code,
              'categoryCode', p.category_code, 'provinceCode', p.province_code,
@@ -123,10 +129,16 @@ export async function basicCompleteness(tx: Tx, storeId: string) {
              FROM store_profile_media m LEFT JOIN file_object f ON f.id = m.file_id
              WHERE m.store_id = s.id AND m.removed_at IS NULL), '[]'::jsonb) AS media,
            (SELECT count(*)::int FROM store_service_item si
-             WHERE si.store_id = s.id AND si.removed_at IS NULL) AS "serviceCount"
-      FROM store s LEFT JOIN store_profile p ON p.store_id = s.id
-      WHERE s.id = ${storeId}::uuid`;
-  if (!row) throw new AppError("NOT_FOUND");
+             WHERE si.store_id = s.id AND si.removed_at IS NULL) AS "serviceCount"`;
+export const industryDictionary = Prisma.sql`
+  COALESCE((SELECT jsonb_agg(jsonb_build_object(
+    'dictTypeKey', d.dict_type_key, 'code', d.code, 'ext', d.ext))
+    FROM dict_item d WHERE d.code <> '' AND (
+      (d.dict_type_key = 'industry' AND d.code = ANY(ARRAY[p.industry_code, p.category_code]))
+      OR (d.dict_type_key = 'region' AND d.code = ANY(ARRAY[
+        p.province_code, p.city_code, p.district_code, p.zone_code]))
+    )), '[]'::jsonb)`;
+function basicSteps(row: BasicFacts) {
   const usable = new Map(
     row.media.map((m) => [m.fileId, m.status === "stored" && m.moderationState !== "block"]),
   );
@@ -141,6 +153,34 @@ export async function basicCompleteness(tx: Tx, storeId: string) {
     requiredPermits: [],
     providedPermits: [],
   }).steps.slice(0, 3);
+}
+/** 订购只消费前三步；每次读取当前基础档案和媒体，不读取未消费的资质历史。 */
+export async function basicCompleteness(tx: Tx, storeId: string) {
+  const [row] = await tx.$queryRaw<BasicFacts[]>(Prisma.sql`
+    SELECT ${basicFields} FROM store s LEFT JOIN store_profile p ON p.store_id = s.id
+    WHERE s.id = ${storeId}::uuid`);
+  if (!row) throw new AppError("NOT_FOUND");
+  return basicSteps(row);
+}
+/** 同阶段订购前置事实；基础、资格门与行业来自同一个真实 statement。 */
+export async function orderProfileFacts(tx: Tx, storeId: string) {
+  const [row] = await tx.$queryRaw<
+    (BasicFacts & {
+      lifecycle: string;
+      entityLifecycle: string;
+      qualificationStatus: string;
+      isPrimary: boolean;
+      zoneCode: string | null;
+      dictionary: IndustryFacts["dictionary"];
+    })[]
+  >(Prisma.sql`
+    SELECT ${basicFields}, s.lifecycle, e.lifecycle AS "entityLifecycle",
+      s.qualification_status AS "qualificationStatus", s.is_primary AS "isPrimary",
+      p.zone_code AS "zoneCode", ${industryDictionary} AS dictionary
+    FROM store s LEFT JOIN store_profile p ON p.store_id = s.id
+    JOIN entity e ON e.id = s.entity_id WHERE s.id = ${storeId}::uuid`);
+  if (!row) throw new AppError("NOT_FOUND");
+  return { ...row, steps: basicSteps(row) };
 }
 
 export async function snapshot(tx: Tx, storeId: string) {

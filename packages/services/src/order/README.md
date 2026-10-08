@@ -63,3 +63,5 @@ b 目标验收：`cart.test.ts`（两独立真连接49→50/51、P/S、自然重
 组合根绑定 `OrderStartBinding` 的真实公开依赖，关闭时解除本作用域；未绑定明确 INTERNAL。通知取数仍调 `orderForNotify` 空端口；正式 x01 的 `order.started` 下游为 docs/notify，授权书 M5、通知 M2；未登记的直记埋点不自造，M7 接收方再按正式事件目录接线。
 
 `start.concurrency.test.ts` 用 3 条 max=1 的独立连接、实际 backend PID 和事务栅栏重复 20 轮：真实 skipped → 补偿同键复活后，重复定时器执行与资质订阅者并发，整单每项仅扣减/建工单/迁移一次。`start.fault.test.ts` 由子进程真实 capture 后停在断点，父进程发 SIGKILL；父连接在断点上看不到未提交写，连接死后整笔回滚，同条消息重试只扣减一次。既有 a 的状态推导与读侧验收不重复改写。
+
+W2-24 同阶段资料守卫经 profile 公口读取一次事实，再依原顺序拒绝基础缺项、资格不符和行业未开放。资格 `blocked` 仍真实重读当前门店与按 `createdAt DESC` 的最新轮次后给原原因；报价仍分别收集三个守卫的 blockers。取号前初检、真实 Tf 后守卫各自 fresh：正常路径资料读取由每阶段三次变一次（设计减少总4次/取号后2次 RPC），无新性能通过结论；No、Tc/Tf/Tv、账户锁、资金与自检时序保持。

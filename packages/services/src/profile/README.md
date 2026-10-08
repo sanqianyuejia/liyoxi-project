@@ -33,3 +33,5 @@ API 的响应沿既有 `respondByRole` 以本请求会员角色裁剪，写路�
 W2-24 的必要性能伴随把 `industryOpen` 当前字典读取合成一次批读，键为 type+code；仍按行业、品类、省市区、功能区的原顺序解析和短路，早项关闭不会触发后项坏ext错误。订购初检和真实Tf后的守卫各自读取当前值，没有跨请求缓存或省略二次守卫。
 
 W2-24 的前三步守卫以一条当前事务查询读取 store LEFT profile、按 position 排列的未删除媒体及其当前 file 状态/检测结果、未删除服务的真实数量，再复用与完整 snapshot 同源的 basicFilled/profileCompleteness。缺档案保持 null，空媒体/服务保持真实空值，缺门店仍 NOT_FOUND；完整四步、资格历史和 I6 自愈不变。
+
+W2-24 的订购同阶段 `getOrderProfileFacts(tx, storeId)` 以一条真实查询读取前三步资料、当前资格门及行业字典事实；前三步复用 `basicFilled/profileCompleteness`，行业仍在资格通过后用 `industryOpenFromOrderFacts` 按原顺序解析。初检与真实 hold 后各自重新查询；旧单项公开读取、完整四步、资质历史与 I6 自愈保持原范围。单阶段 READ COMMITTED 的三次 statement 快照合成一次，且该查询故障会暴露合并关系的错误，不缓存到下一个阶段。

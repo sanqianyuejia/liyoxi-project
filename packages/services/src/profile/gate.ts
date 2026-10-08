@@ -1,9 +1,47 @@
 import { IndustryExtSchema, RegionExtSchema } from "@liyoxi/contract";
 import { AppError } from "../kernel/index.js";
 import type { Tx } from "../kernel/index.js";
-import { basicCompleteness, storeOf } from "./repo.js";
+import { basicCompleteness, storeOf, orderProfileFacts, industryDictionary } from "./repo.js";
+import type { IndustryFacts } from "./repo.js";
 
 export type StoreGate = "full" | "parallel" | "blocked";
+function gateOf(store: {
+  lifecycle: string;
+  entityLifecycle: string;
+  qualificationStatus: string;
+  isPrimary: boolean;
+}): StoreGate {
+  if (store.lifecycle !== "active" || store.entityLifecycle !== "active") return "blocked";
+  if (store.qualificationStatus === "verified") return "full";
+  return store.isPrimary && store.qualificationStatus === "pending" ? "parallel" : "blocked";
+}
+const missingOf = (steps: Awaited<ReturnType<typeof basicCompleteness>>) =>
+  steps.flatMap((step) => step.missing.map((item) => ({ step: step.step, ...item })));
+export interface OrderProfileFacts {
+  readonly missing: ReturnType<typeof missingOf>;
+  readonly gate: StoreGate;
+  readonly industry: IndustryFacts | null;
+}
+export async function getOrderProfileFacts(tx: Tx, storeId: string): Promise<OrderProfileFacts> {
+  const row = await orderProfileFacts(tx, storeId);
+  return {
+    missing: missingOf(row.steps),
+    gate: gateOf(row),
+    industry: row.profile
+      ? {
+          industryCode: row.profile.industryCode,
+          categoryCode: row.profile.categoryCode,
+          provinceCode: row.profile.provinceCode,
+          cityCode: row.profile.cityCode,
+          districtCode: row.profile.districtCode,
+          zoneCode: row.zoneCode,
+          dictionary: row.dictionary,
+        }
+      : null,
+  };
+}
+export const industryOpenFromOrderFacts = (facts: OrderProfileFacts): boolean =>
+  industryIsOpen(facts.industry);
 export async function storeGate(tx: Tx, storeId: string): Promise<StoreGate> {
   const [store] = await tx.$queryRaw<
     {
@@ -18,40 +56,23 @@ export async function storeGate(tx: Tx, storeId: string): Promise<StoreGate> {
     FROM store s JOIN entity e ON e.id = s.entity_id
     WHERE s.id = ${storeId}::uuid`;
   if (!store) throw new AppError("NOT_FOUND");
-  if (store.lifecycle !== "active" || store.entityLifecycle !== "active") return "blocked";
-  if (store.qualificationStatus === "verified") return "full";
-  return store.isPrimary && store.qualificationStatus === "pending" ? "parallel" : "blocked";
+  return gateOf(store);
 }
 export async function assertProfileComplete(tx: Tx, storeId: string) {
   const steps = await basicCompleteness(tx, storeId);
-  const missing = steps.flatMap((step) =>
-    step.missing.map((item) => ({ step: step.step, ...item })),
-  );
+  const missing = missingOf(steps);
   if (missing.length) throw new AppError("STORE_PROFILE_INCOMPLETE", { details: { missing } });
 }
 export async function industryOpen(tx: Tx, storeId: string): Promise<boolean> {
-  const [p] = await tx.$queryRaw<
-    {
-      industryCode: string | null;
-      categoryCode: string | null;
-      provinceCode: string | null;
-      cityCode: string | null;
-      districtCode: string | null;
-      zoneCode: string | null;
-      dictionary: { dictTypeKey: string; code: string; ext: unknown }[];
-    }[]
-  >`
+  const [p] = await tx.$queryRaw<IndustryFacts[]>`
     SELECT p.industry_code AS "industryCode", p.category_code AS "categoryCode",
            p.province_code AS "provinceCode", p.city_code AS "cityCode",
            p.district_code AS "districtCode", p.zone_code AS "zoneCode",
-           COALESCE((SELECT jsonb_agg(jsonb_build_object(
-             'dictTypeKey', d.dict_type_key, 'code', d.code, 'ext', d.ext))
-             FROM dict_item d WHERE d.code <> '' AND (
-               (d.dict_type_key = 'industry' AND d.code = ANY(ARRAY[p.industry_code, p.category_code]))
-               OR (d.dict_type_key = 'region' AND d.code = ANY(ARRAY[
-                 p.province_code, p.city_code, p.district_code, p.zone_code]))
-             )), '[]'::jsonb) AS dictionary
+           ${industryDictionary} AS dictionary
     FROM store_profile p WHERE p.store_id = ${storeId}::uuid`;
+  return industryIsOpen(p ?? null);
+}
+function industryIsOpen(p: IndustryFacts | null): boolean {
   if (!p) return false;
   const industryCodes = [p.industryCode, p.categoryCode];
   const regionCodes = [

@@ -5,7 +5,13 @@ import { calendarDate, addDays } from "@liyoxi/shared/time";
 import { nthWorkdayAfter } from "@liyoxi/shared/workcal";
 import { AppError } from "../kernel/index.js";
 import type { Tx } from "../kernel/index.js";
-import { assertProfileComplete, storeGate, industryOpen } from "../profile/index.js";
+import {
+  storeGate,
+  industryOpen,
+  getOrderProfileFacts,
+  industryOpenFromOrderFacts,
+} from "../profile/index.js";
+import type { StoreGate } from "../profile/index.js";
 import { getEntitlements } from "../billing/index.js";
 import { loadWorkCalendar, workHoursAt } from "../sla/index.js";
 import type { OrderActor, OrderDeps } from "./context.js";
@@ -25,7 +31,9 @@ export async function earliestLaunch(tx: Tx, at: Date) {
   ).date;
 }
 export async function qualification(tx: Tx, storeId: string) {
-  const gate = await storeGate(tx, storeId);
+  return qualificationFromGate(tx, storeId, await storeGate(tx, storeId));
+}
+async function qualificationFromGate(tx: Tx, storeId: string, gate: StoreGate) {
   if (gate === "blocked") {
     const store = await tx.store.findUniqueOrThrow({ where: { id: storeId } });
     const last = await tx.qualificationSubmission.findFirst({
@@ -59,9 +67,12 @@ export async function openIndustry(tx: Tx, storeId: string) {
   if (!(await industryOpen(tx, storeId))) throw new AppError("INDUSTRY_NOT_OPEN");
 }
 export async function profileChecks(tx: Tx, actor: OrderActor) {
-  await assertProfileComplete(tx, actor.membership.storeId);
-  const gate = await qualification(tx, actor.membership.storeId);
-  await openIndustry(tx, actor.membership.storeId);
+  const storeId = actor.membership.storeId,
+    facts = await getOrderProfileFacts(tx, storeId);
+  if (facts.missing.length)
+    throw new AppError("STORE_PROFILE_INCOMPLETE", { details: { missing: facts.missing } });
+  const gate = await qualificationFromGate(tx, storeId, facts.gate);
+  if (!industryOpenFromOrderFacts(facts)) throw new AppError("INDUSTRY_NOT_OPEN");
   return gate;
 }
 export async function currentLicense(tx: Tx, deps: OrderDeps, versionId?: string) {
