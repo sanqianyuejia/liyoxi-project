@@ -103,6 +103,38 @@ export async function detail(
   if (!o) throw new AppError("NOT_FOUND");
   return hydrateDetail(tx, o);
 }
+async function createdTerm(tx: Tx, id: string): Promise<DetailRow["subscriptionTerm"]> {
+  const [row] = await tx.$queryRaw<{ name: string }[]>`
+    SELECT p.name FROM public.subscription_term t
+    JOIN public.plan p ON p.id = t.plan_id WHERE t.id = ${id}::uuid`;
+  if (row) return { plan: { name: row.name } };
+  return tx.subscriptionTerm.findUniqueOrThrow({
+    where: { id },
+    select: { plan: { select: { name: true } } },
+  });
+}
+async function createdAgreementVersion(
+  tx: Tx,
+  id: string,
+): Promise<DetailRow["agreementConsent"]["agreementVersion"]> {
+  const [row] = await tx.$queryRaw<
+    { id: string; major: number; minor: number; agreementName: string }[]
+  >`
+    SELECT v.id::text AS id, v.major, v.minor, a.name AS "agreementName"
+    FROM public.agreement_version v JOIN public.agreement a ON a.key = v.agreement_key
+    WHERE v.id = ${id}::uuid`;
+  if (row)
+    return {
+      id: row.id,
+      major: row.major,
+      minor: row.minor,
+      agreement: { name: row.agreementName },
+    };
+  return tx.agreementVersion.findUniqueOrThrow({
+    where: { id },
+    select: { id: true, major: true, minor: true, agreement: { select: { name: true } } },
+  });
+}
 /** 仅刚由submit写入的行可走此路径；可变展示关系仍在事务末尾读取。 */
 export async function detailFromCreated(
   tx: Tx,
@@ -113,14 +145,8 @@ export async function detailFromCreated(
     receipt: ConsentReceiptItem;
   },
 ): Promise<OrderDetail> {
-  const subscriptionTerm = await tx.subscriptionTerm.findUniqueOrThrow({
-    where: { id: input.order.subscriptionTermId },
-    select: { plan: { select: { name: true } } },
-  });
-  const agreementVersion = await tx.agreementVersion.findUniqueOrThrow({
-    where: { id: input.receipt.agreementVersionId },
-    select: { id: true, major: true, minor: true, agreement: { select: { name: true } } },
-  });
+  const subscriptionTerm = await createdTerm(tx, input.order.subscriptionTermId);
+  const agreementVersion = await createdAgreementVersion(tx, input.receipt.agreementVersionId);
   const accounts = await tx.orderItemAccount.findMany({
     where: { orderItemId: { in: input.items.map((item) => item.id) } },
     select: {

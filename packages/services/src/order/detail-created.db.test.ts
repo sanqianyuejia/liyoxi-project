@@ -4,7 +4,7 @@ import type { TxRunner } from "../kernel/index.js";
 import { uuidv7 } from "../kernel/index.js";
 import { body, buyer, drama, harness, version } from "./__fixtures__/harness.js";
 import type { Harness } from "./__fixtures__/harness.js";
-import { detail } from "./read.js";
+import { detail, detailFromCreated } from "./read.js";
 import { dictRefsFor } from "./quote.js";
 import { createOrderService } from "./service.js";
 
@@ -103,6 +103,58 @@ it("多剧新单真实RETURNING默认值与同TXfresh详情逐字段相同，末
     expect(item.usageStartDate).toBeNull();
   }
 }, 60000);
+
+it.each([
+  { missing: "term", term: true, version: false, model: "SubscriptionTerm" },
+  { missing: "version", term: false, version: true, model: "AgreementVersion" },
+  { missing: "both", term: true, version: true, model: "SubscriptionTerm" },
+])(
+  "末尾真实关联缺$missing：保留原Prisma缺行错误与周期优先顺序",
+  async (absent) => {
+    const b = await buyer(h),
+      d = await drama(h),
+      out = await h.order.create(b.actor, await body(h, b, [d.id]));
+    await h.tx.run(async (tx) => {
+      const order = await tx.dramaOrder.findUniqueOrThrow({ where: { id: out.orderId } }),
+        items = await tx.orderItem.findMany({ where: { dramaOrderId: order.id } }),
+        store = await tx.store.findUniqueOrThrow({
+          where: { id: order.storeId },
+          select: { name: true, entity: { select: { name: true } } },
+        }),
+        consent = await tx.agreementConsent.findUniqueOrThrow({
+          where: { id: order.agreementConsentId },
+        }),
+        termId = absent.term ? uuidv7() : order.subscriptionTermId,
+        versionId = absent.version ? uuidv7() : consent.agreementVersionId;
+      const original = absent.term
+        ? tx.subscriptionTerm.findUniqueOrThrow({
+            where: { id: termId },
+            select: { plan: { select: { name: true } } },
+          })
+        : tx.agreementVersion.findUniqueOrThrow({
+            where: { id: versionId },
+            select: { id: true, major: true, minor: true, agreement: { select: { name: true } } },
+          });
+      const expected = { code: "P2025", meta: { modelName: absent.model } };
+      await expect(original).rejects.toMatchObject(expected);
+      await expect(
+        detailFromCreated(tx, {
+          order: { ...order, subscriptionTermId: termId },
+          items,
+          store,
+          receipt: {
+            agreementConsentId: consent.id,
+            consentNo: String(consent.seq),
+            agreementKey: consent.agreementKey,
+            agreementVersionId: versionId,
+            consentedAt: consent.consentedAt.toISOString(),
+          },
+        }),
+      ).rejects.toMatchObject(expected);
+    });
+  },
+  60000,
+);
 
 it("同请求字典批读保留type隔离、停用名称、输入重复/顺序和缺码回落", async () => {
   const now = h.clock.now();
