@@ -16,6 +16,7 @@ describe("P95 nightly 接线", () => {
       "APP_ENV=test",
       "DATABASE_URL=postgresql://liyoxi:lyx-local-dev@localhost:5442/liyoxi",
       "REDIS_URL=redis://localhost:6389/0",
+      "pnpm exec vitest run --project infra infra/ci/test/p95.test.ts infra/ci/test/workflows.test.ts infra/ci/test/p95-nightly.test.ts",
       "node infra/ci/p95.mjs --concurrency 20 --scale 10 --seed 42",
       "if: always()",
       "path: apps/api/dist/p95/report.json",

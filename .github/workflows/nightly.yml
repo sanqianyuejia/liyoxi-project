@@ -124,7 +124,7 @@ jobs:
       - name: 本地测试连接参数
         run: printf "%s\n" "APP_ENV=test" "DATABASE_URL=postgresql://liyoxi:lyx-local-dev@localhost:5442/liyoxi" "REDIS_URL=redis://localhost:6389/0" >> "$GITHUB_ENV"
       - name: P95 正反例与 nightly 接线
-        run: pnpm exec vitest run --project infra infra/ci/test/p95.test.ts infra/ci/test/workflows.test.ts
+        run: pnpm exec vitest run --project infra infra/ci/test/p95.test.ts infra/ci/test/workflows.test.ts infra/ci/test/p95-nightly.test.ts
       - name: 本轮合法约百万流水与真实 HTTP 基线
         run: node infra/ci/p95.mjs --concurrency 20 --scale 10 --seed 42
       - name: 上传 P95 实测统计和失败事实
