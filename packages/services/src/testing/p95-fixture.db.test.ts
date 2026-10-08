@@ -5,6 +5,7 @@ import { runInvariants } from "../ops/index.js";
 import { createTenant } from "../tenant/index.js";
 import { createFactories } from "./data/factories/index.js";
 import { createP95Fixture } from "./p95-fixture.js";
+import type { P95Dataset } from "./p95-fixture.js";
 import { openSealed, testSealer } from "./data/seal.js";
 
 it("真实 prototype 和两个 UUID 克隆保留完整开工方案/工单图、归属与全部实际 full 检查", async () => {
@@ -184,6 +185,146 @@ it("真实 prototype 和两个 UUID 克隆保留完整开工方案/工单图、�
       found.map(({ code, count, detail }) => ({ code, count: Number(count), detail })),
     ).toEqual([]);
     expect(checked).toMatchObject({ status: "succeeded", checksRun: 91, violationsFound: 0 });
+  } finally {
+    await fixture.close();
+  }
+}, 60_000);
+
+async function seedReportFixture(fixture: Awaited<ReturnType<typeof createP95Fixture>>) {
+  const { runtime, clock } = fixture.support;
+  await fixture.loginAgreements();
+  const user = await runtime.tx.run((tx) =>
+    createFactories({ db: tx, clock }).merchantUser({ phone: "13610000000" }),
+  );
+  const scope = await createTenant({ ...runtime }).createEntity(
+    createIdentityContext({ actor: { type: "merchant", id: user.id, client: "weapp" } }),
+  );
+  return fixture.seed({ ...scope, merchantUserId: user.id, phone: "13610000000" });
+}
+
+it("P95报告：seed回调保存真实invariantRun ID，未查询历史未解决记录为null", async () => {
+  const seen: P95Dataset[] = [];
+  const fixture = await createP95Fixture({
+    scale: 0.002,
+    seed: 42,
+    runId: "w224rptseed",
+    dataset: (dataset) => seen.push(dataset),
+  });
+  try {
+    const seeded = await seedReportFixture(fixture);
+    expect(seen).toHaveLength(1);
+    const run = await fixture.support.runtime.tx.run((tx) =>
+      tx.invariantRun.findUniqueOrThrow({
+        where: { id: seeded.invariants.runId },
+        select: { id: true, status: true, checksRun: true, violationsFound: true },
+      }),
+    );
+    expect(run).toMatchObject({ status: "succeeded", checksRun: 91, violationsFound: 0 });
+    expect(seen[0]!.invariants).toMatchObject({
+      runId: run.id,
+      persistedUnresolved: null,
+      status: run.status,
+      checksRun: run.checksRun,
+      violations: run.violationsFound,
+    });
+  } finally {
+    await fixture.close();
+  }
+}, 60_000);
+
+it("P95报告：真实缓存漂移按持久化未解决code计数，重复run仍保留firstRun，恢复后未查为null", async () => {
+  const seen: P95Dataset[] = [];
+  const fixture = await createP95Fixture({
+    scale: 0.002,
+    seed: 42,
+    runId: "w224rptfail",
+    dataset: (dataset) => seen.push(dataset),
+  });
+  const { runtime } = fixture.support;
+  try {
+    const seeded = await seedReportFixture(fixture);
+    const entityId = seeded.scopes[0]!.entityId;
+    const original = await runtime.tx.run((tx) =>
+      tx.billingAccount.findUniqueOrThrow({
+        where: { entityId },
+        select: { planAvailableQty: true },
+      }),
+    );
+    await runtime.tx.run((tx) =>
+      tx.billingAccount.update({
+        where: { entityId },
+        data: { planAvailableQty: { increment: 1 } },
+      }),
+    );
+    const runIds = () => runtime.tx.run((tx) => tx.invariantRun.findMany({ select: { id: true } }));
+    const persisted = () =>
+      runtime.tx.run((tx) =>
+        tx.invariantViolation.groupBy({
+          by: ["code"],
+          where: { resolvedAt: null },
+          _count: { _all: true },
+          orderBy: { code: "asc" },
+        }),
+      );
+    const firstRuns = () =>
+      runtime.tx.run((tx) =>
+        tx.invariantViolation.findMany({
+          where: { code: "billing.I3", resolvedAt: null },
+          select: { invariantRunId: true },
+        }),
+      );
+    const before = new Set((await runIds()).map((row) => row.id));
+    await expect(fixture.validatePrepared()).rejects.toThrow("P95数据不变量未通过");
+    const foundA = (await runIds()).filter((row) => !before.has(row.id));
+    expect(foundA).toHaveLength(1);
+    const runA = foundA[0]!.id;
+    const failedA = seen.at(-1)!;
+    const countsA = await persisted();
+    expect(countsA.find((row) => row.code === "billing.I3")?._count._all).toBe(1);
+    expect(await firstRuns()).toEqual([{ invariantRunId: runA }]);
+    const beforeRepeat = new Set((await runIds()).map((row) => row.id));
+    await expect(fixture.validatePrepared()).rejects.toThrow("P95数据不变量未通过");
+    const foundB = (await runIds()).filter((row) => !beforeRepeat.has(row.id));
+    expect(foundB).toHaveLength(1);
+    const runB = foundB[0]!.id;
+    const failedB = seen.at(-1)!;
+    const countsB = await persisted();
+    expect(runB).not.toBe(runA);
+    expect(countsB).toEqual(countsA);
+    expect(await firstRuns()).toEqual([{ invariantRunId: runA }]);
+    await runtime.tx.run((tx) =>
+      tx.billingAccount.update({
+        where: { entityId },
+        data: { planAvailableQty: original.planAvailableQty },
+      }),
+    );
+    const restored = await fixture.validatePrepared();
+    expect(restored.invariants).toMatchObject({
+      status: "succeeded",
+      checksRun: 91,
+      violations: 0,
+    });
+    expect(await persisted()).toEqual(countsB);
+    for (const [dataset, runId, counts] of [
+      [failedA, runA, countsA],
+      [failedB, runB, countsB],
+    ] as const) {
+      expect(dataset.invariants.violations).toBeGreaterThan(0);
+      expect(dataset.invariants).toMatchObject({
+        runId,
+        persistedUnresolved: {
+          scope: "owned_database_unresolved_records",
+          perRun: false,
+          status: "queried",
+          byCode: counts.map((row) => ({ code: row.code, records: row._count._all })),
+          unregisteredCodeRecords: 0,
+        },
+      });
+      expect(JSON.stringify(dataset)).not.toMatch(
+        /"(?:subject|subjectId|subjectKey|detail|phone|token)":/,
+      );
+    }
+    expect(restored.invariants).toMatchObject({ persistedUnresolved: null });
   } finally {
     await fixture.close();
   }

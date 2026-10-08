@@ -38,6 +38,21 @@ export interface P95Dataset {
     }[];
   };
   readonly invariants: {
+    readonly runId: string;
+    // 是当前 own 库中持久化未解决记录，不是本轮各检查返回的完整分项条数。
+    readonly persistedUnresolved:
+      | ({
+          readonly scope: "owned_database_unresolved_records";
+          readonly perRun: false;
+        } & (
+          | {
+              readonly status: "queried";
+              readonly byCode: readonly { code: string; records: number }[];
+              readonly unregisteredCodeRecords: number;
+            }
+          | { readonly status: "query_failed" }
+        ))
+      | null;
     readonly modules: readonly string[];
     readonly codes: readonly string[];
     readonly reportOnlyCodes: readonly string[];
@@ -180,11 +195,46 @@ export async function createP95Fixture(options: {
         trigger: "manual",
       },
     );
+    const invariantElapsedMs = performance.now() - invariantStarted;
+    let persistedUnresolved: P95Dataset["invariants"]["persistedUnresolved"] = null;
+    if (invariants.violationsFound > 0) {
+      try {
+        assertOwned();
+        const rows = await db.invariantViolation.groupBy({
+          by: ["code"],
+          where: { resolvedAt: null },
+          _count: { _all: true },
+          orderBy: { code: "asc" },
+        });
+        const registered = new Set(runtime.assembly.invariants.map((check) => check.code));
+        persistedUnresolved = {
+          scope: "owned_database_unresolved_records",
+          perRun: false,
+          status: "queried",
+          byCode: rows
+            .filter((row) => registered.has(row.code))
+            .map((row) => ({ code: row.code, records: row._count._all })),
+          // 未登记 code 不输出原值；仅明确保留它们的实际记录数量。
+          unregisteredCodeRecords: rows
+            .filter((row) => !registered.has(row.code))
+            .reduce((count, row) => count + row._count._all, 0),
+        };
+      } catch {
+        // 辅助报告失败不能遮盖已确定的不变量失败，也不伪造查询到的零记录。
+        persistedUnresolved = {
+          scope: "owned_database_unresolved_records",
+          perRun: false,
+          status: "query_failed",
+        };
+      }
+    }
     const dataset: P95Dataset = {
       counts,
       generation,
       entryKinds: entryKinds.map((r) => ({ type: r.op_type, entries: Number(r.n) })),
       invariants: {
+        runId: invariants.runId,
+        persistedUnresolved,
         modules: [...new Set(runnable.map((check) => check.module))].sort(),
         codes: runnable.map((check) => check.code),
         reportOnlyCodes: runtime.assembly.invariants
@@ -198,7 +248,7 @@ export async function createP95Fixture(options: {
           // 既有 runner 的摘要可能包含 Prisma 调用片段；报告只留类型，不输出其文本。
           category: e.message.match(/^([A-Za-z][A-Za-z0-9]*):/)?.[1] ?? "CheckError",
         })),
-        elapsedMs: performance.now() - invariantStarted,
+        elapsedMs: invariantElapsedMs,
       },
     };
     if (invariants.status !== "succeeded" || invariants.violationsFound !== 0) {

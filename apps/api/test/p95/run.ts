@@ -38,14 +38,28 @@ const report: Record<string, unknown> = {
   },
   routes: [],
   excluded: [],
+  seedDataset: null,
+  measurementDataset: null,
+  afterActualWrites: null,
 };
 let closeFixture: (() => Promise<void>) | undefined;
+let phase:
+  | "setup"
+  | "seed"
+  | "measurement_preparation"
+  | "measurement_preflight"
+  | "http_sampling"
+  | "after_actual_writes"
+  | "report_evaluation" = "setup";
+let datasetKey: "seedDataset" | "measurementDataset" | "afterActualWrites" = "seedDataset";
 
 try {
   const fixture = await createP95Fixture({
     ...config,
     dataset: (value) => {
-      report["dataset"] = value;
+      report[datasetKey] = value;
+      // 兼容旧字段，但它只代表 seed，不能被采样前/写后结果覆盖。
+      if (datasetKey === "seedDataset") report["dataset"] = value;
     },
     progress: (message) => process.stderr.write(`${message}\n`),
   });
@@ -140,12 +154,14 @@ try {
       actor: { type: "merchant", id: owner.merchantUserId, client: "weapp" },
     }),
   );
+  phase = "seed";
   const seeded = await fixture.seed({
     ...scope,
     merchantUserId: owner.merchantUserId,
     phone: "13610000000",
   });
 
+  phase = "measurement_preparation";
   const actors: Array<{ headers: Record<string, string>; scope: (typeof seeded.scopes)[number] }> =
     [];
   for (let n = 0; n < Math.min(config.samples, seeded.scopes.length); n++) {
@@ -268,6 +284,8 @@ try {
       run: (n) => call("m.paymentOrder.create", buyers[n]!.headers, payment),
     });
   } else report["smokeExcluded"] = ["m.order.create", "m.paymentOrder.create"];
+  phase = "measurement_preflight";
+  datasetKey = "measurementDataset";
   const measurementDataset = await fixture.validatePrepared();
   report["measurementDataset"] = measurementDataset;
   report["measurementAdditionalCounts"] = Object.fromEntries(
@@ -279,6 +297,7 @@ try {
   process.stderr.write(
     `P95实际HTTP采样开始: routes=${work.length}/c=${config.concurrency}/samples=${config.samples}\n`,
   );
+  phase = "http_sampling";
   const routes: Array<P95Result & { operationId: string }> = [];
   for (const item of work) {
     if (!mounted.has(item.operationId)) throw new Error(`P95必测actual未挂载:${item.operationId}`);
@@ -289,6 +308,8 @@ try {
     );
   }
   report["routes"] = routes;
+  phase = "after_actual_writes";
+  datasetKey = "afterActualWrites";
   report["afterActualWrites"] = await fixture.validatePrepared();
   report["excluded"] = [
     { operationId: "admin.workbench.alert.get", owner: "G7-B/M7 工作台读侧包（尚未拆编号）" },
@@ -298,10 +319,12 @@ try {
   ]
     .filter((r) => !mounted.has(r.operationId))
     .map((r) => ({ ...r, reason: "actual未落地，无样本" }));
+  phase = "report_evaluation";
   report["passed"] = reportPassed({ routes });
   process.exitCode = report["passed"] ? 0 : 1;
 } catch (error) {
   report["passed"] = false;
+  report["failureStage"] = phase;
   report["failure"] =
     error instanceof Error
       ? {
