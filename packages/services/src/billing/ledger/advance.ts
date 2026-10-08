@@ -344,6 +344,132 @@ export interface AdvanceOptions {
   readonly grantAs?: { readonly grantScheduleId: string; readonly ctx: IdentityContext };
 }
 
+/** LEFT LATERAL 的缺行与真实发放行分开；日期列仍是原 Date，不经 JSON 序列化。 */
+type DueColumns = {
+  [K in keyof GrantSchedule as `due_${K}`]: GrantSchedule[K];
+};
+type AdvanceStepRow = SubscriptionTerm & (DueColumns | { [K in keyof DueColumns]: null });
+
+/** 每一轮重新读当前周期及已到点的最小月序；不沿用上一轮推进前的快照。 */
+async function readAdvanceStep(
+  tx: Tx,
+  termId: string,
+  now: Date,
+): Promise<{ term: SubscriptionTerm; due: GrantSchedule | null }> {
+  const [row] = await tx.$queryRaw<AdvanceStepRow[]>`
+    SELECT
+      t.id AS "id",
+      t.entity_id AS "entityId",
+      t.term_no AS "termNo",
+      t.origin AS "origin",
+      t.plan_id AS "planId",
+      t.plan_revision_id AS "planRevisionId",
+      t.initial_plan_revision_id AS "initialPlanRevisionId",
+      t.months AS "months",
+      t.price_total_fen AS "priceTotalFen",
+      t.monthly_equiv_fen AS "monthlyEquivFen",
+      t.monthly_points AS "monthlyPoints",
+      t.discount_bp AS "discountBp",
+      t.production_model AS "productionModel",
+      t.max_stores AS "maxStores",
+      t.max_members AS "maxMembers",
+      t.schedule_priority AS "schedulePriority",
+      t.has_monthly_report AS "hasMonthlyReport",
+      t.anchor_day AS "anchorDay",
+      t.start_date AS "startDate",
+      t.end_date AS "endDate",
+      t.starts_at AS "startsAt",
+      t.ends_at AS "endsAt",
+      t.extended_days AS "extendedDays",
+      t.status AS "status",
+      t.refund_request_id AS "refundRequestId",
+      t.refund_rule AS "refundRule",
+      t.source_billing_order_id AS "sourceBillingOrderId",
+      t.activated_at AS "activatedAt",
+      t.ended_at AS "endedAt",
+      t.refunded_at AS "refundedAt",
+      t.created_at AS "createdAt",
+      t.updated_at AS "updatedAt",
+      due.id AS "due_id",
+      due.subscription_term_id AS "due_subscriptionTermId",
+      due.entity_id AS "due_entityId",
+      due.month_no AS "due_monthNo",
+      due.due_at AS "due_dueAt",
+      due.due_date AS "due_dueDate",
+      due.points AS "due_points",
+      due.value_fen AS "due_valueFen",
+      due.plan_id AS "due_planId",
+      due.plan_revision_id AS "due_planRevisionId",
+      due.status AS "due_status",
+      due.point_lot_id AS "due_pointLotId",
+      due.granted_at AS "due_grantedAt",
+      due.created_at AS "due_createdAt",
+      due.updated_at AS "due_updatedAt"
+    FROM subscription_term t
+    LEFT JOIN LATERAL (
+      SELECT g.* FROM grant_schedule g
+      WHERE g.subscription_term_id = t.id AND g.status = 'pending'
+        AND g.due_at <= ${now} AND g.due_at < t.ends_at
+      ORDER BY g.month_no ASC LIMIT 1
+    ) due ON TRUE
+    WHERE t.id = ${termId}::uuid
+  `;
+  if (!row) {
+    // 保留原缺周期的 P2025；若后续语句已读到该周期，仍按原链重新取 due。
+    const term = await tx.subscriptionTerm.findUniqueOrThrow({ where: { id: termId } });
+    const due = await tx.grantSchedule.findFirst({
+      where: {
+        subscriptionTermId: term.id,
+        status: "pending",
+        dueAt: { lte: now, lt: term.endsAt },
+      },
+      orderBy: { monthNo: "asc" },
+    });
+    return { term, due };
+  }
+  const {
+    due_id,
+    due_subscriptionTermId,
+    due_entityId,
+    due_monthNo,
+    due_dueAt,
+    due_dueDate,
+    due_points,
+    due_valueFen,
+    due_planId,
+    due_planRevisionId,
+    due_status,
+    due_pointLotId,
+    due_grantedAt,
+    due_createdAt,
+    due_updatedAt,
+    ...term
+  } = row;
+  return {
+    term,
+    due:
+      due_id === null
+        ? null
+        : {
+            id: due_id,
+            subscriptionTermId: due_subscriptionTermId,
+            entityId: due_entityId,
+            monthNo: due_monthNo,
+            dueAt: due_dueAt,
+            dueDate: due_dueDate,
+            points: due_points,
+            valueFen: due_valueFen,
+            planId: due_planId,
+            planRevisionId: due_planRevisionId,
+            status: due_status,
+            pointLotId: due_pointLotId,
+            grantedAt: due_grantedAt,
+            createdAt: due_createdAt,
+            updatedAt: due_updatedAt,
+          },
+  };
+}
+
 /** 推进到账本时钟为止。调用方已持有账户锁；account 是刚读出的账户状态，会被改成推进之后的值 */
 export async function advanceAccount(
   tx: Tx,
@@ -358,17 +484,7 @@ export async function advanceAccount(
     if (step >= MAX_STEPS) {
       throw new LedgerError("guard", "一次推进的步数超过上限", { entityId: account.entityId });
     }
-    const term = await tx.subscriptionTerm.findUniqueOrThrow({
-      where: { id: account.currentSubscriptionTermId },
-    });
-    const due = await tx.grantSchedule.findFirst({
-      where: {
-        subscriptionTermId: term.id,
-        status: "pending",
-        dueAt: { lte: clock.now, lt: term.endsAt },
-      },
-      orderBy: { monthNo: "asc" },
-    });
+    const { term, due } = await readAdvanceStep(tx, account.currentSubscriptionTermId, clock.now);
     if (due) {
       const ctx = options.grantAs?.grantScheduleId === due.id ? options.grantAs.ctx : undefined;
       last = await grantDue(tx, deps, clock, account, term, due, ctx);
