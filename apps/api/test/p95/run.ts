@@ -39,15 +39,23 @@ const report: Record<string, unknown> = {
   routes: [],
   excluded: [],
 };
-const fixture = await createP95Fixture({
-  ...config,
-  dataset: (value) => {
-    report["dataset"] = value;
-  },
-  progress: (message) => process.stderr.write(`${message}\n`),
-});
+let closeFixture: (() => Promise<void>) | undefined;
 
 try {
+  const fixture = await createP95Fixture({
+    ...config,
+    dataset: (value) => {
+      report["dataset"] = value;
+    },
+    progress: (message) => process.stderr.write(`${message}\n`),
+  });
+  closeFixture = fixture.close;
+  report["ownedScope"] = {
+    runId: fixture.support.runId,
+    databaseName: fixture.support.databaseName,
+    redisPrefix: fixture.support.redisPrefix,
+  };
+  process.stderr.write(`P95隔离范围:${JSON.stringify(report["ownedScope"])}\n`);
   const { runtime, providers } = fixture.support;
   provideMerchantDeps(runtime, {
     keyring: security.loadKeyring(runtime.env),
@@ -281,6 +289,7 @@ try {
     );
   }
   report["routes"] = routes;
+  report["afterActualWrites"] = await fixture.validatePrepared();
   report["excluded"] = [
     { operationId: "admin.workbench.alert.get", owner: "G7-B/M7 工作台读侧包（尚未拆编号）" },
     { operationId: "admin.workbench.feed.list", owner: "G7-B/M7 工作台读侧包（尚未拆编号）" },
@@ -309,13 +318,19 @@ try {
 } finally {
   report["durationMs"] = performance.now() - started;
   report["loadEnd"] = loadavg();
-  const output = resolve(process.cwd(), "../..", config.out);
-  await mkdir(dirname(output), { recursive: true });
-  await writeFile(output, `${JSON.stringify(report, null, 2)}\n`);
-  process.stdout.write(`P95报告:${config.out} passed=${report["passed"] === true}\n`);
-  await new Promise<void>((done) => {
-    if (server === undefined) done();
-    else server.close(() => done());
-  });
-  await fixture.close();
+  try {
+    const output = resolve(process.cwd(), "../..", config.out);
+    await mkdir(dirname(output), { recursive: true });
+    await writeFile(output, `${JSON.stringify(report, null, 2)}\n`);
+    process.stdout.write(`P95报告:${config.out} passed=${report["passed"] === true}\n`);
+  } finally {
+    try {
+      await new Promise<void>((done) => {
+        if (server === undefined) done();
+        else server.close(() => done());
+      });
+    } finally {
+      await closeFixture?.();
+    }
+  }
 }
