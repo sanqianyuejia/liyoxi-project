@@ -401,8 +401,8 @@ test("W312 五页内容主流程：真实原片批次、许可版权源文件、
     await expect(permit.getByRole("button", { name: "本次上传扫描件", exact: true })).toBeVisible({
       timeout: 120_000,
     });
-    await saveDialog(page, permit, `${base}/permits`, "POST");
-    const permitsResponse = await page.request.get(`${base}/permits`);
+    await saveDialog(page, permit, `${base}/drama-permits`, "POST");
+    const permitsResponse = await page.request.get(`${base}/drama-permits`);
     expect(permitsResponse.status()).toBe(200);
     const permits = DramaPermitListResultSchema.parse((await permitsResponse.json()).data);
     expect(permits.items).toHaveLength(1);
