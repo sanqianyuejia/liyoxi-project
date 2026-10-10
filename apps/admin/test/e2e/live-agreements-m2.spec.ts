@@ -132,12 +132,43 @@ test("W216 真实legal_doc入库→真实转换草稿→安排→撤回另id，�
   });
   expect(saved.conversion.state).toBe("converted");
   expect(saved.contentHtml).toContain("狸有戏虚构协议");
-  await expect(
-    page
-      .locator('iframe[title="保存后转换正文"]')
-      .contentFrame()
-      .getByText(/狸有戏虚构协议/),
-  ).toBeVisible();
+  const preview = page.locator('iframe[title="保存后转换正文"]');
+  await expect(preview).toBeVisible();
+  await expect(preview).toHaveAttribute("sandbox", "");
+  await expect(preview).toHaveAttribute("referrerpolicy", "no-referrer");
+  const srcdoc = await preview.getAttribute("srcdoc");
+  expect(srcdoc).toContain(saved.contentHtml);
+  expect(srcdoc).toContain(
+    "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'",
+  );
+  const frame = await (await preview.elementHandle())?.contentFrame();
+  if (!frame) throw new Error("保存后正文缺少实际预览 Frame");
+  // Child locators inject Playwright's target/listener events, which this sandbox rejects.
+  // Read the actual rendered text and its geometry without installing that child script.
+  await expect
+    .poll(() =>
+      frame.evaluate(() => {
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        let node: Node | null;
+        while ((node = walker.nextNode())) {
+          if (!node.textContent?.includes("狸有戏虚构协议")) continue;
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          const rect = range.getBoundingClientRect();
+          let visible = rect.width > 0 && rect.height > 0;
+          for (let element = node.parentElement; element; element = element.parentElement) {
+            const style = getComputedStyle(element);
+            visible &&=
+              style.display !== "none" &&
+              style.visibility === "visible" &&
+              Number(style.opacity) > 0;
+          }
+          return { text: node.textContent, visible };
+        }
+        return { text: null, visible: false };
+      }),
+    )
+    .toMatchObject({ text: expect.stringContaining("狸有戏虚构协议"), visible: true });
   await shot(page, "agreements-06-real-converted", `编辑草稿 ${saved.version.versionLabel}`);
   const scheduled = response(
     page,

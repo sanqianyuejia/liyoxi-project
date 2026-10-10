@@ -298,6 +298,7 @@ export function registerAgreementPermissionsTest() {
         );
         await editor.getByRole("button", { name: "保存并安排", exact: true }).click();
         const confirmation = page.getByRole("dialog", { name: "安排协议生效", exact: true });
+        await expect(confirmation).not.toHaveClass(/ant-zoom-(appear|enter)/);
         await confirmation
           .getByRole("checkbox", { name: "我已核对文件、法务记录与安排信息", exact: true })
           .check();
