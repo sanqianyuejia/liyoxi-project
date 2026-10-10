@@ -152,3 +152,7 @@ registerFlowOpsReadonlyTest();
 
 import { registerW206CreatedActivationTest } from "./w206-created-activation";
 registerW206CreatedActivationTest();
+
+// W216 own identities are created only after the original staff cases and existing postlude.
+import { registerAgreementPermissionsTest } from "./w216-agreements-readonly";
+registerAgreementPermissionsTest();

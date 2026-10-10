@@ -1,0 +1,82 @@
+.lyx-agreement-cards {
+  display: grid;
+  gap: 12px;
+}
+.lyx-agreement-card {
+  display: grid;
+  gap: 8px;
+  padding: 20px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+.lyx-agreement-card[aria-pressed="true"] {
+  border-color: var(--lyx-color-primary);
+}
+.lyx-agreement-card span,
+.lyx-agreement-muted {
+  color: var(--lyx-color-text-secondary);
+}
+.lyx-agreement-detail,
+.lyx-agreement-editor {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+  max-width: 100%;
+}
+.lyx-agreement-detail section {
+  min-width: 0;
+}
+.lyx-agreement-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.lyx-agreement-title h2 {
+  margin-top: 0;
+}
+.lyx-agreement-preview {
+  width: 100%;
+  min-height: 280px;
+  border: 1px solid var(--lyx-color-border);
+  border-radius: 8px;
+  background: var(--lyx-color-bg-card);
+}
+.lyx-agreement-files,
+.lyx-agreement-evidence {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.lyx-agreement-evidence {
+  margin-bottom: 24px;
+}
+.lyx-agreement-evidence .lyx-readonly-field__value {
+  overflow-wrap: anywhere;
+}
+.lyx-agreement-filters {
+  padding: 20px;
+}
+.lyx-agreement-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+.lyx-agreement-filter-grid .ant-select {
+  width: 100%;
+}
+.lyx-agreement-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+.lyx-agreement-loading {
+  padding: 24px;
+}
+@media (max-width: 1100px) {
+  .lyx-agreement-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

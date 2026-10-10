@@ -44,7 +44,7 @@ const ops: AdminModule = {
       release: null,
       milestone: "M2",
       workPackage: "G2-B",
-      implemented: false,
+      implemented: true,
       screen: "OpsAgreements",
       kind: "board",
       skeleton: "master-detail",

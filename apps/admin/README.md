@@ -235,3 +235,7 @@ createAppServices从公开构建变量VITE_CLIENT_ERROR_DSN装配clientReporting
 本包首次冻结的 12 张截图来自同轮 live7，均为 1440×900，截图前逐项验证 1366×768 无横滚；原无头 Chrome 日期 Tab 进出/Esc 与有头/真机未验边界分开。真实浏览器源为 `9d6852f9`，后普通同步 `5e29e969` 只带入上游告警事实，未重跑并冒称新的整 main 浏览器结果；随后审批页说明保留 M4、M5 各补一段领域入口。截图清单和 SHA 随本包交接，旧失败轮次原产物保留。
 
 唯一正式审查实际 534.498 秒，原 0 P1 / 2 P2 / 0 D 报告保留。员工操作现固定打开时快照，背景刷新后旧草稿仍使用旧 CAS；新增真实 mounted GET/旧版本 PATCH/409/重开核对回归与原 31 项同轮 32/32 通过。headless 可使用限定 visibility 依赖探针，成功 reporter 未持久化具体模式附件，不称物理切窗验证。Modal 截图等待真实稳定绘制，移交、会话和两激活完整弹窗及仅敏感值遮挡已窄验收；新的同轮 12 图和旧坏图均保留。closure 浏览器源后普通同步 `aff1ab61` 仅两份上游文档，测试叶与保护 SHA 不变；完整证据、资源清理和未验证项见状态及独立 closure 交接，不重复正式审查。
+
+## W2-16 协议管理
+
+`/ops/agreements` 为六协议、版本编辑/安排/撤回和脱敏同意证据的唯一主从页，实际消费 W2-12 八接口。legal_doc 上传入库后才提交双文件引用，法务确认默认关闭；当前 phase/actions、公告不足与撤回原因均取服务器返回。新 draft ID/null 与同键失败恢复、签名 PDF 每次现签、权限与旧响应丢弃见 [私有说明](src/features/ops/agreements/README.md)。样例与真实服务分别由 `agreements-m2.spec.ts`、`live-agreements-m2.spec.ts` 验证；虚构正文不代表 E8 法律审核或真实云验证已完成。实际通过范围记 W2-16 状态。
