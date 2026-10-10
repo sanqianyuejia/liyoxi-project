@@ -223,7 +223,8 @@ export function AgreementEditor({
     setError(undefined);
     setBusy(true);
     try {
-      const body = editorBody(fields, Boolean(version));
+      const existing = sessionRef.current?.current()?.version ?? version;
+      const body = editorBody(fields, Boolean(existing));
       const result = await workspace.write(schedule ? "安排中" : "保存中", async () => {
         const session = (sessionRef.current ??= createDraftSession(api, agreementKey, version));
         const saved = await session.save(body);
