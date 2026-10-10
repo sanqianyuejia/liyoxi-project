@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/Skeleton";
 import { List, ListRow } from "@/components/List";
 import { useMessageBadge } from "@/stores/messages";
 import { track } from "@/lib/runtime";
+import { uuid } from "@/lib/platform";
 import { catalogScope, useCatalogStore, type Home } from "@/stores/catalog";
 import { useContextStore } from "@/stores/context";
 import { useSessionStore } from "@/stores/session";
@@ -21,8 +22,152 @@ import { WEAPP_PAGES } from "@/pages";
 import { catalogApi } from "../mall/api";
 import { useCatalogResource, useCatalogBadge } from "../mall/resource";
 import { DramaCards, openDrama } from "../mall/cards";
+import { createBannerImageRetry } from "./banner-image-retry";
+import { createBannerImageRequester } from "./banner-image-request";
 import "../mall/catalog.scss";
 import "./index.scss";
+function bannerImageOrigin(source: string) {
+  return source.match(/^https?:\/\/[^/]+/)?.[0] ?? "local";
+}
+function bannerImageHash(source: string) {
+  let hash = 2166136261;
+  for (let i = 0; i < source.length; i++) hash = Math.imul(hash ^ source.charCodeAt(i), 16777619);
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+function bannerImageIdentity(source: string) {
+  return {
+    origin: bannerImageOrigin(source),
+    resourceHash: bannerImageHash(source.split("?")[0] ?? source),
+    urlHash: bannerImageHash(source),
+    sourceLength: source.length,
+  };
+}
+function bannerImageError(message: string) {
+  return message.replace(/https?:\/\/[^\s"'<>]+/g, "[图片地址]").slice(0, 240);
+}
+function HomeBannerImage({ remoteSource }: { remoteSource: string }) {
+  const [source, setSource] = useState(remoteSource);
+  const [requester] = useState(() =>
+    createBannerImageRequester({
+      request(url) {
+        const startedAt = Date.now();
+        let receivedHeaders = false;
+        const task = Taro.request<ArrayBuffer>({
+          url,
+          method: "GET",
+          dataType: "text",
+          responseType: "arraybuffer",
+          timeout: 15_000,
+        });
+        task.onHeadersReceived(() => {
+          receivedHeaders = true;
+        });
+        return {
+          promise: task.then(
+            (result) => ({
+              statusCode: result.statusCode,
+              data: result.data,
+              server: String(result.header["Server"] ?? result.header["server"] ?? "unknown"),
+              contentType: String(
+                result.header["Content-Type"] ?? result.header["content-type"] ?? "unknown",
+              ),
+            }),
+            (error: unknown) => {
+              const message =
+                typeof error === "object" && error !== null && "errMsg" in error
+                  ? String(error.errMsg)
+                  : "request:fail";
+              throw new Error(
+                `${bannerImageError(message)}; receivedHeaders=${receivedHeaders}; elapsedMs=${Date.now() - startedAt}`,
+              );
+            },
+          ),
+          abort: () => task.abort(),
+        };
+      },
+      write(bytes, contentType) {
+        const directory = Taro.env.USER_DATA_PATH;
+        if (!directory) throw new Error("本地图片目录不可用");
+        const extension = /image\/jpe?g/i.test(contentType ?? "") ? "jpg" : "png";
+        const path = `${directory}/home-banner-${uuid()}.${extension}`;
+        const files = Taro.getFileSystemManager();
+        try {
+          files.writeFileSync(path, bytes);
+        } catch (error) {
+          try {
+            files.unlinkSync(path);
+          } catch {
+            // 写入失败可能没有创建文件；只清理本次分配的路径。
+          }
+          throw error;
+        }
+        return path;
+      },
+      remove(path) {
+        Taro.getFileSystemManager().unlinkSync(path);
+      },
+    }),
+  );
+  const [retry] = useState(() =>
+    createBannerImageRetry({
+      source: remoteSource,
+      download: requester.download,
+      onReady: setSource,
+      onResult(result) {
+        if (result.statusCode !== undefined)
+          console.info("[首页 Banner] 下载响应", {
+            ...bannerImageIdentity(remoteSource),
+            transport: "request",
+            statusCode: result.statusCode,
+            ...result.details,
+          });
+        if (result.error !== undefined)
+          console.error("[首页 Banner] 下载失败", {
+            ...bannerImageIdentity(remoteSource),
+            transport: "request",
+            error: bannerImageError(
+              typeof result.error === "object" && result.error !== null && "errMsg" in result.error
+                ? String(result.error.errMsg)
+                : result.error instanceof Error
+                  ? result.error.message
+                  : "下载未完成",
+            ),
+          });
+      },
+    }),
+  );
+  useEffect(() => {
+    requester.activate();
+    retry.activate();
+    return () => {
+      retry.dispose();
+      requester.dispose();
+    };
+  }, [retry, requester, remoteSource]);
+  return (
+    <Image
+      src={source}
+      mode="aspectFill"
+      className="home-page__banner-image"
+      onLoad={({ detail }) => {
+        console.info("[首页 Banner] 图片加载成功", {
+          ...bannerImageIdentity(remoteSource),
+          sourceKind: source === remoteSource ? "remote" : "downloaded",
+          width: detail.width,
+          height: detail.height,
+        });
+      }}
+      onError={({ detail }) => {
+        console.error("[首页 Banner] 图片加载失败", {
+          ...bannerImageIdentity(remoteSource),
+          sourceKind: source === remoteSource ? "remote" : "downloaded",
+          error: bannerImageError(detail.errMsg),
+        });
+        if (source === remoteSource) retry.retry();
+      }}
+    />
+  );
+}
 function bannerClick(banner: Home["banners"][number], role: Home["viewerRole"]) {
   track("banner_click", { homeBannerId: banner.homeBannerId });
   if (banner.jumpKind === "drama") return openDrama(banner.jumpTarget.dramaId);
@@ -73,6 +218,32 @@ function HomeContent() {
     if (!home || !guard()()) return;
     useCatalogStore.getState().setBadge(home.viewerRole === "owner" ? home.cartCount : 0);
   }, [home, guard]);
+  useEffect(() => {
+    if (!home) return;
+    console.info("[首页 Banner] 图片来源", {
+      build: "banner-request-20261010",
+      images: home.banners.map((banner) => ({
+        ...bannerImageIdentity(banner.imageUrl.url),
+        expiresAt: banner.imageUrl.expiresAt,
+      })),
+    });
+  }, [home]);
+  useEffect(() => {
+    let current = true;
+    void Taro.getNetworkType().then(
+      (network) => {
+        if (current)
+          console.info("[首页 Banner] 微信网络", {
+            networkType: network.networkType,
+            hasSystemProxy: network.hasSystemProxy ?? "unknown",
+          });
+      },
+      () => undefined,
+    );
+    return () => {
+      current = false;
+    };
+  }, []);
   const overview = home?.viewerRole === "owner" ? home.launchOverview : null;
   return (
     <View className="catalog-page home-page" id={home ? "catalog-ready" : undefined}>
@@ -127,10 +298,9 @@ function HomeContent() {
                       className="home-page__banner"
                       onClick={() => bannerClick(banner, home.viewerRole)}
                     >
-                      <Image
-                        src={banner.imageUrl.url}
-                        mode="aspectFill"
-                        className="home-page__banner-image"
+                      <HomeBannerImage
+                        key={banner.imageUrl.url}
+                        remoteSource={banner.imageUrl.url}
                       />
                       <View className="home-page__banner-title">{banner.title}</View>
                     </View>

@@ -71,6 +71,7 @@ export function BannerEditor({
   const [errors, setErrors] = useState<Record<string, string>>({}),
     [message, setMessage] = useState<string>();
   const [busy, setBusy] = useState(false),
+    [uploadingApi, setUploadingApi] = useState<SiteApi>(),
     [conflict, setConflict] = useState(false),
     [query, setQuery] = useState("");
   const [pageParams, setPageParams] = useState(() =>
@@ -80,6 +81,7 @@ export function BannerEditor({
   const mounted = useRef(true),
     posting = useRef(false);
   const uploadSlot = useRef<BannerUploadScope | undefined>(undefined);
+  const pendingUpload = useRef<{ slot: BannerUploadScope } | undefined>(undefined);
   useEffect(() => {
     mounted.current = true;
     const adapter = createProductionUpload(api, { category: "banner" }),
@@ -90,10 +92,11 @@ export function BannerEditor({
       controller.abort();
       adapter.dispose();
       if (uploadSlot.current?.adapter === adapter) uploadSlot.current = undefined;
+      if (pendingUpload.current?.slot.adapter === adapter) pendingUpload.current = undefined;
     };
   }, [api]);
   const upload = useMemo<UploadFn>(
-    () => (file, hooks) => {
+    () => async (file, hooks) => {
       const slot = uploadSlot.current;
       if (
         !mounted.current ||
@@ -103,7 +106,17 @@ export function BannerEditor({
         slot.controller.signal.aborted
       )
         throw new DOMException("上传已取消", "AbortError");
-      return slot.adapter.upload(file, hooks);
+      const pending = { slot };
+      pendingUpload.current = pending;
+      setUploadingApi(api);
+      try {
+        return await slot.adapter.upload(file, hooks);
+      } finally {
+        if (pendingUpload.current === pending) {
+          pendingUpload.current = undefined;
+          if (mounted.current) setUploadingApi(undefined);
+        }
+      }
     },
     [api],
   );
@@ -131,10 +144,15 @@ export function BannerEditor({
       !writable.current ||
       !slot ||
       slot.controller.signal.aborted ||
+      pendingUpload.current ||
       posting.current ||
       conflict
     )
       return;
+    if (!draft.imageFileId) {
+      setErrors({ imageFileId: "请先上传 Banner 图片" });
+      return;
+    }
     let input = draft;
     if (draft.jumpKind === "page") {
       try {
@@ -390,7 +408,7 @@ export function BannerEditor({
           size="large"
           type="primary"
           loading={busy}
-          disabled={conflict || !editable}
+          disabled={conflict || !editable || uploadingApi === api}
           onClick={() => void submit()}
         >
           {banner ? "保存 Banner" : "新增 Banner"}
