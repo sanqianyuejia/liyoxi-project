@@ -348,11 +348,30 @@ test("W312 五页内容主流程：真实原片批次、许可版权源文件、
     await page.getByRole("button", { name: "上传 / 替换原片", exact: true }).click();
     const reopened = page.getByRole("dialog", { name: "上传 / 替换原片", exact: true });
     await reopened.getByRole("combobox", { name: "恢复已有原片批次", exact: true }).click();
-    await page
-      .locator(".ant-select-dropdown:visible")
-      .getByRole("option")
-      .filter({ hasText: "·" })
-      .click();
+    const dropdown = page.locator(".ant-select-dropdown:visible");
+    const batchOption = dropdown.getByRole("option").filter({ hasText: created.uploadBatchId });
+    await expect(batchOption).toHaveText(created.uploadBatchId);
+    const accessibleName = await batchOption.getAttribute("aria-label");
+    expect(accessibleName).toBeTruthy();
+    await expect(dropdown.getByRole("option", { name: accessibleName!, exact: true })).toHaveText(
+      created.uploadBatchId,
+    );
+    const visibleOption = dropdown.getByTitle(accessibleName!, { exact: true });
+    await expect(visibleOption).toHaveCount(1);
+    await expect(visibleOption).toBeVisible();
+    const recoveredWait = writeResponse(
+      page,
+      "GET",
+      `/api/v1/admin/upload-batches/${created.uploadBatchId}`,
+    );
+    await visibleOption.click();
+    const recoveredResponse = await recoveredWait;
+    expect(recoveredResponse.status()).toBe(200);
+    const recovered = UploadBatchDetailSchema.parse((await recoveredResponse.json()).data);
+    expect(recovered.uploadBatchId).toBe(created.uploadBatchId);
+    expect(recovered.expectedCount).toBe(2);
+    expect(recovered.counts.uploaded).toBe(2);
+    expect(recovered.items.map((item) => item.episodeNo).sort()).toEqual([1, 2]);
     await expect(reopened.getByRole("button", { name: "提交原片批次", exact: true })).toBeVisible({
       timeout: 120_000,
     });
