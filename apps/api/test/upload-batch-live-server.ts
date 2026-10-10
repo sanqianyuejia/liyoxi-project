@@ -4,7 +4,12 @@ import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { serve } from "@hono/node-server";
 import { createRuntime, loadEnv, runStartupChecks } from "@liyoxi/services";
-import { AdminFileViewSchema, FileRegistrationSchema, StaffMeSchema } from "@liyoxi/contract";
+import {
+  AdminFileCreateBodySchema,
+  AdminFileViewSchema,
+  FileRegistrationSchema,
+  StaffMeSchema,
+} from "@liyoxi/contract";
 import type { Env, RuntimeOptions } from "@liyoxi/services";
 import {
   createProviderHarness,
@@ -13,10 +18,14 @@ import {
   findOutputBatchLiveJobIds,
   consumeOutputBatchLiveChecked,
   prepareOutputBatchLiveMasters,
+  parseOutputBatchLiveManifest,
+  assertContentAdminLiveScope,
+  assertContentAdminLiveTargets,
+  findContentAdminLiveJobIds,
   findAgreementLiveUploadJobIds,
   finishW120LiveFixture,
 } from "@liyoxi/services/testing";
-import type { OutputBatchLiveInput } from "@liyoxi/services/testing";
+import type { ContentAdminLiveScope, OutputBatchLiveInput } from "@liyoxi/services/testing";
 import { createApp } from "../src/app.js";
 import type { Api } from "../src/app.js";
 import { HANDLERS } from "../src/routes/index.js";
@@ -39,10 +48,12 @@ function assertScope(env: Env, prefix: string) {
   return runId;
 }
 
+export { parseOutputBatchLiveManifest } from "@liyoxi/services/testing";
 export async function startOutputBatchLiveServer(options: {
   env: Env;
   prefix: string;
   inputs: OutputBatchLiveInput;
+  w312?: ContentAdminLiveScope;
   image: string;
   version?: string;
   documentWorkerUrl?: URL;
@@ -50,6 +61,11 @@ export async function startOutputBatchLiveServer(options: {
 }) {
   const runId = assertScope(options.env, options.prefix);
   const inputs = OutputBatchLiveInputSchema.parse(options.inputs);
+  const w312 =
+    options.w312 === undefined
+      ? undefined
+      : assertContentAdminLiveScope({ env: options.env }, options.w312);
+  const contentFiles = new Set<string>();
   if (inputs.current.runId !== runId || inputs.legacy.runId !== runId)
     throw new Error("W302 input scope differs from the exact database");
   const { MEDIA_PRODUCTION: ignoredProduction, ...legacyEnv } = options.env;
@@ -102,6 +118,7 @@ export async function startOutputBatchLiveServer(options: {
       const pumpResults = await Promise.allSettled([pending]);
       const agreementResults = await Promise.allSettled([...agreementPending]);
       agreementFiles.clear();
+      contentFiles.clear();
       const servers = [apiServer, cosServer].filter((server) => server !== undefined);
       const serverResults = await Promise.allSettled(
         servers.map(async (server) => {
@@ -193,6 +210,7 @@ export async function startOutputBatchLiveServer(options: {
     });
     const batch = createRuntime({ ...borrowed, env: batchEnv, mediaProductionTools: tools });
     runtimes.push(batch);
+    if (w312) await assertContentAdminLiveTargets(batch, w312);
     masters = await prepareOutputBatchLiveMasters(batch, inputs);
     options.signal?.throwIfAborted();
     const w120 = inputs.w120
@@ -281,8 +299,37 @@ export async function startOutputBatchLiveServer(options: {
         {
           hostname: "127.0.0.1",
           port: 0,
-          fetch: (request, env) => {
-            return agreementFetch(request, env);
+          fetch: async (request, env) => {
+            const path = new URL(request.url).pathname;
+            let contentRegistration = false;
+            if (w312 && request.method === "POST" && path === "/api/v1/admin/files") {
+              const body = AdminFileCreateBodySchema.safeParse(
+                await request
+                  .clone()
+                  .json()
+                  .catch(() => undefined),
+              );
+              contentRegistration =
+                body.success &&
+                ["poster", "banner", "trailer_src", "drama_license_doc"].includes(
+                  body.data.category,
+                );
+              if (contentRegistration && contentFiles.size >= 100)
+                throw new Error("W312 observed file registrations exceeded the exact bound");
+            }
+            const response = await agreementFetch(request, env);
+            if (contentRegistration && response.ok && !closing) {
+              const value: unknown = await response.clone().json();
+              const parsed = FileRegistrationSchema.safeParse(
+                typeof value === "object" && value !== null && "data" in value
+                  ? value.data
+                  : undefined,
+              );
+              if (!parsed.success)
+                throw new Error("W312 registration response is not a real file registration");
+              contentFiles.add(parsed.data.fileId);
+            }
+            return response;
           },
         },
         ({ port }) => resolve(`http://127.0.0.1:${port}`),
@@ -300,8 +347,12 @@ export async function startOutputBatchLiveServer(options: {
     // Original 15s cadence; exact owned IDs, never the all-database scanPromote.
     interval = setInterval(() => {
       if (pending) return;
-      pending = findOutputBatchLiveJobIds(batch, inputs)
-        .then(async (ids) => {
+      pending = Promise.all([
+        findOutputBatchLiveJobIds(batch, inputs),
+        w312 ? findContentAdminLiveJobIds(batch, w312, [...contentFiles]) : Promise.resolve([]),
+      ])
+        .then(async (groups) => {
+          const ids = [...new Set(groups.flat())];
           for (let at = 0; at < ids.length; at += 2)
             await Promise.all(ids.slice(at, at + 2).map((jobId) => batch.media.promote({ jobId })));
           await consumeOutputBatchLiveChecked(batch, inputs);
@@ -355,7 +406,7 @@ async function main() {
     runId = assertScope(env, values["test-redis-prefix"]);
   if (!path.includes(`/admin-live-${runId}/`) || !path.endsWith("/media-input.json"))
     throw new Error("Input manifest must be the exact owned temporary file");
-  const inputs = OutputBatchLiveInputSchema.parse(JSON.parse(await readFile(path, "utf8")));
+  const manifest = parseOutputBatchLiveManifest(JSON.parse(await readFile(path, "utf8")));
   const controller = new AbortController();
   let server: Awaited<ReturnType<typeof startOutputBatchLiveServer>> | undefined;
   const cancel = () => {
@@ -371,7 +422,8 @@ async function main() {
     server = await startOutputBatchLiveServer({
       env,
       prefix: values["test-redis-prefix"],
-      inputs,
+      inputs: manifest.inputs,
+      w312: manifest.w312,
       image: values["mediatool-image"],
       version: process.env.LYX_BUILD ?? "w302-private-live",
       signal: controller.signal,

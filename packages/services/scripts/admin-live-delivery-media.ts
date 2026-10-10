@@ -3,7 +3,7 @@ import { readFile, realpath } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { createHash } from "node:crypto";
-import { OutputBatchLiveInputSchema } from "../src/testing/admin-live/w302.fixture.js";
+import { parseOutputBatchLiveManifest } from "../src/testing/index.js";
 import { parseArgs } from "node:util";
 import { z } from "zod";
 import { createRuntime } from "../src/runtime.js";
@@ -75,7 +75,7 @@ async function main() {
     }),
   });
   try {
-    const manifest = OutputBatchLiveInputSchema.parse(
+    const { inputs: manifest } = parseOutputBatchLiveManifest(
       JSON.parse(
         await readFile(resolve(root, `admin-live-${scope.runId}`, "media-input.json"), "utf8"),
       ),

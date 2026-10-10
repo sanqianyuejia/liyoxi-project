@@ -34,13 +34,25 @@ export const itemStateLabel = (state: string): string =>
     skipped: "已跳过",
     replaced: "已替换",
   })[state] ?? "未知状态";
-export function selectionProblem(files: readonly File[]): string | null {
-  if (!files.length) return "请选择成片文件";
+export function selectionProblem(
+  files: readonly File[],
+  purpose: "final_release" | "drama_master" = "final_release",
+): string | null {
+  if (!files.length) return purpose === "drama_master" ? "请选择原片文件" : "请选择成片文件";
   if (new Set(files.map((file) => file.name)).size !== files.length)
     return "文件名重复，请重新选择";
   const rule = {
     accept: [".mp4", ".mov"],
-    maxSizeMb: Number(maxUploadBytes("final_episode", "mp4", "admin")) / 1024 / 1024,
+    maxSizeMb:
+      Number(
+        maxUploadBytes(
+          purpose === "drama_master" ? "drama_master" : "final_episode",
+          "mp4",
+          "admin",
+        ),
+      ) /
+      1024 /
+      1024,
   };
   for (const file of files) {
     const problem = validateUploadFile(file, rule);
@@ -83,6 +95,7 @@ export function canConsume(batch: UploadBatchDetail): boolean {
 export function createBatchModel(options: {
   api: BatchApi;
   targetId: string;
+  purpose?: "final_release" | "drama_master";
   schedule?: (fn: () => void, ms: number) => ReturnType<typeof setTimeout>;
   unschedule?: (id: ReturnType<typeof setTimeout>) => void;
   maxPolls?: number;
@@ -107,7 +120,10 @@ export function createBatchModel(options: {
     timer = undefined;
   };
   const accept = (batch: UploadBatchDetail) => {
-    if (batch.purpose !== "final_release" || batch.targetId !== options.targetId)
+    if (
+      batch.purpose !== (options.purpose ?? "final_release") ||
+      batch.targetId !== options.targetId
+    )
       throw new Error("批次不属于当前工单，请重新进入");
     publish({ batch, error: undefined, pollingPaused: false });
     stopTimer();

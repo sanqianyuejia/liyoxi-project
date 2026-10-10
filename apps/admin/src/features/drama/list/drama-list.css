@@ -1,0 +1,47 @@
+.drama-list-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 160px;
+}
+.drama-list-title img,
+.drama-list-poster {
+  width: 36px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: var(--lyx-radius-sm);
+  background: var(--lyx-color-bg-subtle);
+}
+.drama-list-poster {
+  display: grid;
+  place-items: center;
+  color: var(--lyx-color-text-tertiary);
+}
+.content-checks {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+  display: grid;
+  gap: 10px;
+}
+.content-checks li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-bottom: 1px solid var(--lyx-color-border);
+  padding-bottom: 8px;
+}
+.content-checks li span {
+  color: var(--lyx-color-text-secondary);
+  font-size: 12px;
+}
+.content-checks li[data-ok="false"] strong {
+  color: var(--lyx-color-danger);
+}
+.content-form {
+  display: grid;
+  gap: 16px;
+}
+.content-form .ant-select {
+  width: 100%;
+}

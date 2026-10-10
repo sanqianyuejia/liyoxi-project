@@ -96,7 +96,7 @@ function Coverage({ batch }: { batch: UploadBatchDetail }) {
     </>
   );
 }
-function ItemRow({
+export function ItemRow({
   item,
   batch,
   progress,

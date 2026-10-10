@@ -110,6 +110,15 @@ export { createDocsAdminFixture } from "./docs-admin.js";
 export { findAgreementLiveUploadJobIds } from "./admin-live/agreements-m2-upload.js";
 export { seedBillingDeletionFacts } from "./billing-deletion.js";
 
+// W3-12: exact owned content scope for the existing private live server.
+export {
+  ContentAdminLiveScopeSchema,
+  parseOutputBatchLiveManifest,
+  assertContentAdminLiveScope,
+  assertContentAdminLiveTargets,
+  findContentAdminLiveJobIds,
+} from "./admin-live/w312.fixture.js";
+export type { ContentAdminLiveScope } from "./admin-live/w312.fixture.js";
 export { finishW120LiveFixture } from "./admin-live/w120.fixture.js";
 
 export { createMediaProductionHarness } from "./media-production-harness.js";

@@ -1,0 +1,112 @@
+.lyx-site-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lyx-space-20);
+  min-width: 0;
+}
+.lyx-site-section {
+  padding: var(--lyx-space-20);
+}
+.lyx-site-section h2,
+.lyx-site-section-heading h2 {
+  font-size: 15px;
+  margin: 0;
+}
+.lyx-site-section h3 {
+  margin: 0 0 var(--lyx-space-14);
+  font-size: 14px;
+}
+.lyx-site-stack h3 {
+  margin: 0 0 var(--lyx-space-14);
+  font-size: 14px;
+}
+.lyx-site-section p,
+.lyx-site-section-heading p {
+  color: var(--lyx-color-text-secondary);
+  margin: var(--lyx-space-6) 0;
+}
+.lyx-site-section-heading,
+.lyx-site-actions {
+  display: flex;
+  gap: var(--lyx-space-10);
+  align-items: center;
+  flex-wrap: wrap;
+}
+.lyx-site-section-heading {
+  justify-content: space-between;
+}
+.lyx-site-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--lyx-space-16);
+}
+.lyx-site-form-grid .ant-select,
+.lyx-site-stack .ant-select {
+  min-width: 160px;
+  max-width: 100%;
+}
+.lyx-site-table-scroll {
+  overflow-x: auto;
+}
+.lyx-site-table-scroll .lyx-table {
+  width: 100%;
+}
+.lyx-site-table-scroll th,
+.lyx-site-table-scroll td {
+  text-align: left;
+  padding: var(--lyx-space-10);
+  vertical-align: middle;
+}
+.lyx-site-thumb {
+  width: 96px;
+  height: 54px;
+  object-fit: cover;
+  border-radius: var(--lyx-radius-md);
+  background: var(--lyx-color-bg-subtle);
+}
+.lyx-site-drag {
+  cursor: grab;
+}
+.lyx-site-help {
+  font-size: 12px;
+  color: var(--lyx-color-text-secondary);
+}
+.lyx-site-errors {
+  color: var(--lyx-color-danger);
+  padding-inline-start: var(--lyx-space-20);
+}
+.lyx-site-chip {
+  border: 1px solid var(--lyx-color-border);
+  border-radius: var(--lyx-radius-md);
+  padding: var(--lyx-space-6) var(--lyx-space-10);
+}
+.lyx-site-invalid {
+  color: var(--lyx-color-danger);
+}
+.lyx-site-bands {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr 1fr 1fr auto;
+  gap: var(--lyx-space-6);
+  margin-bottom: var(--lyx-space-6);
+}
+.lyx-site-preview {
+  min-height: 360px;
+  padding: var(--lyx-space-20);
+  border: 1px solid var(--lyx-color-border);
+  border-radius: var(--lyx-radius-md);
+}
+.lyx-site-preview img {
+  width: 100%;
+  border-radius: var(--lyx-radius-md);
+}
+.lyx-site-preview ul {
+  padding-inline-start: var(--lyx-space-20);
+}
+@media (max-width: 1280px) {
+  .lyx-site-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lyx-site-actions {
+    row-gap: var(--lyx-space-6);
+  }
+}

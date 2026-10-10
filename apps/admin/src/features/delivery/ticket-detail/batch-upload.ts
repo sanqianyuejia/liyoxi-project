@@ -20,6 +20,7 @@ export type BatchFileProgress = { percent: number; busy: boolean; error?: string
 /** Batch credentials stay in this modal's memory; no credential survives navigation. */
 export function createBatchUploader(options: {
   api: BatchApi;
+  purpose?: "final_release" | "drama_master";
   current: () => UploadBatchDetail | undefined;
   fileStatus: (id: string, signal?: AbortSignal) => Promise<{ fileId: string; status: string }>;
   onProgress: (id: string, progress: BatchFileProgress) => void;
@@ -43,7 +44,8 @@ export function createBatchUploader(options: {
   const current = () => {
     check();
     const batch = options.current();
-    if (!batch || batch.purpose !== "final_release") throw new Error("当前批次不可上传");
+    if (!batch || batch.purpose !== (options.purpose ?? "final_release"))
+      throw new Error("当前批次不可上传");
     return batch;
   };
   async function grant(item: UploadBatchItemView): Promise<MultipartUploadGrant> {
@@ -240,6 +242,7 @@ type BatchView = {
 export function createBatchSession(options: {
   api: BatchApi;
   targetId: string;
+  purpose?: "final_release" | "drama_master";
   fileStatus: (id: string, signal?: AbortSignal) => Promise<{ fileId: string; status: string }>;
 }) {
   const empty = (): BatchView => ({
@@ -258,9 +261,14 @@ export function createBatchSession(options: {
     subscribe(listener: () => void) {
       listeners.add(listener);
       if (!view.runtime) {
-        const model = createBatchModel({ api: options.api, targetId: options.targetId });
+        const model = createBatchModel({
+          api: options.api,
+          targetId: options.targetId,
+          purpose: options.purpose,
+        });
         const uploader = createBatchUploader({
           api: options.api,
+          purpose: options.purpose,
           current: () => model.getSnapshot().batch,
           fileStatus: options.fileStatus,
           onProgress(id, progress) {

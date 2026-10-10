@@ -1,0 +1,32 @@
+.lyx-mall-categories {
+  width: 100%;
+  border-collapse: collapse;
+}
+.lyx-mall-categories th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lyx-color-text-secondary);
+  background: var(--lyx-color-bg-subtle);
+}
+.lyx-mall-categories th,
+.lyx-mall-categories td {
+  padding: var(--lyx-space-10);
+  text-align: left;
+  border-bottom: 1px solid var(--lyx-color-divider);
+}
+.lyx-mall-categories td:nth-child(2) {
+  width: 160px;
+}
+.lyx-mall-categories td:nth-child(3) {
+  min-width: 210px;
+}
+.lyx-mall-categories .ant-select {
+  width: 100%;
+}
+.lyx-site-actions > .ant-input {
+  max-width: 200px;
+}
+.lyx-site-bands .ant-input-number {
+  width: 100%;
+  min-width: 0;
+}

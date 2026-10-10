@@ -97,6 +97,7 @@ const fixture: AdminLiveFixture = async ({ runtime, make }) => {
       password,
       recoveryCode: signed.recoveryCodes[0],
       w206RecoveryCode: signed.recoveryCodes[1],
+      w312RecoveryCode: signed.recoveryCodes[2],
     },
     year: 2026,
     checklistCode: "patrol.check",
