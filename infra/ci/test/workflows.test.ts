@@ -104,18 +104,19 @@ const CREDENTIAL_JOBS: Record<string, { id: string; condition: string; keys: str
       id: "publish-images",
       condition:
         "vars.STG_IMAGES_PUBLISH_ENABLED == 'true' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')",
-      keys: [
-        "STG_REGISTRY_USERNAME",
-        "STG_REGISTRY_PASSWORD",
-        "STG_COS_SECRET_ID",
-        "STG_COS_SECRET_KEY",
-      ],
+      keys: ["STG_REGISTRY_USERNAME", "STG_REGISTRY_PASSWORD", "GITHUB_TOKEN"],
+    },
+    {
+      id: "publish-artifacts",
+      condition:
+        "vars.STG_IMAGES_PUBLISH_ENABLED == 'true' && vars.STG_ARTIFACT_UPLOAD_ENABLED == 'true' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')",
+      keys: ["STG_COS_SECRET_ID", "STG_COS_SECRET_KEY"],
     },
     {
       id: "mirror-base",
       condition:
         "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && vars.STG_IMAGES_PUBLISH_ENABLED == 'true' && inputs.mirror_base == true",
-      keys: ["STG_REGISTRY_USERNAME", "STG_REGISTRY_PASSWORD"],
+      keys: ["STG_REGISTRY_USERNAME", "STG_REGISTRY_PASSWORD", "GITHUB_TOKEN"],
     },
   ],
   "deploy-stg.yml": [
