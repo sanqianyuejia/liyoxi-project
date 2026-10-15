@@ -256,8 +256,9 @@ jobs:
       - name: 枚举与库 CHECK 一致
         run: pnpm enums:check
       # 本地存储驱动的用例要连 MinIO（W0-19）。镜像、端口、账号都取 infra/compose/local.yml，只起 minio 一个服务
+      # 迁移期先按固定摘要拉取，再供旧 Compose 名称使用；never 避免 latest 回查旧源。
       - name: 起 MinIO
-        run: docker compose -f infra/compose/local.yml up -d --wait minio
+        run: docker pull ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z@sha256:37a173a1c3042bdbbd9904bd3ab7c4c7b17f607b268220a607a685c14d94d1cb && docker tag ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z@sha256:37a173a1c3042bdbbd9904bd3ab7c4c7b17f607b268220a607a685c14d94d1cb ghcr.io/byfire-dev/minio:latest && docker compose -f infra/compose/local.yml up -d --wait --pull never minio
       # 带 LYX_TEST_MINIO=required：MinIO 连不上即失败。后面“测试”一步里它连不上只会跳过
       - name: MinIO 驱动的用例
         env:
@@ -382,7 +383,7 @@ jobs:
         run: psql -X -w -d postgres -c "CREATE DATABASE lyx_migrate_check" && pnpm db:deploy
       # 与 test 任务一样起着 MinIO：本地存储驱动的用例照跑，不因为连不上而跳过
       - name: 起 MinIO（测试第二片用）
-        run: docker compose -f infra/compose/local.yml up -d --wait minio
+        run: docker pull ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z@sha256:37a173a1c3042bdbbd9904bd3ab7c4c7b17f607b268220a607a685c14d94d1cb && docker tag ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z@sha256:37a173a1c3042bdbbd9904bd3ab7c4c7b17f607b268220a607a685c14d94d1cb ghcr.io/byfire-dev/minio:latest && docker compose -f infra/compose/local.yml up -d --wait --pull never minio
       - name: 测试（第二片）
         run: pnpm test --project '!infra' --shard=2/3
 
@@ -440,7 +441,7 @@ jobs:
         run: psql -X -w -d postgres -c "CREATE DATABASE lyx_migrate_check" && pnpm db:deploy
       # 与 test 任务一样起着 MinIO：本地存储驱动的用例照跑，不因为连不上而跳过
       - name: 起 MinIO（测试第三片用）
-        run: docker compose -f infra/compose/local.yml up -d --wait minio
+        run: docker pull ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z@sha256:37a173a1c3042bdbbd9904bd3ab7c4c7b17f607b268220a607a685c14d94d1cb && docker tag ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z@sha256:37a173a1c3042bdbbd9904bd3ab7c4c7b17f607b268220a607a685c14d94d1cb ghcr.io/byfire-dev/minio:latest && docker compose -f infra/compose/local.yml up -d --wait --pull never minio
       - name: 测试（第三片）
         run: pnpm test --project '!infra' --shard=3/3
 
@@ -559,7 +560,7 @@ jobs:
         run: psql -X -w -d postgres -c "CREATE DATABASE lyx_migrate_check" && pnpm db:deploy
       # 与 test 任务一样起着 MinIO：两个会话里本地存储驱动的用例照跑，不因为连不上而跳过
       - name: 起 MinIO（测试隔离用）
-        run: docker compose -f infra/compose/local.yml up -d --wait minio
+        run: docker pull ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z@sha256:37a173a1c3042bdbbd9904bd3ab7c4c7b17f607b268220a607a685c14d94d1cb && docker tag ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z@sha256:37a173a1c3042bdbbd9904bd3ab7c4c7b17f607b268220a607a685c14d94d1cb ghcr.io/byfire-dev/minio:latest && docker compose -f infra/compose/local.yml up -d --wait --pull never minio
       - name: test:isolation
         run: node infra/ci/isolation-shard.mjs --shard 1/4
 
@@ -617,7 +618,7 @@ jobs:
         run: psql -X -w -d postgres -c "CREATE DATABASE lyx_migrate_check" && pnpm db:deploy
       # 与 test 任务一样起着 MinIO：两个会话里本地存储驱动的用例照跑，不因为连不上而跳过
       - name: 起 MinIO（测试隔离第二片用）
-        run: docker compose -f infra/compose/local.yml up -d --wait minio
+        run: docker pull ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z@sha256:37a173a1c3042bdbbd9904bd3ab7c4c7b17f607b268220a607a685c14d94d1cb && docker tag ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z@sha256:37a173a1c3042bdbbd9904bd3ab7c4c7b17f607b268220a607a685c14d94d1cb ghcr.io/byfire-dev/minio:latest && docker compose -f infra/compose/local.yml up -d --wait --pull never minio
       - name: test:isolation（第二片）
         run: node infra/ci/isolation-shard.mjs --shard 2/4
 
@@ -675,7 +676,7 @@ jobs:
         run: psql -X -w -d postgres -c "CREATE DATABASE lyx_migrate_check" && pnpm db:deploy
       # 与 test 任务一样起着 MinIO：两个会话里本地存储驱动的用例照跑，不因为连不上而跳过
       - name: 起 MinIO（测试隔离第三片用）
-        run: docker compose -f infra/compose/local.yml up -d --wait minio
+        run: docker pull ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z@sha256:37a173a1c3042bdbbd9904bd3ab7c4c7b17f607b268220a607a685c14d94d1cb && docker tag ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z@sha256:37a173a1c3042bdbbd9904bd3ab7c4c7b17f607b268220a607a685c14d94d1cb ghcr.io/byfire-dev/minio:latest && docker compose -f infra/compose/local.yml up -d --wait --pull never minio
       - name: test:isolation（第三片）
         run: node infra/ci/isolation-shard.mjs --shard 3/4
 
@@ -733,7 +734,7 @@ jobs:
         run: psql -X -w -d postgres -c "CREATE DATABASE lyx_migrate_check" && pnpm db:deploy
       # 与 test 任务一样起着 MinIO：两个会话里本地存储驱动的用例照跑，不因为连不上而跳过
       - name: 起 MinIO（测试隔离第四片用）
-        run: docker compose -f infra/compose/local.yml up -d --wait minio
+        run: docker pull ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z@sha256:37a173a1c3042bdbbd9904bd3ab7c4c7b17f607b268220a607a685c14d94d1cb && docker tag ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z@sha256:37a173a1c3042bdbbd9904bd3ab7c4c7b17f607b268220a607a685c14d94d1cb ghcr.io/byfire-dev/minio:latest && docker compose -f infra/compose/local.yml up -d --wait --pull never minio
       - name: test:isolation（第四片）
         run: node infra/ci/isolation-shard.mjs --shard 4/4
 
@@ -810,7 +811,7 @@ jobs:
       # 原图签发走实际 API 的本地存储驱动，首次调用会核对/建桶，因此与 PostgreSQL、Redis 一样需要就绪。
       - name: 后台真实接口验收的 MinIO
         if: steps.admin-e2e.outputs.run == 'true'
-        run: docker compose -f infra/compose/local.yml up -d --wait minio
+        run: docker pull ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z@sha256:37a173a1c3042bdbbd9904bd3ab7c4c7b17f607b268220a607a685c14d94d1cb && docker tag ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z@sha256:37a173a1c3042bdbbd9904bd3ab7c4c7b17f607b268220a607a685c14d94d1cb ghcr.io/byfire-dev/minio:latest && docker compose -f infra/compose/local.yml up -d --wait --pull never minio
       - name: 后台登录真实接口验收
         if: steps.admin-e2e.outputs.run == 'true'
         run: pnpm admin:e2e:live

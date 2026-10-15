@@ -13,6 +13,8 @@ const read = (path: string) => readFileSync(join(repoRoot, path), "utf8");
 const ci = read(".github/workflows/ci.yml");
 const nightly = read(".github/workflows/nightly.yml");
 const compose = read("infra/compose/local.yml");
+const MINIO_IMAGE =
+  "ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z@sha256:37a173a1c3042bdbbd9904bd3ab7c4c7b17f607b268220a607a685c14d94d1cb";
 
 interface Job {
   id: string;
@@ -488,7 +490,7 @@ describe("ci.yml", () => {
   // packages/db 的用例、枚举对账及其反例要连迁移库 lyx_migrate_check，W0-10 的 api-check、约束名核对
   // 及其用例与反例也读它：用到它的任务各建一份
   const MIGRATE = 'psql -X -w -d postgres -c "CREATE DATABASE lyx_migrate_check" && pnpm db:deploy';
-  const MINIO_UP = "docker compose -f infra/compose/local.yml up -d --wait minio";
+  const MINIO_UP = `docker pull ${MINIO_IMAGE} && docker tag ${MINIO_IMAGE} ghcr.io/byfire-dev/minio:latest && docker compose -f infra/compose/local.yml up -d --wait --pull never minio`;
   // 已挂载清单由 apps/api 的探活用例写出，待落地数读它：先删旧的，跑完看文件在不在
   const EXPORT_MOUNTED =
     "rm -f apps/api/dist/mounted-operations.json && pnpm exec vitest run apps/api/test/probes.test.ts && test -s apps/api/dist/mounted-operations.json";
@@ -841,10 +843,9 @@ describe("本地 Compose 与 CI 的服务容器", () => {
     for (const image of images.slice(0, 2)) expect(image).toMatch(/:(?!latest$)[\w.-]+$/);
     expect(images[0]).toMatch(/^postgres:17-/);
     expect(images[1]).toBe("redis:7.4-alpine");
-    // 业主授权迁入本项目并公开，固定已验证的版本与双架构索引摘要。
-    expect(images[2]).toBe(
-      "ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z@sha256:37a173a1c3042bdbbd9904bd3ab7c4c7b17f607b268220a607a685c14d94d1cb",
-    );
+    // 迁移期兼容旧远端 Compose 与本地新引用；CI 始终先拉上述固定新摘要。
+    // 旧名称仅由该镜像打本地标签，不能接受任意来源或其他 latest。
+    expect(["ghcr.io/byfire-dev/minio:latest", MINIO_IMAGE]).toContain(images[2]);
     expect(compose).not.toMatch(/^\s*TZ:/m);
   });
 
