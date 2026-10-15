@@ -305,12 +305,17 @@ jobs:
             packages/contract/dist/pending-routes.md
           if-no-files-found: error
           retention-days: 30
-      # 下面两步（W0-23）跑的是任务进程的构建产物。“构建”一步在 web 任务，产物过不来：这里只构建任务进程这一个包
+      # 下面步骤（W0-23）跑的是任务进程的构建产物。“构建”一步在 web 任务，产物过不来：这里只构建任务进程这一个包
       #（esbuild 把工作区的源码包连同生成的数据库客户端打进去，本任务开头已生成）
       - name: 构建任务进程（产物自检用）
         run: pnpm --filter @liyoxi/worker build
+      # 自检需要正式通知场景等种子；在迁移等价性检查之后补齐，不放宽启动校验。
+      - name: worker 自检数据库播种
+        env:
+          DATABASE_URL: postgresql://liyoxi:lyx-local-dev@localhost:5442/lyx_migrate_check
+        run: node apps/worker/dist/seed.js
       # 任务进程的产物能启动（W0-23）：--check 只做装配与自检——登记与契约对得上、契约登记的聚合类型都是库里存在的表，
-      # 不连 Redis、不抢租约。产物是前面“构建”一步出的；读的是“空库跑全部迁移”一步建的 lyx_migrate_check，只读
+      # 不连 Redis、不抢租约。产物是前面“构建”一步出的；只读已迁移并播种的自检库 lyx_migrate_check
       - name: worker 产物自检
         env:
           DATABASE_URL: postgresql://liyoxi:lyx-local-dev@localhost:5442/lyx_migrate_check
