@@ -154,8 +154,12 @@ describe("固定测试向量的精确密钥扫描放行", () => {
 
   it("同路径其他值、同一行其他密钥、额外路径与其他规则仍失败", () => {
     const value = vectors();
-    const fresh = () => randomBytes(32).toString("base64url");
-    const sameLine = `const key = ${JSON.stringify(value.key)}, apiKey = ${JSON.stringify(fresh())};\n`;
+    // 默认规则会过滤纯字母符号与 stopwords；反例须稳定满足真实规则的熵和字符要求。
+    // 运行时构造均匀十六进制向量，不把新的形似密钥字面量写入仓库。
+    const synthetic = Array.from({ length: 16 }, (_, digit) => (15 - digit).toString(16))
+      .join("")
+      .repeat(4);
+    const sameLine = `const key = ${JSON.stringify(value.key)}, apiKey = ${JSON.stringify(synthetic)};\n`;
     const privateKey = [
       ["-----", "BEGIN", " RSA PRIVATE ", "KEY-----"].join(""),
       randomBytes(360)
@@ -166,9 +170,9 @@ describe("固定测试向量的精确密钥扫描放行", () => {
     ].join("\n");
     const repository = history({
       [paths.env]: sameLine + privateKey,
-      [paths.provider]: `const key = ${JSON.stringify(fresh())};\n`,
+      [paths.provider]: `const key = ${JSON.stringify(synthetic)};\n`,
       [paths.send]: `const key = ${JSON.stringify(value.signature)};\n`,
-      [paths.admin]: `const password = ${JSON.stringify(fresh())};\n`,
+      [paths.admin]: `const password = ${JSON.stringify(synthetic)};\n`,
       [`${paths.env}.extra`]: `const key = ${JSON.stringify(value.key)};\n`,
       [paths.env.replace(".test.ts", ".ts")]: `const key = ${JSON.stringify(value.key)};\n`,
     });
