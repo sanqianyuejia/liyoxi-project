@@ -390,6 +390,21 @@ describe("三owner真实PG与Redis预算", () => {
       );
     }, SLOW);
     it("摘要Unicode实际16000码点贡献只计留存正文，所有丢弃后缀仍绑定hash", async () => {
+      const evaluate = h.evalCall.getMockImplementation()!;
+      h.evalCall.mockImplementation((script, keys, argv) => {
+        // 本例验已预留后的来源hash取消，不量 CI 墙钟耗时；真实Redis与原Lua预算逻辑，
+        // 仅统一TIME读取为注入时钟。组外真实TIME/250ms边界用例不变。
+        const now = h.clock.now().getTime();
+        expect(script).toContain("redis.call('TIME')");
+        return evaluate(
+          script.replaceAll(
+            "redis.call('TIME')",
+            `{ '${Math.floor(now / 1000)}', '${(now % 1000) * 1000}' }`,
+          ),
+          keys,
+          argv,
+        );
+      });
       // 每段2000 UTF16/1999码点，说明/前缀/换行仍占原布局；第九个文件完全被截掉。
       expect(structuredOutput(await h.digestStrategy().execute(facts.job, signal())).status).toBe(
         "ok",
@@ -407,6 +422,7 @@ describe("三owner真实PG与Redis预算", () => {
       h.budget.reserve.mockImplementationOnce(async (context, abort) => {
         const paid = await original(context, abort),
           last = next.sources[8]!;
+        expect(paid).toMatchObject({ status: "reserved", units: 3 });
         await h.tx.run(async (tx) => {
           await lockRows(tx, "store_asset", [next.assetId]);
           const content = { description: "文".repeat(1999) + "改", tags: [] };
