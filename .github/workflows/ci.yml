@@ -391,7 +391,8 @@ jobs:
   test-3:
     name: test-3
     runs-on: *runner
-    timeout-minutes: 10
+    # 云端全量增长已触发 10 分钟超时；只延长执行上限，测试范围与并发不变。
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:17-trixie
@@ -510,7 +511,8 @@ jobs:
   test-isolation:
     name: test-isolation
     runs-on: *runner
-    timeout-minutes: 10
+    # 云端全量增长已触发 10 分钟超时；只延长执行上限，测试范围与并发不变。
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:17-trixie
@@ -684,7 +686,8 @@ jobs:
   test-isolation-4:
     name: test-isolation-4
     runs-on: *runner
-    timeout-minutes: 10
+    # 云端全量增长已触发 10 分钟超时；只延长执行上限，测试范围与并发不变。
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:17-trixie
@@ -742,7 +745,8 @@ jobs:
   web:
     name: web
     runs-on: *runner
-    timeout-minutes: 10
+    # 云端全量增长已触发 10 分钟超时；只延长执行上限，测试范围与并发不变。
+    timeout-minutes: 20
     steps:
       - name: 检出（带完整历史：冒烟的受影响范围要与基线比）
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
