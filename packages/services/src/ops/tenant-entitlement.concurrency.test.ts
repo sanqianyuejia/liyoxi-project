@@ -59,6 +59,7 @@ async function scenario(run: (s: Scenario) => Promise<void>) {
 function pause(s: Scenario, afterGate?: (tx: Tx) => Promise<void>, failure?: Error) {
   let enter!: () => void,
     release!: () => void,
+    releaseFailure!: () => void,
     armed = true;
   const entered = new Promise<void>((resolve) => {
     enter = resolve;
@@ -66,9 +67,14 @@ function pause(s: Scenario, afterGate?: (tx: Tx) => Promise<void>, failure?: Err
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
+  const failureGate = new Promise<void>((resolve) => {
+    releaseFailure = resolve;
+  });
   const runner: TxRunner = {
-    run: (fn, options) =>
-      s.runners[0]!.run(async (tx) => {
+    run: async (fn, options) => {
+      // 回滚只释放锁，不承诺另一连接先提交；显式让失败记账等待竞争消费完成。
+      if (!armed && failure) await failureGate;
+      return s.runners[0]!.run(async (tx) => {
         const result = await fn(tx);
         if (armed) {
           armed = false;
@@ -78,9 +84,10 @@ function pause(s: Scenario, afterGate?: (tx: Tx) => Promise<void>, failure?: Err
           if (failure) throw failure;
         }
         return result;
-      }, options),
+      }, options);
+    },
   };
-  return { runner, entered, release };
+  return { runner, entered, release, releaseFailure };
 }
 async function blocked(observer: Awaited<ReturnType<typeof connectTestDatabase>>, s: Scenario) {
   const until = Date.now() + 2_000;
@@ -120,6 +127,7 @@ async function race(
       }),
     ]);
     second = Promise.allSettled([secondAction()]);
+    void second.then(hold.releaseFailure);
     await blocked(observer, s);
     const visible = await observer.query<{
       notifications: number;
@@ -136,6 +144,7 @@ async function race(
     return [(await first)[0]!, (await second)[0]!] as const;
   } finally {
     hold.release();
+    hold.releaseFailure();
     await first;
     await second;
     await observer.end();
@@ -199,7 +208,7 @@ describe("权益提醒：两个max1真实业务连接与readonly observer", { ti
             expect(fulfilled(results[0])).toBe("done");
             expect(fulfilled(results[1])).toBe("stale");
           } else {
-            // Side 1 already waits on the delivery lock when side 0 rolls back; its commit wins before failure bookkeeping.
+            // 已观察真实锁等待；另由 failureGate 保证 side 1 提交先于 side 0 的失败记账。
             expect(fulfilled(results[0])).toBe("stale");
             expect(fulfilled(results[1])).toBe("done");
           }

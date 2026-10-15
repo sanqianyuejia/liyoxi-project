@@ -1854,8 +1854,9 @@ describe("活跃发起人对象失效后的真实财务代撤", () => {
       }),
     ).toBe(0);
   });
-  it("二十轮财务代撤与批准竞争，唯一关闭结果且积分不动", async () => {
-    for (let round = 0; round < 20; round++) {
+  // 同库四批共二十轮，全部真实造数/竞争/断言不减；默认5秒逐批计，不把二十轮当一次操作。
+  it.each([1, 2, 3, 4])("二十轮财务代撤与批准竞争，唯一关闭结果且积分不动（第%d批）", async () => {
+    for (let round = 0; round < 5; round++) {
       const { f, r } = await invalidProxyFixture(),
         before = await holdNow(f);
       const outcomes = await Promise.allSettled([
@@ -2408,31 +2409,35 @@ describe("主体关闭的 pending ad_cancel 同事务所属伴随", () => {
       await peer.close();
     }
   });
-  it("二十轮关闭与本人撤回竞争最终收尾一致且无重复事件或账本", async () => {
-    for (let round = 0; round < 20; round++) {
-      const f = await fixture(),
-        r = await submit(f),
-        before = await snapshotTables(h.prisma, financialTables);
-      await historyRef(f, r);
-      const results = await withEntityCancels(f, (port) =>
-        Promise.allSettled([
-          h.tx.run((tx) => entityBatch(f, port, tx)),
-          f.service.withdraw(f.requester, r.id, {}),
-        ]),
-      );
-      expect(results.some((result) => result.status === "fulfilled")).toBe(true);
-      for (const result of results)
-        if (result.status === "rejected")
-          expect(["PRECONDITION_CHANGED", "APPROVAL_NOT_PENDING"]).toContain(result.reason.error);
-      await expectClosed(f, r, "withdrawn");
-      for (const [eventType, aggregateId] of [
-        ["approval.withdrawn", r.approvalRequestId],
-        ["cancel.withdrawn", r.id],
-      ])
-        expect(await h.prisma.outboxEvent.count({ where: { eventType, aggregateId } })).toBe(1);
-      assertSnapshotsEqual(before, await snapshotTables(h.prisma, financialTables));
-    }
-  });
+  // 仍是同一个文件级库/同一个h，四批合计二十轮，不新增克隆/迁移或清理历史证据。
+  it.each([1, 2, 3, 4])(
+    "二十轮关闭与本人撤回竞争最终收尾一致且无重复事件或账本（第%d批）",
+    async () => {
+      for (let round = 0; round < 5; round++) {
+        const f = await fixture(),
+          r = await submit(f),
+          before = await snapshotTables(h.prisma, financialTables);
+        await historyRef(f, r);
+        const results = await withEntityCancels(f, (port) =>
+          Promise.allSettled([
+            h.tx.run((tx) => entityBatch(f, port, tx)),
+            f.service.withdraw(f.requester, r.id, {}),
+          ]),
+        );
+        expect(results.some((result) => result.status === "fulfilled")).toBe(true);
+        for (const result of results)
+          if (result.status === "rejected")
+            expect(["PRECONDITION_CHANGED", "APPROVAL_NOT_PENDING"]).toContain(result.reason.error);
+        await expectClosed(f, r, "withdrawn");
+        for (const [eventType, aggregateId] of [
+          ["approval.withdrawn", r.approvalRequestId],
+          ["cancel.withdrawn", r.id],
+        ])
+          expect(await h.prisma.outboxEvent.count({ where: { eventType, aggregateId } })).toBe(1);
+        assertSnapshotsEqual(before, await snapshotTables(h.prisma, financialTables));
+      }
+    },
+  );
   it("等待主体锁时真实新增取消候选，拒绝整个计划而不补低锁", async () => {
     const f = await fixture(),
       second = await siblingAd(f),

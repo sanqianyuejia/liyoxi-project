@@ -179,9 +179,25 @@ describe("真实短事务、竞争和不可退款边界", { timeout: SLOW }, () 
     async (change) => {
       const facts = await h.readyImage(),
         extra = change === "graph" ? await h.stored() : undefined;
+      const evaluate = h.evalCall.getMockImplementation()!;
+      h.evalCall.mockImplementation((script, keys, argv) => {
+        // 本组验已付许可之后的事实竞态，不量 CI 调度耗时；真实 Redis 与原预算逻辑，
+        // 仅替换 TIME 读取为注入时钟。组外真实 TIME/250ms 边界用例不变。
+        const now = h.clock.now().getTime();
+        expect(script).toContain("redis.call('TIME')");
+        return evaluate(
+          script.replaceAll(
+            "redis.call('TIME')",
+            `{ '${Math.floor(now / 1000)}', '${(now % 1000) * 1000}' }`,
+          ),
+          keys,
+          argv,
+        );
+      });
       const reserve = h.budget.reserve.getMockImplementation()!;
       h.budget.reserve.mockImplementationOnce(async (permit, abort) => {
         const paid = await reserve(permit, abort);
+        expect(paid).toMatchObject({ status: "reserved", units: 3 });
         if (change === "caps") h.caps.dailyFileCap = 199;
         else
           await h.tx.run(async (tx) => {

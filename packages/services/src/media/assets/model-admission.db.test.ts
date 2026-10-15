@@ -375,50 +375,56 @@ describe("三owner真实PG与Redis预算", () => {
       expect(after[key]).toBe(value);
   });
 
-  it("摘要Unicode实际16000码点贡献只计留存正文，所有丢弃后缀仍绑定hash", async () => {
-    // 每段2000 UTF16/1999码点，说明/前缀/换行仍占原布局；第九个文件完全被截掉。
-    const facts = await h.readyDigestSources(
-      "说明",
-      Array.from({ length: 9 }, () => "😀" + "文".repeat(1998)),
-    );
-    expect(structuredOutput(await h.digestStrategy().execute(facts.job, signal())).status).toBe(
-      "ok",
-    );
-    const input = h.digest.mock.calls[0]![0];
-    expect(Array.from(input.text)).toHaveLength(16000);
-    expect(h.budget.reserve.mock.calls[0]![0].fileIds).toEqual(
-      facts.files
-        .slice(0, 8)
-        .map((file) => file.id)
-        .sort(),
-    );
-    expect(await spent()).toBe(3);
-    const next = await h.readyDigestSources(
-      "说明",
-      Array.from({ length: 9 }, () => "文".repeat(2000)),
-      facts.files,
-    );
-    const original = h.budget.reserve.getMockImplementation()!;
-    h.budget.reserve.mockImplementationOnce(async (context, abort) => {
-      const paid = await original(context, abort),
-        last = next.sources[8]!;
-      await h.tx.run(async (tx) => {
-        await lockRows(tx, "store_asset", [next.assetId]);
-        const content = { description: "文".repeat(1999) + "改", tags: [] };
-        const old = AssetJobOutputSchema.parse(last.origin.output);
-        await tx.mediaJob.update({
-          where: { id: last.origin.id },
-          data: { output: json({ ...old, content }) },
+  describe("摘要Unicode来源准备", () => {
+    let facts: Awaited<ReturnType<ModelWorld["readyDigestSources"]>>, next: typeof facts;
+    beforeEach(async () => {
+      // 九个文件仍全部实际注册、提升及审核；造数沿用 setup 预算，正文执行仍限默认5秒。
+      facts = await h.readyDigestSources(
+        "说明",
+        Array.from({ length: 9 }, () => "😀" + "文".repeat(1998)),
+      );
+      next = await h.readyDigestSources(
+        "说明",
+        Array.from({ length: 9 }, () => "文".repeat(2000)),
+        facts.files,
+      );
+    }, SLOW);
+    it("摘要Unicode实际16000码点贡献只计留存正文，所有丢弃后缀仍绑定hash", async () => {
+      // 每段2000 UTF16/1999码点，说明/前缀/换行仍占原布局；第九个文件完全被截掉。
+      expect(structuredOutput(await h.digestStrategy().execute(facts.job, signal())).status).toBe(
+        "ok",
+      );
+      const input = h.digest.mock.calls[0]![0];
+      expect(Array.from(input.text)).toHaveLength(16000);
+      expect(h.budget.reserve.mock.calls[0]![0].fileIds).toEqual(
+        facts.files
+          .slice(0, 8)
+          .map((file) => file.id)
+          .sort(),
+      );
+      expect(await spent()).toBe(3);
+      const original = h.budget.reserve.getMockImplementation()!;
+      h.budget.reserve.mockImplementationOnce(async (context, abort) => {
+        const paid = await original(context, abort),
+          last = next.sources[8]!;
+        await h.tx.run(async (tx) => {
+          await lockRows(tx, "store_asset", [next.assetId]);
+          const content = { description: "文".repeat(1999) + "改", tags: [] };
+          const old = AssetJobOutputSchema.parse(last.origin.output);
+          await tx.mediaJob.update({
+            where: { id: last.origin.id },
+            data: { output: json({ ...old, content }) },
+          });
+          await tx.storeAssetInsight.update({
+            where: { id: last.insight.id },
+            data: { content: json(content) },
+          });
         });
-        await tx.storeAssetInsight.update({
-          where: { id: last.insight.id },
-          data: { content: json(content) },
-        });
+        return paid;
       });
-      return paid;
+      expect(await h.digestStrategy().execute(next.job, signal())).toEqual({ state: "canceled" });
+      expect(h.digest).toHaveBeenCalledTimes(1);
+      expect(await spent()).toBe(6);
     });
-    expect(await h.digestStrategy().execute(next.job, signal())).toEqual({ state: "canceled" });
-    expect(h.digest).toHaveBeenCalledTimes(1);
-    expect(await spent()).toBe(6);
   });
 });
