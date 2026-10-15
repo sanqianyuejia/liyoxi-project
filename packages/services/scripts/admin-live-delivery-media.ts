@@ -6,6 +6,14 @@ import { createHash } from "node:crypto";
 import { parseOutputBatchLiveManifest } from "../src/testing/index.js";
 import { parseArgs } from "node:util";
 import { z } from "zod";
+import {
+  FILE_OBJECT_STATUS,
+  MEDIA_CHECK_GATE,
+  MEDIA_JOB_KIND,
+  MEDIA_JOB_STATE,
+  PLAYABLE_ASSET_STATE,
+  PRODUCTION_RECORD_PIPELINE_STATE,
+} from "@liyoxi/contract/enums";
 import { createRuntime } from "../src/runtime.js";
 import { createLogger } from "../src/logger.js";
 import { fakeKeyEnv } from "../src/testing/staff.js";
@@ -17,13 +25,77 @@ import {
   prepareDeliveryKnownMedia,
   waitForDeliveryProduction,
 } from "../src/testing/admin-live/delivery-known-media.js";
+import type { KnownMediaInput } from "../src/testing/admin-live/delivery-known-media.js";
 const root = fileURLToPath(new URL("../../../apps/admin/dist/tmp/", import.meta.url));
+let phase = "environment";
+let facts: Awaited<ReturnType<typeof readEvidence>> | undefined;
+const enumValue = (values: readonly string[], value: unknown) => values.find((v) => v === value);
+async function readEvidence(runtime: ReturnType<typeof createRuntime>, input: KnownMediaInput) {
+  return runtime.tx.run(async (tx) => {
+    const file = await tx.fileObject.findFirst({
+      where: {
+        id: input.fileId,
+        originalName: `${input.scope.runId}-${input.artifact}.mp4`,
+        scopeType: "store",
+        entityId: input.scope.entityId,
+        storeId: input.scope.storeId,
+        createdAt: { gte: new Date(input.scope.startedAt) },
+      },
+      select: {
+        status: true,
+        productionRecord: { select: { pipelineState: true } },
+      },
+    });
+    if (!file) return undefined;
+    const check = await tx.mediaCheck.findUnique({
+      where: { fileId: input.fileId },
+      select: { gate: true },
+    });
+    const playables = await tx.playableAsset.findMany({
+      where: {
+        sourceFileId: input.fileId,
+        ownerType: "order_item",
+        ownerId: input.scope.itemId,
+        kind: "sample",
+      },
+      orderBy: { id: "desc" },
+      take: 20,
+      select: { id: true, state: true },
+    });
+    const jobs = await tx.mediaJob.findMany({
+      where: {
+        OR: [
+          { subjectType: "file_object", subjectId: input.fileId },
+          { parentType: "playable_asset", parentId: { in: playables.map((p) => p.id) } },
+        ],
+        createdAt: { gte: new Date(input.scope.startedAt) },
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 20,
+      select: { kind: true, state: true },
+    });
+    return {
+      fileStatus: enumValue(FILE_OBJECT_STATUS.values, file.status),
+      pipelineState: enumValue(
+        PRODUCTION_RECORD_PIPELINE_STATE.values,
+        file.productionRecord?.pipelineState,
+      ),
+      checkGate: enumValue(MEDIA_CHECK_GATE.values, check?.gate),
+      jobs: jobs.map((job) => ({
+        kind: enumValue(MEDIA_JOB_KIND.values, job.kind),
+        state: enumValue(MEDIA_JOB_STATE.values, job.state),
+      })),
+      playables: playables.map((p) => enumValue(PLAYABLE_ASSET_STATE.values, p.state)),
+    };
+  });
+}
 async function main() {
   if (
     process.env.APP_ENV !== "test" ||
     Object.keys(process.env).some((key) => key.endsWith("_FILE"))
   )
     throw new Error("只接受无密钥文件的显式 test 环境");
+  phase = "context";
   const { values } = parseArgs({
     options: {
       context: { type: "string" },
@@ -61,6 +133,7 @@ async function main() {
     ...fakeKeyEnv(),
   };
   assertDeliveryScope(env, scope);
+  phase = "runtime";
   const runtime = createRuntime({
     entry: "api",
     env,
@@ -75,6 +148,7 @@ async function main() {
     }),
   });
   try {
+    phase = "input";
     const { inputs: manifest } = parseOutputBatchLiveManifest(
       JSON.parse(
         await readFile(resolve(root, `admin-live-${scope.runId}`, "media-input.json"), "utf8"),
@@ -97,16 +171,34 @@ async function main() {
       md5: createHash("md5").update(bytes).digest("hex"),
     };
     const input = { scope, artifact, fileId, clientToken, video };
-    if (!values.cleanup) await waitForDeliveryProduction(runtime, input);
-    const result = values.cleanup
-      ? await cleanupDeliveryFile(runtime, input)
-      : await prepareDeliveryKnownMedia(runtime, input);
-    process.stdout.write(`${JSON.stringify(result)}\n`);
+    try {
+      phase = "observe";
+      if (!values.cleanup) await waitForDeliveryProduction(runtime, input);
+      phase = values.cleanup ? "cleanup" : "verify";
+      const result = values.cleanup
+        ? await cleanupDeliveryFile(runtime, input)
+        : await prepareDeliveryKnownMedia(runtime, input);
+      phase = "output";
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+    } catch (error) {
+      // 诊断只读已核本轮文件；查询失败仍保留原失败，不回显 SQL 或原始错误。
+      facts = await readEvidence(runtime, input).catch(() => undefined);
+      throw error;
+    }
   } finally {
     await runtime.close();
   }
 }
-main().catch(() => {
+main().catch((error: unknown) => {
+  const category =
+    error instanceof Error && error.message === "本轮真实生产体检或样片水印尚未完成"
+      ? "observation_timeout"
+      : error instanceof Error && error.message === "W119B 本轮文件归属或已知事实不一致"
+        ? "guard_rejected"
+        : "error";
+  process.stderr.write(
+    `${JSON.stringify({ evt: "w119.bridge.failed", phase, category, facts })}\n`,
+  );
   process.stderr.write("W119B 窄桥拒绝或文件入库未完成\n");
   process.exitCode = 1;
 });
