@@ -493,6 +493,8 @@ jobs:
         run: docker compose -f infra/compose/local.yml up -d --wait redis
       - name: 生成本作业真实接口挂载清单
         run: rm -f apps/api/dist/mounted-operations.json && pnpm exec vitest run apps/api/test/probes.test.ts && test -s apps/api/dist/mounted-operations.json
+      - name: 预拉密钥扫描夹具使用的固定镜像
+        run: docker pull ghcr.io/gitleaks/gitleaks:v8.30.1
       - name: 测试（infra 项目）
         run: pnpm test --project infra
 
