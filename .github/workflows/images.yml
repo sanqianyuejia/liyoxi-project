@@ -1,4 +1,5 @@
-# W2-25b：PR 仅构建四镜像；云写 job 只有 main 与显式配置开启时执行，不进 required。
+# W2-25b：PR 仅构建四镜像；应用发布只在 main 显式开启，不进 required。
+# MinIO 依赖恢复另需手动调度、开关与已审源码 SHA 三重批准。
 name: images
 
 on:
@@ -17,6 +18,10 @@ on:
         description: 转存固定 PostgreSQL 与 Redis 多架构镜像
         type: boolean
         default: false
+      mirror_minio:
+        description: 按已核对摘要恢复 MinIO 两架构镜像（须批准本次源码 SHA）
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -28,6 +33,7 @@ concurrency:
 jobs:
   build-images:
     name: build-images
+    if: github.event_name != 'workflow_dispatch' || inputs.mirror_minio != true
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     outputs:
@@ -249,3 +255,53 @@ jobs:
         env:
           REGISTRY: ${{ vars.STG_REGISTRY }}
         run: docker logout "$REGISTRY"
+
+  # 迁移旧账号的既有公开依赖；独立于应用 main 发布和部署，默认关闭。
+  # 首次恢复需在 required 能拉取 MinIO 之前执行，仅手动批准的精确源码可写。
+  mirror-minio:
+    name: mirror-minio
+    if: github.event_name == 'workflow_dispatch' && inputs.mirror_minio == true && vars.MINIO_MIRROR_ENABLED == 'true' && github.repository == 'sanqianyuejia/liyoxi-project' && github.sha == vars.MINIO_MIRROR_APPROVED_SHA
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    concurrency:
+      group: minio-ghcr-recovery
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: 拉取并核对固定版本的两个架构
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/minio-recovery"
+          target=ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z
+          # 非官方缓存只作传输；Docker 按已与本机缓存交叉核验的摘要检查清单与每层内容。
+          for arch in amd64 arm64; do
+            case "$arch" in
+              amd64) digest=sha256:a1a8bd4ac40ad7881a245bab97323e18f971e4d4cba2c2007ec1bedd21cbaba2 ;;
+              arm64) digest=sha256:9966a92a734f9411e32f4f41d7d9d826fcdc0f68c4e20b70295bd4e7c11f8a2f ;;
+            esac
+            source="ghcr.linkos.org/ghcr.io/byfire-dev/minio@$digest"
+            docker pull --platform "linux/$arch" "$source"
+            test "$(docker image inspect "$source" --format '{{.Architecture}}')" = "$arch"
+            test "$(docker image inspect "$source" --format '{{index .Config.Labels "version"}}')" = RELEASE.2025-09-07T16-13-09Z
+            docker tag "$source" "$target-$arch"
+          done
+      - name: 恢复并发布两个固定架构
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          target=ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          for arch in amd64 arm64; do
+            docker push "$target-$arch"
+          done
+          docker buildx imagetools create --tag "$target" --annotation "index:org.opencontainers.image.source=https://github.com/sanqianyuejia/liyoxi-project" "$target-amd64" "$target-arm64"
+          docker buildx imagetools inspect --raw "$target" > "$RUNNER_TEMP/minio-recovery/published-index.json"
+          jq -e '([.manifests[].platform | .os + "/" + .architecture] | sort) == ["linux/amd64", "linux/arm64"]' "$RUNNER_TEMP/minio-recovery/published-index.json"
+      - name: 清理登录态与临时清单
+        if: always()
+        run: |
+          docker logout ghcr.io
+          rm -rf "$RUNNER_TEMP/minio-recovery"

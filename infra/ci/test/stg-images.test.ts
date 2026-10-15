@@ -91,6 +91,34 @@ describe("W2-25b 构建与外部写边界", () => {
     expect(body).not.toMatch(/docker (pull|tag|push) /);
   });
 
+  it("MinIO 恢复仅手动与精确批准源码，固定摘要拉取验真后才登录推送", () => {
+    const body = job(images, "mirror-minio");
+    expect(body).toContain(
+      "github.event_name == 'workflow_dispatch' && inputs.mirror_minio == true",
+    );
+    expect(body).toContain("vars.MINIO_MIRROR_ENABLED == 'true'");
+    expect(body).toContain("github.repository == 'sanqianyuejia/liyoxi-project'");
+    expect(body).toContain("github.sha == vars.MINIO_MIRROR_APPROVED_SHA");
+    expect(body).toContain("packages: write");
+    expect(body).toContain(
+      "sha256:a1a8bd4ac40ad7881a245bab97323e18f971e4d4cba2c2007ec1bedd21cbaba2",
+    );
+    expect(body).toContain(
+      "sha256:9966a92a734f9411e32f4f41d7d9d826fcdc0f68c4e20b70295bd4e7c11f8a2f",
+    );
+    expect(body).toContain('source="ghcr.linkos.org/ghcr.io/byfire-dev/minio@$digest"');
+    expect(body).toContain('docker pull --platform "linux/$arch" "$source"');
+    expect(body.indexOf("docker image inspect")).toBeLessThan(body.indexOf("docker login"));
+    expect(body).toContain("for arch in amd64 arm64");
+    expect(body).toContain('"$target-amd64" "$target-arm64"');
+    expect(body).toContain('["linux/amd64", "linux/arm64"]');
+    expect(body).toContain("if: always()");
+    expect(body).not.toMatch(/docker run|STG_SSH|STG_COS|orchestrate|:latest/);
+    expect(job(images, "build-images")).toContain(
+      "if: github.event_name != 'workflow_dispatch' || inputs.mirror_minio != true",
+    );
+  });
+
   it("部署整个 job 默认关闭，同源 main 成功 push/runID/HEAD 绑定，先核摘要再编排", () => {
     const body = job(deploy, "deploy-stg");
     expect(body).toContain(

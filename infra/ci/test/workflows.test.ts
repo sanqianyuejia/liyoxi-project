@@ -118,6 +118,12 @@ const CREDENTIAL_JOBS: Record<string, { id: string; condition: string; keys: str
         "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && vars.STG_IMAGES_PUBLISH_ENABLED == 'true' && inputs.mirror_base == true",
       keys: ["STG_REGISTRY_USERNAME", "STG_REGISTRY_PASSWORD", "GITHUB_TOKEN"],
     },
+    {
+      id: "mirror-minio",
+      condition:
+        "github.event_name == 'workflow_dispatch' && inputs.mirror_minio == true && vars.MINIO_MIRROR_ENABLED == 'true' && github.repository == 'sanqianyuejia/liyoxi-project' && github.sha == vars.MINIO_MIRROR_APPROVED_SHA",
+      keys: ["GITHUB_TOKEN"],
+    },
   ],
   "deploy-stg.yml": [
     {
