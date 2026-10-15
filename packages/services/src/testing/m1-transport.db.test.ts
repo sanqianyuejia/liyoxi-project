@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { afterAll, beforeAll, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createEvents, findI8Violations } from "../events/index.js";
 import type { Events } from "../events/index.js";
 import { createIdentityContext, defineRegistration, uuidv7 } from "../kernel/index.js";
@@ -220,54 +220,62 @@ it("real retry backoff and exhausted leases remain refusals rather than drained"
   await expect(sample.transport.drainEvents()).rejects.toThrow("尚未虚拟到期");
 });
 
-it("本轮财务种子 25h 历史边界正常消费，边界前 1ms 仍拒绝", async () => {
-  // 前一组故意留下 dead 投递；历史边界必须使用自己的库，不能把 dead 从 drain 判据中过滤掉。
-  const history = await createM1Support({ clock: createClock() });
-  const businessNow = history.clock.now();
-  const startedAt = new Date(businessNow.getTime() - 25 * 3_600_000);
-  const handled: string[] = [];
-  const sample = sampleTransport(
-    [
-      defineRegistration("lyxtest_m1history", {
-        subscribers: [
-          {
-            name: "lyxtest.onPlacedHistory",
-            events: ["lyxtest.order.placed"],
-            handle: async (_tx, event) => {
-              handled.push(event.id);
+describe("历史边界的独立资源准备", () => {
+  let history: M1Support;
+  beforeAll(async () => {
+    // 建库、迁移与播种属于准备；不能把前一组故意留下的 dead 投递混入或过滤掉。
+    history = await createM1Support({ clock: createClock() });
+  }, 90_000);
+  afterAll(async () => {
+    await history?.close();
+  });
+
+  it("本轮财务种子 25h 历史边界正常消费，边界前 1ms 仍拒绝", async () => {
+    const businessNow = history.clock.now();
+    const startedAt = new Date(businessNow.getTime() - 25 * 3_600_000);
+    const handled: string[] = [];
+    const sample = sampleTransport(
+      [
+        defineRegistration("lyxtest_m1history", {
+          subscribers: [
+            {
+              name: "lyxtest.onPlacedHistory",
+              events: ["lyxtest.order.placed"],
+              handle: async (_tx, event) => {
+                handled.push(event.id);
+              },
             },
-          },
-        ],
-      }),
-    ],
-    startedAt,
-    history,
-  );
-  try {
-    history.clock.set(startedAt);
-    const boundaryId = await placed(sample.events, history);
-    history.clock.set(businessNow);
-    expect(await sample.transport.drainEvents()).toEqual({ expanded: 1, consumed: 1 });
-    expect(handled).toEqual([boundaryId]);
-    history.clock.set(new Date(startedAt.getTime() - 1));
-    const outsideId = await placed(sample.events, history);
-    history.clock.set(businessNow);
-    await expect(sample.transport.drainEvents()).rejects.toThrow("不属于本轮业务范围");
-    expect(handled).toEqual([boundaryId]);
-    expect(
-      await history.runtime.tx.run((tx) =>
-        tx.outboxDelivery.findUniqueOrThrow({
-          where: {
-            outboxEventId_subscriber: {
-              outboxEventId: outsideId,
-              subscriber: "lyxtest.onPlacedHistory",
-            },
-          },
+          ],
         }),
-      ),
-    ).toMatchObject({ status: "leased", attempts: 0 });
-  } finally {
-    history.clock.set(businessNow);
-    await history.close();
-  }
+      ],
+      startedAt,
+      history,
+    );
+    try {
+      history.clock.set(startedAt);
+      const boundaryId = await placed(sample.events, history);
+      history.clock.set(businessNow);
+      expect(await sample.transport.drainEvents()).toEqual({ expanded: 1, consumed: 1 });
+      expect(handled).toEqual([boundaryId]);
+      history.clock.set(new Date(startedAt.getTime() - 1));
+      const outsideId = await placed(sample.events, history);
+      history.clock.set(businessNow);
+      await expect(sample.transport.drainEvents()).rejects.toThrow("不属于本轮业务范围");
+      expect(handled).toEqual([boundaryId]);
+      expect(
+        await history.runtime.tx.run((tx) =>
+          tx.outboxDelivery.findUniqueOrThrow({
+            where: {
+              outboxEventId_subscriber: {
+                outboxEventId: outsideId,
+                subscriber: "lyxtest.onPlacedHistory",
+              },
+            },
+          }),
+        ),
+      ).toMatchObject({ status: "leased", attempts: 0 });
+    } finally {
+      history.clock.set(businessNow);
+    }
+  });
 });
