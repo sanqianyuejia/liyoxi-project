@@ -252,9 +252,13 @@ describe("SHA1/HMAC标准向量与COS真实协议", () => {
     ).toEqual([1, 2, 3]);
     for (const call of put) {
       const n = Number(new URL(call.url).searchParams.get("partNumber"));
-      expect(new Uint8Array(call.data as ArrayBuffer)).toEqual(
-        h.data.subarray((n - 1) * CHUNK, n * CHUNK),
-      );
+      // 原生逐字节与长度比较保留1MiB边界，避免通用深比较枚举百万个字节键。
+      expect(
+        Buffer.compare(
+          new Uint8Array(call.data as ArrayBuffer),
+          h.data.subarray((n - 1) * CHUNK, n * CHUNK),
+        ),
+      ).toBe(0);
     }
     const complete = h.calls.at(-1)!;
     expect(complete.method).toBe("POST");

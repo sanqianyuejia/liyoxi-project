@@ -406,11 +406,12 @@ export function createMediaJobs(options: MediaJobsOptions) {
   }
   async function scan(beat?: () => void) {
     if (closing || paused) return 0;
+    // 扫描只发现候选；行锁与租约归 claim，避免扫描锁令并发队列认领跳过后又被 owned 去重。
     const due = await transactions.run((tx) =>
       tx.$queryRaw<{ id: string }[]>(Prisma.sql`
       SELECT id::text FROM media_job
       WHERE state IN ('queued','running','submitting','submitted') AND next_run_at<=${clock.now()}
-      ORDER BY next_run_at,id LIMIT ${MEDIA_SCAN_LIMIT} FOR UPDATE SKIP LOCKED
+      ORDER BY next_run_at,id LIMIT ${MEDIA_SCAN_LIMIT}
     `),
     );
     // Await only real short claims: legitimate four-minute IO must not stall the fifteen-second loop.

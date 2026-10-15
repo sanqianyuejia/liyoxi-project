@@ -373,17 +373,12 @@ describe("COS bounded streams", () => {
       expect(await b.driver.readTo(readInput())).toMatchObject({ ok: true });
     } finally {
       await a.close();
-      server.closeAllConnections();
-      await new Promise<void>((resolve) => server.close(() => resolve()));
-      await Promise.all(
-        [...sockets].map(
-          (socket) =>
-            new Promise<void>((resolve) => {
-              if (socket.destroyed) resolve();
-              else socket.once("close", resolve);
-            }),
-        ),
+      const socketsClosed = Promise.all(
+        [...sockets].map((socket) => new Promise<void>((resolve) => socket.once("close", resolve))),
       );
+      const serverClosed = new Promise<void>((resolve) => server.close(() => resolve()));
+      server.closeAllConnections();
+      await Promise.all([serverClosed, socketsClosed]);
     }
     expect(sockets.size).toBe(0);
   });

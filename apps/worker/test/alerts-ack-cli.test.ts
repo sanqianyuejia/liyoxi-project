@@ -1,15 +1,20 @@
 import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { rmSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { createFlowOpsCliSupport, useSeededDatabase } from "@liyoxi/services/testing";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { runAlertsAckCommand } from "../src/cli/alerts-ack-command.js";
 
 const db = useSeededDatabase("worker", { label: "alertscli" });
 const execute = promisify(execFile);
 const workerDir = fileURLToPath(new URL("../", import.meta.url));
+const buildDir = join("dist", `alerts-ack-test-${randomUUID()}`);
+const builtEntry = join(buildDir, "alerts-ack.js");
 const id = "00000000-0000-4000-8000-000000000001";
 const note = "核对后受限人工处理";
 const args = (staff: string, target: string) => [
@@ -103,12 +108,13 @@ describe("W223 alerts-ack真实应用角色/构建入口", { timeout: 120000 }, 
   beforeAll(async () => {
     support = createFlowOpsCliSupport(await db.prisma());
     source = { APP_ENV: "test", DATABASE_URL: await db.url(), REDIS_URL: process.env.REDIS_URL };
-    await execute(process.execPath, ["scripts/build.mjs"], {
+    await execute(process.execPath, ["scripts/build.mjs", "--outdir", buildDir], {
       cwd: workerDir,
       timeout: 60000,
       maxBuffer: 2 * 1024 * 1024,
     });
   }, 180000);
+  afterAll(() => rmSync(join(workerDir, buildDir), { recursive: true, force: true }));
 
   it("真实ack只输出三个安全字段，重复认领退出1；实际审计身份/原因正确", async () => {
     const staff = await support.make.staff({ staffRoleKey: "finance", isLead: true });
@@ -153,7 +159,7 @@ describe("W223 alerts-ack真实应用角色/构建入口", { timeout: 120000 }, 
     ] as const) {
       const result = await execute(
         process.execPath,
-        ["dist/alerts-ack.js", command, "--staff", staff.id, flag, target, "--note", note],
+        [builtEntry, command, "--staff", staff.id, flag, target, "--note", note],
         { cwd: workerDir, env: source, timeout: 20000, maxBuffer: 1024 * 1024 },
       );
       expect(result.stderr).toBe("");
@@ -191,7 +197,7 @@ describe("W223 alerts-ack真实应用角色/构建入口", { timeout: 120000 }, 
     );
     expect(await prisma.auditLog.count({ where: { targetId: row.id } })).toBe(0);
     try {
-      await execute(process.execPath, ["dist/alerts-ack.js", "--all"], {
+      await execute(process.execPath, [builtEntry, "--all"], {
         cwd: workerDir,
         env: { DATABASE_URL: "fictional-db-secret" },
         timeout: 20000,

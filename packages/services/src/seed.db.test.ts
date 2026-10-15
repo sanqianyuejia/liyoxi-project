@@ -125,7 +125,13 @@ describe("播种", () => {
       billing_param: 12,
       valuation_policy: 1,
     });
-    expect(NOTIFY_SCENES).toHaveLength(63);
+    const sceneKeys = await prisma.notifyScene.findMany({
+      select: { sceneKey: true },
+      orderBy: { sceneKey: "asc" },
+    });
+    expect(sceneKeys.map((row) => row.sceneKey)).toEqual(
+      NOTIFY_SCENES.map((row) => row.key).sort(),
+    );
     expect(report.inserted).toBe(Object.values(stored).reduce((sum, n) => sum + n, 0));
 
     expect(await checkSeedAssertions(prisma, clock.now())).toEqual([]);

@@ -1,13 +1,18 @@
 import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { rmSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { createAnalyticsCliSupport, useSeededDatabase } from "@liyoxi/services/testing";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { runAnalyticsRepartitionCommand } from "../src/cli/analytics-repartition-command.js";
 
 const db = useSeededDatabase("worker", { label: "analyticscli" });
 const execute = promisify(execFile),
   workerDir = fileURLToPath(new URL("../", import.meta.url));
+const buildDir = join("dist", `analytics-repartition-test-${randomUUID()}`);
+const builtEntry = join(buildDir, "analytics-repartition.js");
 const id = "00000000-0000-4000-8000-000000000001";
 const args = (staff = id, month = "2026-10") => [
   month,
@@ -96,12 +101,13 @@ describe("analytics_repartition实际应用角色与构建入口", { timeout: 12
   beforeAll(async () => {
     support = createAnalyticsCliSupport(await db.prisma());
     source = { APP_ENV: "test", DATABASE_URL: await db.url(), REDIS_URL: process.env.REDIS_URL };
-    await execute(process.execPath, ["scripts/build.mjs"], {
+    await execute(process.execPath, ["scripts/build.mjs", "--outdir", buildDir], {
       cwd: workerDir,
       timeout: 60_000,
       maxBuffer: 2_097_152,
     });
   });
+  afterAll(() => rmSync(join(workerDir, buildDir), { recursive: true, force: true }));
   it("超级管理员真实单月搬移、完整列不变、重复无丢重；原审核失败不写审计", async () => {
     const prisma = await db.prisma(),
       admin = await support.make.staff({ staffRoleKey: "super_admin" });
@@ -133,18 +139,20 @@ describe("analytics_repartition实际应用角色与构建入口", { timeout: 12
   });
   it("dist入口真实执行，非法月份只出用法、合法重复确为服务返回结果", async () => {
     const admin = await support.make.staff({ staffRoleKey: "super_admin" });
-    const result = await execute(
-      process.execPath,
-      ["dist/analytics-repartition.js", ...args(admin.id, support.month)],
-      { cwd: workerDir, env: { ...process.env, ...source }, timeout: 30_000, maxBuffer: 262_144 },
-    );
+    const result = await execute(process.execPath, [builtEntry, ...args(admin.id, support.month)], {
+      cwd: workerDir,
+      env: { ...process.env, ...source },
+      timeout: 30_000,
+      maxBuffer: 262_144,
+    });
     expect(result.stdout.trim()).toBe(JSON.stringify({ month: support.month, moved: "0" }));
     expect(result.stderr).toBe("");
-    const invalid = await execute(
-      process.execPath,
-      ["dist/analytics-repartition.js", ...args(admin.id, "2026-13")],
-      { cwd: workerDir, env: { ...process.env, ...source }, timeout: 30_000, maxBuffer: 262_144 },
-    ).then(
+    const invalid = await execute(process.execPath, [builtEntry, ...args(admin.id, "2026-13")], {
+      cwd: workerDir,
+      env: { ...process.env, ...source },
+      timeout: 30_000,
+      maxBuffer: 262_144,
+    }).then(
       () => null,
       (error) => error as { code: number; stdout: string; stderr: string },
     );

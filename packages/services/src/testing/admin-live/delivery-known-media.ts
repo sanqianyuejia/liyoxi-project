@@ -266,7 +266,8 @@ export async function waitForDeliveryProduction(runtime: Runtime, input: KnownMe
   if (!input.video) fail();
   const video = input.video;
   await runtime.tx.run((tx) => ownedFile(tx, runtime, input));
-  const deadline = performance.now() + 60_000;
+  // 样片比原片额外包含受理后的回查与派生验证，仅增加观察预算，不改变任务期限和守卫。
+  const deadline = performance.now() + (input.artifact === "sample" ? 120_000 : 60_000);
   do {
     const ready = await runtime.tx.run(async (tx) => {
       const file = await tx.fileObject.findUnique({

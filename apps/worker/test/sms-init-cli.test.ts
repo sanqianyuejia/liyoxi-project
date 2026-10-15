@@ -1,13 +1,20 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { createClock, createFactories, useSeededDatabase } from "@liyoxi/services/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { runSmsInitCommand } from "../src/cli/sms-init-command.js";
 
 const db = useSeededDatabase("worker", { label: "smsinit" });
 const dir = mkdtempSync(join(tmpdir(), "lyx-w222-sms-init-"));
+const workerDir = fileURLToPath(new URL("../", import.meta.url));
+const buildDir = join("dist", `sms-init-test-${randomUUID()}`);
+const builtEntry = join(buildDir, "sms-init.js");
+const execute = promisify(execFile);
 const fields: Record<string, string[]> = {
   verify_code: ["code"],
   review_result: ["result", "reason"],
@@ -39,6 +46,12 @@ const valid = file("valid.json", JSON.stringify(data));
 let source: Record<string, string | undefined>;
 let staffId: string;
 beforeAll(async () => {
+  // 不借用其他测试或 CI job 的 dist，也不清理它们的构建产物。
+  await execute(process.execPath, ["scripts/build.mjs", "--outdir", buildDir], {
+    cwd: workerDir,
+    timeout: 60_000,
+    maxBuffer: 2_097_152,
+  });
   const prisma = await db.prisma();
   const staff = await createFactories({ db: prisma, clock: createClock() }).staff({
     staffRoleKey: "super_admin",
@@ -46,7 +59,10 @@ beforeAll(async () => {
   staffId = staff.id;
   source = { APP_ENV: "test", DATABASE_URL: await db.url(), REDIS_URL: process.env.REDIS_URL };
 }, 60_000);
-afterAll(() => rmSync(dir, { recursive: true, force: true }));
+afterAll(() => {
+  rmSync(dir, { recursive: true, force: true });
+  rmSync(join(workerDir, buildDir), { recursive: true, force: true });
+});
 async function run(argv: string[], env = source) {
   const lines: string[] = [];
   const code = await runSmsInitCommand({
@@ -115,7 +131,7 @@ describe("短信初始化真实薄CLI与构建入口", () => {
   it("dist/sms-init.js为可执行新入口，非法参数退出1", () => {
     let code = 0;
     try {
-      execFileSync(process.execPath, ["dist/sms-init.js"], {
+      execFileSync(process.execPath, [builtEntry], {
         cwd: new URL("../", import.meta.url),
         encoding: "utf8",
         stdio: "pipe",
@@ -133,17 +149,13 @@ describe("短信初始化真实薄CLI与构建入口", () => {
     const path = file("dist-long-template-id.json", JSON.stringify(invalid));
     let code = 0;
     try {
-      execFileSync(
-        process.execPath,
-        ["dist/sms-init.js", "--config", path, "--staff-id", staffId],
-        {
-          cwd: new URL("../", import.meta.url),
-          encoding: "utf8",
-          stdio: "pipe",
-          timeout: 5000,
-          env: { PATH: process.env.PATH },
-        },
-      );
+      execFileSync(process.execPath, [builtEntry, "--config", path, "--staff-id", staffId], {
+        cwd: new URL("../", import.meta.url),
+        encoding: "utf8",
+        stdio: "pipe",
+        timeout: 5000,
+        env: { PATH: process.env.PATH },
+      });
     } catch (error) {
       code = (error as { status: number }).status;
       expect(String((error as { stderr: string }).stderr)).toContain(

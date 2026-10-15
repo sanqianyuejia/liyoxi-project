@@ -5,6 +5,12 @@ import type { AgreementApi } from "../../src/features/ops/agreements/api";
 import { liveContext, noHorizontalScroll, recordErrors } from "./live-context";
 import { shot } from "./w206-helpers";
 
+// 仅两例空 sandbox 预览避免 trace DOM 注入；同时失去浏览器 network 快照。
+// 保留截图、源码与调用记录；全部业务、console 与安全断言不变。
+const it = test.extend({
+  trace: { mode: "retain-on-failure", snapshots: false, screenshots: true, sources: true },
+});
+
 interface Fixture {
   agreementKey: string;
   noticeAgreementKey: string;
@@ -62,7 +68,7 @@ async function confirm(page: Page, title: string, checkbox: string) {
   await submit.click();
 }
 
-test("W216 真实legal_doc入库→真实转换草稿→安排→撤回另id，服务器phase和引用", async ({ page }) => {
+it("W216 真实legal_doc入库→真实转换草稿→安排→撤回另id，服务器phase和引用", async ({ page }) => {
   const data = fixture(),
     errors = recordErrors(page),
     registeredIds: string[] = [];
@@ -219,7 +225,7 @@ test("W216 真实legal_doc入库→真实转换草稿→安排→撤回另id，�
   expect(errors).toEqual([]);
 });
 
-test("W216 已有草稿时撤回返回null，保留当前草稿和原撤回版本", async ({ page }) => {
+it("W216 已有草稿时撤回返回null，保留当前草稿和原撤回版本", async ({ page }) => {
   const data = fixture(),
     errors = recordErrors(page);
   await page.goto(`/ops/agreements?agreementKey=${data.agreementKey}`);

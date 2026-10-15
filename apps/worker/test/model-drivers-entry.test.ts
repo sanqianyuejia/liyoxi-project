@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as PublicServices from "@liyoxi/services";
 import type { Env, WorkerServicesOptions } from "@liyoxi/services";
 
@@ -80,6 +80,12 @@ const configurations = [
 let services: Record<string, ReturnType<typeof vi.fn<() => Promise<void>>> | null>;
 let signals: Map<string, () => void>;
 let exit: ReturnType<typeof vi.fn<typeof process.exit>>;
+let actual: typeof PublicServices;
+
+// 冷模块编译属于准备阶段，真实入口守卫的用例仍使用原默认 5 秒期限。
+beforeAll(async () => {
+  actual = await vi.importActual<typeof PublicServices>("@liyoxi/services");
+}, 60_000);
 
 function configured(hasAsr = true, hasLlm = true): Env {
   return {
@@ -343,7 +349,6 @@ describe("模型驱动的真实 worker main 入口所有权", () => {
   });
 
   it("真实loadEnv的模型FILE失败在所有DI之前发生且不暴露受控路径", async () => {
-    const actual = await vi.importActual<typeof PublicServices>("@liyoxi/services");
     const missing = join(tmpdir(), `lyx-public-model-entry-missing-${randomUUID()}`);
     ports.env.mockImplementation(() =>
       actual.loadEnv({

@@ -5,7 +5,7 @@ import { createEvents } from "../events/index.js";
 import { createFlow } from "../flow/index.js";
 import { createIdentityContext, createTxRunner } from "../kernel/index.js";
 import { createSla } from "../sla/index.js";
-import { pickNext, recommendedStaff } from "../staff/index.js";
+import { pickNext, prepareAssignmentPools, recommendedStaff } from "../staff/index.js";
 import { createTenant } from "../tenant/index.js";
 import {
   assembleForTest,
@@ -128,7 +128,7 @@ it("公开口保留员工必须显式范围、范围外404和接收人范围拒�
   ).toMatchObject({ staffId: manager.id, synced: { dramaOrderCount: 0, deliveryTicketCount: 0 } });
 });
 
-it("公开推荐只读，保持既有 pickNext 最小工号/非启用/空池语义和零写", async () => {
+it("公开推荐只读，pickNext 两城预锁轮转且保留字段/非启用/空池守卫", async () => {
   const first = await make.staff(),
     second = await make.staff();
   for (const staff of [first, second])
@@ -152,17 +152,53 @@ it("公开推荐只读，保持既有 pickNext 最小工号/非启用/空池语�
       prisma.outboxEvent.count(),
     ]);
   const before = await snapshot();
-  await tx.run(async (handle) => {
+  const recommended = await tx.run(async (handle) => {
     const recommended = await recommendedStaff(handle, "delivery_manager");
     expect(recommended).toMatchObject({ staffId: first.id });
     expect(Object.keys(recommended!).sort()).toEqual(
       ["staffId", "staffNo", "name", "roleKey", "isLead", "status"].sort(),
     );
-    expect(await pickNext(handle, "delivery_manager", "510100")).toEqual(recommended);
-    expect(await pickNext(handle, "delivery_manager", "440300")).toEqual(recommended);
+    expect(await recommendedStaff(handle, "delivery_manager", "510100")).toEqual(recommended);
+    expect(await recommendedStaff(handle, "delivery_manager", "440300")).toEqual(recommended);
     expect(await recommendedStaff(handle, "cs")).toBeNull();
+    return recommended;
   });
   expect(await snapshot()).toEqual(before);
+  const cursorsBefore = await prisma.assignmentCursor.findMany({
+    orderBy: [{ pool: "asc" }, { scopeKey: "asc" }],
+  });
+  await tx.run(async (handle) => {
+    // 刻意倒序交给公开预锁口，证明内部排序先取得全部 cursor-10，再锁 staff-20。
+    await prepareAssignmentPools(handle, [
+      { pool: "delivery_manager", scopeKey: "510100" },
+      { pool: "delivery_manager", scopeKey: "440300" },
+    ]);
+    expect(await pickNext(handle, "delivery_manager", "510100")).toEqual(recommended);
+    expect(await pickNext(handle, "delivery_manager", "440300")).toEqual(recommended);
+  });
+  expect(await snapshot()).toEqual([
+    before[0],
+    before[1],
+    before[2] + 2,
+    before[3],
+    before[4],
+    before[5],
+    before[6],
+  ]);
+  const cursorsAfter = await prisma.assignmentCursor.findMany({
+    orderBy: [{ pool: "asc" }, { scopeKey: "asc" }],
+  });
+  for (const cursor of cursorsBefore) expect(cursorsAfter).toContainEqual(cursor);
+  expect(
+    await prisma.assignmentCursor.findMany({
+      where: { pool: "delivery_manager", scopeKey: { in: ["440300", "510100"] } },
+      select: { pool: true, scopeKey: true, lastStaffId: true },
+      orderBy: { scopeKey: "asc" },
+    }),
+  ).toEqual([
+    { pool: "delivery_manager", scopeKey: "440300", lastStaffId: first.id },
+    { pool: "delivery_manager", scopeKey: "510100", lastStaffId: first.id },
+  ]);
   await prisma.staff.update({ where: { id: first.id }, data: { status: "pending" } });
   const pendingBefore = await snapshot();
   expect(await tx.run((handle) => recommendedStaff(handle, "delivery_manager"))).toMatchObject({

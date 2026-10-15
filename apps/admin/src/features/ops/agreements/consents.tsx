@@ -230,7 +230,13 @@ function Evidence({
         <ReadOnlyValue label="正文 SHA-256" value={row.contentSha256} />
         <ReadOnlyValue label="请求编号" value={row.requestId} />
       </div>
-      <Button loading={busy} onClick={download}>
+      <Button
+        aria-label="下载该签署版本PDF"
+        aria-busy={busy}
+        disabled={busy}
+        loading={busy}
+        onClick={download}
+      >
         下载该签署版本PDF
       </Button>
     </>

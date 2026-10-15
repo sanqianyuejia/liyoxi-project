@@ -180,6 +180,36 @@ describe("统一媒体事实执行器", { timeout: 30_000 }, () => {
   });
   it("同job扫描与队列双入口并发仅一个owned IO，close持有赢家直到清理", async () => {
     const row = await job();
+    function latch() {
+      let release!: () => void;
+      const promise = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return { promise, release };
+    }
+    const scanRead = latch(),
+      releaseScan = latch(),
+      claimRead = latch(),
+      releaseClaim = latch();
+    let transaction = 0;
+    const controlledTx: typeof tx = {
+      run(fn, options) {
+        const phase = ++transaction;
+        return tx.run(async (current) => {
+          const result = await fn(current);
+          // 保持扫描的真实 SELECT 事务，再让队列入口完成模式读取及真实认领。
+          if (phase === 1) {
+            scanRead.release();
+            await releaseScan.promise;
+          } else if (phase === 3) {
+            // 认领提交前仍在 owned 集合中，确定重放扫描随后进入去重的交错。
+            claimRead.release();
+            await releaseClaim.promise;
+          }
+          return result;
+        }, options);
+      },
+    };
     let entered = 0,
       release!: () => void;
     const held = new Promise<void>((resolve) => {
@@ -193,13 +223,19 @@ describe("统一媒体事实执行器", { timeout: 30_000 }, () => {
           return success();
         },
       }),
+      { tx: controlledTx },
     );
-    const queued = jobs.run({ jobId: row.id });
     const scanning = jobs.scan();
+    let queued: Promise<void> | undefined;
     let closed = false;
     try {
-      await vi.waitFor(() => expect(entered).toBe(1));
+      await scanRead.promise;
+      queued = jobs.run({ jobId: row.id });
+      await claimRead.promise;
+      releaseScan.release();
       await scanning;
+      releaseClaim.release();
+      await vi.waitFor(() => expect(entered).toBe(1));
       const closing = jobs.shutdown().then(() => {
         closed = true;
       });
@@ -215,9 +251,10 @@ describe("统一媒体事实执行器", { timeout: 30_000 }, () => {
         "succeeded",
       );
     } finally {
+      releaseScan.release();
+      releaseClaim.release();
       release();
-      await queued;
-      await scanning;
+      await Promise.allSettled([queued, scanning]);
       await jobs.shutdown();
     }
   });

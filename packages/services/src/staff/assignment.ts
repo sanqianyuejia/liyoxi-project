@@ -57,7 +57,8 @@ export async function prepareAssignmentPools(
     ]),
   );
   const known = prepared.get(tx) ?? new Set<string>();
-  for (const [key, r] of [...requestsByKey].sort(([a], [b]) => a.localeCompare(b))) {
+  // 与锁序断言使用同一码序，不能按 locale 排列大小写不同的 scope。
+  for (const [key, r] of [...requestsByKey].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
     if (known.has(key)) continue;
     assertLockOrder(tx, "assignment_cursor", [key]);
     await tx.$executeRawUnsafe(

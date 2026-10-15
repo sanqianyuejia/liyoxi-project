@@ -201,6 +201,24 @@ async function warm(
   });
   await caps(h, 100);
 }
+async function submit(services: ReturnType<typeof buildWorkerServices>, jobId: string) {
+  const [seconds, micros] = await client.time();
+  const baseline = Math.max(
+    clock.now().getTime(),
+    Number(seconds) * 1000 + Math.floor(Number(micros) / 1000),
+  );
+  const started = performance.now();
+  const progressingNow = () => new Date(baseline + Math.floor(performance.now() - started));
+  // Redis TIME 校准后持续走时；P1 前的准备不占用许可，真实 P1→P2 的 250ms 仍生效。
+  const moving = vi.spyOn(clock, "now").mockImplementation(progressingNow);
+  try {
+    await services.promoteFile({ jobId });
+  } finally {
+    const frozen = progressingNow();
+    moving.mockRestore();
+    clock.set(frozen);
+  }
+}
 async function receive(
   runtime: ReturnType<typeof createRuntime>,
   id: string,
@@ -308,7 +326,7 @@ describe("正式ASR回调发送与默认接收组合", { timeout: SLOW }, () => 
     expect(models.registerClose).toHaveBeenCalledOnce();
     const facts = await ready(services);
     await warm(port, facts.h);
-    await services.promoteFile({ jobId: facts.job.id });
+    await submit(services, facts.job.id);
     const saved = await prisma.mediaJob.findUniqueOrThrow({ where: { id: facts.job.id } });
     expect(saved).toMatchObject({ state: "submitted", externalJobId: taskId, attemptNo: 1 });
     expect(calls).toHaveBeenCalledOnce();
@@ -346,7 +364,7 @@ describe("正式ASR回调发送与默认接收组合", { timeout: SLOW }, () => 
         { services } = build({ modelBudgetTransport: port.port });
       const facts = await ready(services);
       await warm(port, facts.h);
-      await services.promoteFile({ jobId: facts.job.id });
+      await submit(services, facts.job.id);
       const submitted = await prisma.mediaJob.findUniqueOrThrow({ where: { id: facts.job.id } });
       expect(submitted).toMatchObject({ state: "submitted", externalJobId: taskId });
       const receiver = await api();
@@ -442,7 +460,7 @@ describe("正式ASR回调发送与默认接收组合", { timeout: SLOW }, () => 
       facts.job,
     );
     await warm(port, facts.h);
-    await services.promoteFile({ jobId: facts.job.id });
+    await submit(services, facts.job.id);
     const submitted = await prisma.mediaJob.findUniqueOrThrow({ where: { id: facts.job.id } });
     clock.set(submitted.nextRunAt);
     await services.promoteFile({ jobId: facts.job.id });
@@ -460,7 +478,7 @@ describe("正式ASR回调发送与默认接收组合", { timeout: SLOW }, () => 
     const { services } = build({ modelBudgetTransport: port.port });
     const facts = await ready(services);
     await warm(port, facts.h);
-    await services.promoteFile({ jobId: facts.job.id });
+    await submit(services, facts.job.id);
     const receiver = await api();
     const before = await prisma.mediaJob.findUniqueOrThrow({ where: { id: facts.job.id } });
     clock.advance(1);
@@ -497,7 +515,7 @@ describe("正式ASR回调发送与默认接收组合", { timeout: SLOW }, () => 
         { services } = build({ modelBudgetTransport: port.port });
       const facts = await ready(services);
       await warm(port, facts.h);
-      await services.promoteFile({ jobId: facts.job.id });
+      await submit(services, facts.job.id);
       const receiver = await api();
       clock.advance(1);
       if (changed === "provider")
@@ -562,7 +580,7 @@ describe("正式ASR回调发送与默认接收组合", { timeout: SLOW }, () => 
       { services, models } = build({ providers, modelBudgetTransport: port.port });
     const facts = await ready(services);
     await warm(port, facts.h);
-    await services.promoteFile({ jobId: facts.job.id });
+    await submit(services, facts.job.id);
     expect(await prisma.mediaJob.findUniqueOrThrow({ where: { id: facts.job.id } })).toMatchObject({
       state: "submitted",
       externalJobId: taskId,

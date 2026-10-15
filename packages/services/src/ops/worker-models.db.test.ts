@@ -493,7 +493,22 @@ describe("真实worker付费owner保守准入", { timeout: SLOW }, () => {
         reason: "仅受控HTTP测试正额度",
       },
     });
-    await services.promoteFile({ jobId: job.id });
+    const [submitSeconds, submitMicros] = await client.time();
+    const baseline = Math.max(
+      clock.now().getTime(),
+      Number(submitSeconds) * 1000 + Math.floor(Number(submitMicros) / 1000),
+    );
+    const started = performance.now();
+    const progressingNow = () => new Date(baseline + Math.floor(performance.now() - started));
+    // 前置准备不占用短许可；提交时跟随真实时间，P1→P2 的 250ms 守卫仍生效。
+    const moving = vi.spyOn(clock, "now").mockImplementation(progressingNow);
+    try {
+      await services.promoteFile({ jobId: job.id });
+    } finally {
+      const frozen = progressingNow();
+      moving.mockRestore();
+      clock.set(frozen);
+    }
     expect(await prisma.mediaJob.findUniqueOrThrow({ where: { id: job.id } })).toMatchObject({
       state: "submitted",
       externalJobId: "9007199254740993",

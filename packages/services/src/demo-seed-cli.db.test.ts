@@ -8,16 +8,72 @@ import { fileURLToPath } from "node:url";
 
 import { expect, it } from "vitest";
 
+import {
+  bindContent,
+  createContent,
+  createContentLicense,
+  seedDemoContent,
+} from "./content/index.js";
 import { createDocs } from "./docs/index.js";
+import { createEvents } from "./events/index.js";
+import { createFlow } from "./flow/index.js";
 import { createTxRunner, systemClock } from "./kernel/index.js";
-import { fakeKeyEnv, useSeededDatabase } from "./testing/index.js";
+import { createMedia } from "./media/index.js";
+import {
+  assembleForTest,
+  createCodecDemoMasterPreparer,
+  createFactories,
+  createProviderHarness,
+  fakeKeyEnv,
+  useSeededDatabase,
+} from "./testing/index.js";
+import { createTimers } from "./timers/index.js";
 
 const db = useSeededDatabase("services");
 const loader = createRequire(import.meta.url).resolve("tsx");
 const packageDirectory = fileURLToPath(new URL("../", import.meta.url));
 
-it("真实 CLI 在时钟持续前进时播种成功，登录协议立即可读，重复执行新增 0 行", async () => {
+it("已有演示内容时真实 CLI 在时钟持续前进下播种成功，登录协议立即可读，重复执行新增 0 行", async () => {
   const prisma = await db.prisma();
+  const tx = createTxRunner({ prisma, appEnv: "test" }),
+    assembly = assembleForTest({ entry: "worker" }),
+    events = createEvents({ tx, clock: systemClock, assembly }),
+    flow = createFlow({ clock: systemClock, assembly, events }),
+    providers = createProviderHarness({ clock: systemClock }).providers,
+    media = createMedia({ tx, clock: systemClock, assembly, events, storage: providers.storage }),
+    timers = createTimers({ assembly }),
+    license = createContentLicense({ clock: systemClock, flow, timers }),
+    content = createContent({ clock: systemClock, assembly, flow, media, events, license }),
+    unbind = bindContent(assembly);
+  // 本组只回归真实 CLI 的协议时钟。内容为既有 codec 夹具，不声称原片/媒体端到端验收。
+  try {
+    const staff = await createFactories({ db: prisma, clock: systemClock }).staff({
+      staffRoleKey: "content_ops",
+    });
+    await seedDemoContent(
+      {
+        tx,
+        clock: systemClock,
+        content,
+        media,
+        appEnv: "test",
+        prepareMasters: createCodecDemoMasterPreparer({
+          appEnv: "test",
+          tx,
+          clock: systemClock,
+          media,
+          events,
+        }),
+      },
+      staff.id,
+    );
+  } finally {
+    unbind();
+  }
+  expect(await prisma.drama.count({ where: { status: "listed" } })).toBe(3);
+  expect(await prisma.agreementVersion.count()).toBe(0);
+  expect(await prisma.siteNotice.count()).toBe(0);
+  expect(await prisma.outboxEvent.count({ where: { eventType: "site_notice.announced" } })).toBe(0);
   const temporary = mkdtempSync(join(tmpdir(), "lyx-demo-seed-cli-"));
   const keys = fakeKeyEnv();
   const dataKeysFile = join(temporary, "data-keys.json");
