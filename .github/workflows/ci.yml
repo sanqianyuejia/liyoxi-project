@@ -567,10 +567,11 @@ jobs:
         run: node infra/ci/isolation-shard.mjs --shard 1/4
 
   # 测试隔离的第二片（分法见 test-isolation 任务上方的说明）：两个会话同时跑这一片里的用例，核对照旧
+  # 第二、三片也已触发云端 10 分钟上限；仅延长执行时限，不缩测试范围。
   test-isolation-2:
     name: test-isolation-2
     runs-on: *runner
-    timeout-minutes: 10
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:17-trixie
@@ -628,7 +629,7 @@ jobs:
   test-isolation-3:
     name: test-isolation-3
     runs-on: *runner
-    timeout-minutes: 10
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:17-trixie
@@ -829,6 +830,7 @@ jobs:
           path: |
             apps/admin/dist/e2e-shots/
             apps/admin/dist/e2e-results/
+            apps/admin/dist/e2e-live-results/
           if-no-files-found: error
           retention-days: 30
       # W0-27a：小程序。根上的 pnpm test 不含三个前端：请求层与四个端上封装的用例在这里跑（Node 环境，不起小程序运行时）
