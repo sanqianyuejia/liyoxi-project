@@ -47,20 +47,21 @@ async function createMerchants(count: number) {
 function sampleTransport(
   registrations: readonly ModuleRegistration[],
   startedAt = support.clock.now(),
+  owner = support,
 ) {
   const assembly = assembleForTest({ entry: "api", extra: registrations });
   const events = createEvents({
     assembly,
-    clock: support.clock,
-    tx: support.runtime.tx,
+    clock: owner.clock,
+    tx: owner.runtime.tx,
     testEvents: SAMPLE_EVENTS,
   });
-  const runtime = { ...support.runtime, assembly, events };
+  const runtime = { ...owner.runtime, assembly, events };
   const transport = m1Transport(
     runtime,
     () => {
       expect(runtime.env.APP_ENV).toBe("test");
-      expect(new URL(runtime.env.DATABASE_URL).pathname).toBe(`/${support.databaseName}`);
+      expect(new URL(runtime.env.DATABASE_URL).pathname).toBe(`/${owner.databaseName}`);
     },
     startedAt,
   );
@@ -77,9 +78,9 @@ async function ping(events: Events, count: number) {
   });
 }
 
-async function placed(events: Events) {
+async function placed(events: Events, owner = support) {
   const dramaOrderId = uuidv7();
-  const result = await support.runtime.tx.run((tx) =>
+  const result = await owner.runtime.tx.run((tx) =>
     events.emit(tx, sampleSystemContext(), {
       type: "lyxtest.order.placed",
       aggregate: { type: "drama_order", id: dramaOrderId },
@@ -220,7 +221,9 @@ it("real retry backoff and exhausted leases remain refusals rather than drained"
 });
 
 it("本轮财务种子 25h 历史边界正常消费，边界前 1ms 仍拒绝", async () => {
-  const businessNow = support.clock.now();
+  // 前一组故意留下 dead 投递；历史边界必须使用自己的库，不能把 dead 从 drain 判据中过滤掉。
+  const history = await createM1Support({ clock: createClock() });
+  const businessNow = history.clock.now();
   const startedAt = new Date(businessNow.getTime() - 25 * 3_600_000);
   const handled: string[] = [];
   const sample = sampleTransport(
@@ -238,20 +241,21 @@ it("本轮财务种子 25h 历史边界正常消费，边界前 1ms 仍拒绝", 
       }),
     ],
     startedAt,
+    history,
   );
   try {
-    support.clock.set(startedAt);
-    const boundaryId = await placed(sample.events);
-    support.clock.set(businessNow);
+    history.clock.set(startedAt);
+    const boundaryId = await placed(sample.events, history);
+    history.clock.set(businessNow);
     expect(await sample.transport.drainEvents()).toEqual({ expanded: 1, consumed: 1 });
     expect(handled).toEqual([boundaryId]);
-    support.clock.set(new Date(startedAt.getTime() - 1));
-    const outsideId = await placed(sample.events);
-    support.clock.set(businessNow);
+    history.clock.set(new Date(startedAt.getTime() - 1));
+    const outsideId = await placed(sample.events, history);
+    history.clock.set(businessNow);
     await expect(sample.transport.drainEvents()).rejects.toThrow("不属于本轮业务范围");
     expect(handled).toEqual([boundaryId]);
     expect(
-      await support.runtime.tx.run((tx) =>
+      await history.runtime.tx.run((tx) =>
         tx.outboxDelivery.findUniqueOrThrow({
           where: {
             outboxEventId_subscriber: {
@@ -263,6 +267,7 @@ it("本轮财务种子 25h 历史边界正常消费，边界前 1ms 仍拒绝", 
       ),
     ).toMatchObject({ status: "leased", attempts: 0 });
   } finally {
-    support.clock.set(businessNow);
+    history.clock.set(businessNow);
+    await history.close();
   }
 });

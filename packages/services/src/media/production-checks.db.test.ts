@@ -295,6 +295,20 @@ async function trailerFixture(h: Fixture) {
     sizeBytes: body.length,
     etag: '"source"',
   });
+  // 与本文件的外部 probe 替身保持一致，补齐已通过源检查对应的技术前置。
+  await db.mediaInfo.create({
+    data: {
+      fileId: source.id,
+      kind: "video",
+      container: "mp4",
+      durationMs: report().format.durationMs,
+      probeVersion: 1,
+      raw: { fixture: "trailer codec source" },
+      probedAt: clock.now(),
+      createdAt: clock.now(),
+      updatedAt: clock.now(),
+    },
+  });
   await db.mediaCheck.create({
     data: {
       fileId: source.id,
