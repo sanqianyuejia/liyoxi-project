@@ -570,8 +570,10 @@ describe("ci.yml", () => {
       "node infra/ci/landed.mjs --check --report --out packages/contract/dist/pending-routes.md",
       "node infra/ci/landed.mjs --check --require M0,M1",
       "node infra/ci/plan-routes.mjs --check --summary packages/contract/dist/route-milestones.md",
-      // W0-23：只构建任务进程这一个包（“构建”在 web，产物过不来），下面两步跑它的产物
+      // W0-23：只构建任务进程这一个包（“构建”在 web，产物过不来），下面步骤跑它的产物
       "pnpm --filter @liyoxi/worker build",
+      // 正式 built seed 为同一迁移库补齐通知等配置，随后自检继续核全部启动守卫。
+      "node apps/worker/dist/seed.js",
       // W0-23：任务进程的产物自检；兼容脚本在 CI 的 Redis 上跑通
       "node apps/worker/dist/index.js --check",
       "pnpm redis:compat --jobs 500 --idle-minutes 0.05",
