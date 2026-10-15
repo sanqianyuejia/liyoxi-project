@@ -5,6 +5,12 @@ import { createAdminApi } from "../../src/lib/api";
 import { liveContext, noHorizontalScroll, recordErrors } from "./live-context";
 import { api, shot, totp, write } from "./w206-helpers";
 
+// 仅真实编辑一例（含自建 context）关闭会注入空 sandbox 的 trace DOM/network 快照。
+// 其它只读用例追踪不变，保留截图、源码、调用记录及全部失败判据。
+const it = test.extend({
+  trace: { mode: "retain-on-failure", snapshots: false, screenshots: true, sources: true },
+});
+
 type Role = components["schemas"]["RoleDetail"];
 const roleBody = (role: Role) => ({
   moduleLevels: role.moduleLevels,
@@ -182,7 +188,7 @@ export function registerAgreementPermissionsTest() {
     }
   });
 
-  test("W216 真实编辑与超管短公告分权、当前再验证事实及同意图重放，完整恢复角色", async ({
+  it("W216 真实编辑与超管短公告分权、当前再验证事实及同意图重放，完整恢复角色", async ({
     browser,
     page: administrator,
   }) => {
@@ -217,7 +223,13 @@ export function registerAgreementPermissionsTest() {
           fixtures: {
             "x-agreements-m2": {
               noticeAgreementKey: string;
-              files: { name: string; mime: string; base64: string; size: number; sha256: string }[];
+              files: {
+                name: string;
+                mime: string;
+                base64: string;
+                size: number;
+                sha256: string;
+              }[];
             };
           };
         }
