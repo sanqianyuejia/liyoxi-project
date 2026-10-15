@@ -40,7 +40,7 @@
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `m.delegation.create` | POST | `/m/delegations` | V1.1：老板授权管理员代为确认方案、样片、广告（委托人、受托成员、能力点、门店范围、有效期） | — | required | V1.1 | 3.22 |
 | `m.entity.create` | POST | `/m/entities` | 懒创建经营主体 + 首家门店 + 老板成员关系 + 计费账户；已是老板返回已有主体，已是别家店员返回 409 ALREADY_IN_ENTITY | — | required | V1.0 | 3.1 |
-| `m.invitation.create` | POST | `/m/invitations` | 预创建邀请：校验名额（含待接受）、生成一次性令牌、24 小时有效、占一个名额；未分享的卡片复用同一行并重置有效期 | `member.manage` | natural（uq_invitation_inviter_member_id_client_request_id） | V1.0 | 3.12 |
+| `m.invitation.create` | POST | `/m/invitations` | 预创建邀请：校验名额（含待接受）、生成一次性令牌、24 小时有效、占一个名额；未分享的卡片复用同一行并重置有效期 | `member.manage` | natural（uq_invitation_inviter_member_id_client_request_id, uq_invitation_request_inviter_client） | V1.0 | 3.12 |
 | `m.invitation.lookup` | GET | `/m/invitations/lookup` | 邀请落地页信息（?token=）：门店名、城市与品类、邀请人称呼、角色、有效期、状态（已使用、已撤回、已过期分别说明）、invitationId | — | none | V1.0 | 3.15 |
 | `m.invitation.accept` | POST | `/m/invitations/{invitationId}/accept` | 接受邀请（请求体带 token）：校验令牌与状态、归属判定（空草稿主体让位）、建店员成员关系、通知老板 | — | required | V1.0 | 3.16 |
 | `m.invitation.markShared` | POST | `/m/invitations/{invitationId}/mark-shared` | 上报已分享（端上尽力上报，用于判断卡片能否复用） | `member.manage` | required | V1.0 | 3.13 |
