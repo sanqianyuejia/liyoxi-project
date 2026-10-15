@@ -145,7 +145,23 @@ describe("结构快照：入库的那一份就是迁移建出来的样子", () =
 
   it("快照里没有分区子表及其名下的东西；数量与 06 第 1 节两组口径都对得上", () => {
     expect(base.partitions.length).toBeGreaterThan(0);
-    for (const child of base.partitions) expect(stored).not.toContain(child);
+    // 函数体可以合法引用兜底分区；排除的是子表对象与其名下的结构，不是全文中的名字。
+    for (const child of base.partitions) {
+      expect(
+        snapshot.sections.tables?.some((row) => row.key === child),
+        child,
+      ).toBe(false);
+      for (const section of ["columns", "constraints", "triggers"]) {
+        expect(
+          snapshot.sections[section]?.some((row) => row.key.startsWith(`${child}.`)),
+          `${section}: ${child}`,
+        ).toBe(false);
+      }
+      expect(
+        snapshot.sections.indexes?.some((row) => row.def.table === child),
+        child,
+      ).toBe(false);
+    }
     expect(lib.countProblems(lib.readDocCounts(), snapshot.counts, ["06 第 1 节", "快照"])).toEqual(
       [],
     );

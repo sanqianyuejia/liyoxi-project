@@ -37,7 +37,12 @@ const structureLib = (await import(
   applyMigrations(db: string): void;
   readStructure(db: string): { sections: unknown; counts: Record<string, [number, number]> };
   renderSnapshot(structure: unknown): string;
+  parseSnapshot(text: string): { counts: Record<string, [number, number]> };
 };
+const currentCheckCounts = structureLib.parseSnapshot(
+  readFileSync(join(repoRoot, "packages/db/snapshot/structure.txt"), "utf8"),
+).counts["CHECK 约束"];
+if (!currentCheckCounts) throw new Error("现行结构快照缺少 CHECK 约束计数");
 const CURRENT = `lyx_test_infra_catcurrent_${process.pid}`;
 const SCRIPT = "infra/ci/db-catalog-diff.mjs";
 const MIGRATION = "packages/db/prisma/migrations/20261005000000_init/migration.sql";
@@ -411,7 +416,12 @@ describe("命令行", () => {
     expect(
       text.match(/^\| .+ \| \d+ \| \d+ \| 0 \| `[0-9a-f]{16}` \| `[0-9a-f]{16}` \|$/gm),
     ).toHaveLength(7);
-    expect(text).toContain("| CHECK 约束 | 1234 / 1284 | 1234 / 1284 | 1234 / 1284 |");
+    // 首版证明继续使用冻结数量；本节 CURRENT 跑了全部迁移，必须对照现行官方快照。
+    const [logical, all] = currentCheckCounts;
+    const currentSection = text.split("## 3. 数量两组口径\n")[1]?.split("## 4. ")[0];
+    expect(currentSection).toContain(
+      `| CHECK 约束 | ${logical} / ${all} | ${logical} / ${all} | ${logical} / ${all} |`,
+    );
   });
 
   it("迁移库上删一条 CHECK：退出码 1，指出是哪一条，数量也对不上", () => {
@@ -427,7 +437,10 @@ describe("命令行", () => {
     );
     const text = readFileSync(report, "utf8");
     expect(text).toContain(`- 【约束定义】idempotency_record.ck_idempotency_record_state${GONE}`);
-    expect(text).toContain("- 迁移库的CHECK 约束是 1233 / 1283，应为 1234 / 1284");
+    const [logical, all] = currentCheckCounts;
+    expect(text).toContain(
+      `- 迁移库的CHECK 约束是 ${logical - 1} / ${all - 1}，应为 ${logical} / ${all}`,
+    );
   });
 
   it("库名不是 lyx_ 开头、库不存在、参数写错：退出码 2，不写报告", () => {

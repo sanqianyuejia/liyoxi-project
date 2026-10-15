@@ -13,6 +13,8 @@ const read = (path: string) => readFileSync(join(repoRoot, path), "utf8");
 const ci = read(".github/workflows/ci.yml");
 const nightly = read(".github/workflows/nightly.yml");
 const compose = read("infra/compose/local.yml");
+const MINIO_IMAGE =
+  "ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z@sha256:37a173a1c3042bdbbd9904bd3ab7c4c7b17f607b268220a607a685c14d94d1cb";
 
 interface Job {
   id: string;
@@ -104,18 +106,25 @@ const CREDENTIAL_JOBS: Record<string, { id: string; condition: string; keys: str
       id: "publish-images",
       condition:
         "vars.STG_IMAGES_PUBLISH_ENABLED == 'true' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')",
-      keys: [
-        "STG_REGISTRY_USERNAME",
-        "STG_REGISTRY_PASSWORD",
-        "STG_COS_SECRET_ID",
-        "STG_COS_SECRET_KEY",
-      ],
+      keys: ["STG_REGISTRY_USERNAME", "STG_REGISTRY_PASSWORD", "GITHUB_TOKEN"],
+    },
+    {
+      id: "publish-artifacts",
+      condition:
+        "vars.STG_IMAGES_PUBLISH_ENABLED == 'true' && vars.STG_ARTIFACT_UPLOAD_ENABLED == 'true' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')",
+      keys: ["STG_COS_SECRET_ID", "STG_COS_SECRET_KEY"],
     },
     {
       id: "mirror-base",
       condition:
         "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && vars.STG_IMAGES_PUBLISH_ENABLED == 'true' && inputs.mirror_base == true",
-      keys: ["STG_REGISTRY_USERNAME", "STG_REGISTRY_PASSWORD"],
+      keys: ["STG_REGISTRY_USERNAME", "STG_REGISTRY_PASSWORD", "GITHUB_TOKEN"],
+    },
+    {
+      id: "mirror-minio",
+      condition:
+        "github.event_name == 'workflow_dispatch' && inputs.mirror_minio == true && vars.MINIO_MIRROR_ENABLED == 'true' && github.repository == 'sanqianyuejia/liyoxi-project' && github.sha == vars.MINIO_MIRROR_APPROVED_SHA",
+      keys: ["GITHUB_TOKEN"],
     },
   ],
   "deploy-stg.yml": [
@@ -481,7 +490,7 @@ describe("ci.yml", () => {
   // packages/db 的用例、枚举对账及其反例要连迁移库 lyx_migrate_check，W0-10 的 api-check、约束名核对
   // 及其用例与反例也读它：用到它的任务各建一份
   const MIGRATE = 'psql -X -w -d postgres -c "CREATE DATABASE lyx_migrate_check" && pnpm db:deploy';
-  const MINIO_UP = "docker compose -f infra/compose/local.yml up -d --wait minio";
+  const MINIO_UP = `docker pull ${MINIO_IMAGE} && docker tag ${MINIO_IMAGE} ghcr.io/byfire-dev/minio:latest && docker compose -f infra/compose/local.yml up -d --wait --pull never minio`;
   // 已挂载清单由 apps/api 的探活用例写出，待落地数读它：先删旧的，跑完看文件在不在
   const EXPORT_MOUNTED =
     "rm -f apps/api/dist/mounted-operations.json && pnpm exec vitest run apps/api/test/probes.test.ts && test -s apps/api/dist/mounted-operations.json";
@@ -561,8 +570,10 @@ describe("ci.yml", () => {
       "node infra/ci/landed.mjs --check --report --out packages/contract/dist/pending-routes.md",
       "node infra/ci/landed.mjs --check --require M0,M1",
       "node infra/ci/plan-routes.mjs --check --summary packages/contract/dist/route-milestones.md",
-      // W0-23：只构建任务进程这一个包（“构建”在 web，产物过不来），下面两步跑它的产物
+      // W0-23：只构建任务进程这一个包（“构建”在 web，产物过不来），下面步骤跑它的产物
       "pnpm --filter @liyoxi/worker build",
+      // 正式 built seed 为同一迁移库补齐通知等配置，随后自检继续核全部启动守卫。
+      "node apps/worker/dist/seed.js",
       // W0-23：任务进程的产物自检；兼容脚本在 CI 的 Redis 上跑通
       "node apps/worker/dist/index.js --check",
       "pnpm redis:compat --jobs 500 --idle-minutes 0.05",
@@ -574,7 +585,12 @@ describe("ci.yml", () => {
     "test-2": [INSTALL, DB_GENERATE, MIGRATE, MINIO_UP, "pnpm test --project '!infra' --shard=2/3"],
     "test-3": [INSTALL, DB_GENERATE, MIGRATE, MINIO_UP, "pnpm test --project '!infra' --shard=3/3"],
     // infra 项目的用例：连库的几份自己建临时库，不用生成的客户端；W0-10 约束名核对的用例只读迁移库，所以先建一份
-    "test-infra": [INSTALL, MIGRATE, "pnpm test --project infra"],
+    "test-infra": [
+      INSTALL,
+      MIGRATE,
+      "docker pull ghcr.io/gitleaks/gitleaks:v8.30.1",
+      "pnpm test --project infra",
+    ],
     // W0-05b：两个会话同时跑连库的测试项目（挂了 globalSetup 的），核对库名与 Redis 前缀没有交集。
     // 全量分成四片，一个任务跑一片（每片里照旧是两个会话），合起来是原来的那一遍
     "test-isolation": [...ISOLATION_SETUP, "node infra/ci/isolation-shard.mjs --shard 1/4"],
@@ -829,8 +845,9 @@ describe("本地 Compose 与 CI 的服务容器", () => {
     for (const image of images.slice(0, 2)) expect(image).toMatch(/:(?!latest$)[\w.-]+$/);
     expect(images[0]).toMatch(/^postgres:17-/);
     expect(images[1]).toBe("redis:7.4-alpine");
-    // MinIO 的来源与“只写 latest”是业主定的（状态文件偏差 1）；换来源或换标签要改这里。
-    expect(images[2]).toBe("ghcr.io/byfire-dev/minio:latest");
+    // 迁移期兼容旧远端 Compose 与本地新引用；CI 始终先拉上述固定新摘要。
+    // 旧名称仅由该镜像打本地标签，不能接受任意来源或其他 latest。
+    expect(["ghcr.io/byfire-dev/minio:latest", MINIO_IMAGE]).toContain(images[2]);
     expect(compose).not.toMatch(/^\s*TZ:/m);
   });
 

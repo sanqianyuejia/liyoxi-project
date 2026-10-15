@@ -17,3 +17,35 @@ condition = "AND"
 paths = ['''^tools/api-check/[a-z_]+\.py$''']
 regexTarget = "line"
 regexes = ['''00-conventions\.md''']
+
+# 放行 2：三份 ASR 回调测试共用的公开固定十六进制测试向量。
+# 远端历史报告的 11 项重复命中，均由这些测试构造并验证原始字节；没有读取真实凭据。
+# 只匹配命中 secret 的完整固定值，不能因同一行出现测试向量而放行其他 key。
+[[allowlists]]
+description = "ASR 回调：公开固定测试向量，限定三份测试文件"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^packages/services/src/(kernel/env-asr-callback|providers/asr/callback|ops/asr-callback-send)\.test\.ts$''']
+regexTarget = "secret"
+regexes = ['''^0123456789abcdef0123456789abcdef$''']
+
+# 放行 3：两份 ASR 回调测试的既定 HMAC 签名结果，不是用于授权外部服务的密钥。
+# 远端历史报告的 7 项重复命中；仅放行这一个完整向量结果，不匹配任意签名格式。
+[[allowlists]]
+description = "ASR 回调：既定签名结果，限定两份向量测试"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^packages/services/src/(kernel/env-asr-callback|providers/asr/callback)\.test\.ts$''']
+regexTarget = "secret"
+regexes = ['''^Te8AxwzKLiZJsOeVld_9zXls7UG5pdDRXsXTPf\-vPuA$''']
+
+# 放行 4：W2-16 后台 E2E 为本轮隔离库内动态测试身份设置的固定口令。
+# 远端历史报告的 5 项重复命中；该值随测试创建身份，不来自平台或部署配置。
+# 只允许这份测试中的这一完整字面量，不允许该文件其他口令或密钥。
+[[allowlists]]
+description = "W2-16 协议 E2E：动态测试身份的固定口令"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^apps/admin/test/e2e/w216-agreements-readonly\.ts$''']
+regexTarget = "secret"
+regexes = ['''^Liyoxi\-2026\-agreements$''']

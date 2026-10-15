@@ -1,4 +1,5 @@
-# W2-25b：PR 仅构建四镜像；云写 job 只有 main 与显式配置开启时执行，不进 required。
+# W2-25b：PR 仅构建四镜像；应用发布只在 main 显式开启，不进 required。
+# MinIO 依赖恢复另需手动调度、开关与已审源码 SHA 三重批准。
 name: images
 
 on:
@@ -17,6 +18,10 @@ on:
         description: 转存固定 PostgreSQL 与 Redis 多架构镜像
         type: boolean
         default: false
+      mirror_minio:
+        description: 按已核对摘要恢复 MinIO 两架构镜像（须批准本次源码 SHA）
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -28,6 +33,7 @@ concurrency:
 jobs:
   build-images:
     name: build-images
+    if: github.event_name != 'workflow_dispatch' || inputs.mirror_minio != true
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     outputs:
@@ -77,10 +83,14 @@ jobs:
           set -eu
           node infra/docker/weapp-uploader/check-lock.mjs
           for image in server gateway; do
-            docker build -f "infra/docker/$image/Dockerfile" --build-arg "LYX_BUILD=$TAG" -t "liyoxi/$image:$TAG" .
+            docker build -f "infra/docker/$image/Dockerfile" --build-arg "LYX_BUILD=$TAG" \
+              --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+              --label "org.opencontainers.image.revision=${GITHUB_SHA}" -t "liyoxi/$image:$TAG" .
           done
           for image in mediatool weapp-uploader; do
-            docker build -t "liyoxi/$image:$TAG" "infra/docker/$image"
+            docker build \
+              --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+              --label "org.opencontainers.image.revision=${GITHUB_SHA}" -t "liyoxi/$image:$TAG" "infra/docker/$image"
           done
           docker run --rm --network none "liyoxi/server:$TAG" pg_dump --version | grep -E '^pg_dump \(PostgreSQL\) 17\.'
           docker run --rm --network none --read-only --tmpfs /tmp "liyoxi/weapp-uploader:$TAG" --check
@@ -110,6 +120,9 @@ jobs:
     needs: build-images
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: 检出固定源码
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -124,8 +137,8 @@ jobs:
         env:
           REGISTRY: ${{ vars.STG_REGISTRY }}
           NAMESPACE: ${{ vars.STG_REGISTRY_NAMESPACE }}
-          REGISTRY_USER: ${{ secrets.STG_REGISTRY_USERNAME }}
-          REGISTRY_PASSWORD: ${{ secrets.STG_REGISTRY_PASSWORD }}
+          REGISTRY_USER: ${{ vars.STG_REGISTRY == 'ghcr.io' && github.actor || secrets.STG_REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ vars.STG_REGISTRY == 'ghcr.io' && secrets.GITHUB_TOKEN || secrets.STG_REGISTRY_PASSWORD }}
           TAG: ${{ needs.build-images.outputs.tag }}
           WEAPP_API_BASE_URL: ${{ vars.STG_WEAPP_API_BASE_URL }}
           WEAPP_APPID: ${{ vars.STG_WEAPP_APPID }}
@@ -143,6 +156,48 @@ jobs:
             node infra/ci/stg-image-facts.mjs "$target" > "$RUNNER_TEMP/images-release/$image.fact.json"
           done
           node --input-type=module -e 'import fs from "node:fs";import {validateRelease} from "./infra/ci/stg-image-facts.mjs";const base=process.env.RUNNER_TEMP;const s=JSON.parse(fs.readFileSync(base+"/images-out/source.json"));if(s.source!==process.env.GITHUB_SHA||s.tag!==process.env.TAG)throw Error("源码不符");const images=Object.fromEntries(["server","gateway","mediatool","weapp-uploader"].map(n=>[n,JSON.parse(fs.readFileSync(base+"/images-release/"+n+".fact.json","utf8"))]));fs.writeFileSync(base+"/images-release/images.json",JSON.stringify(validateRelease({...s,images},process.env.GITHUB_SHA)));'
+      - name: 保存同源发布摘要
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: images-release-${{ github.sha }}
+          path: ${{ runner.temp }}/images-release/images.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: 清理登录态
+        if: always()
+        env:
+          REGISTRY: ${{ vars.STG_REGISTRY }}
+        run: docker logout "$REGISTRY"
+
+  publish-artifacts:
+    name: publish-artifacts
+    if: vars.STG_IMAGES_PUBLISH_ENABLED == 'true' && vars.STG_ARTIFACT_UPLOAD_ENABLED == 'true' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: [build-images, publish-images]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: 检出固定源码
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: 取本次构建产物
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: images-build-${{ github.sha }}
+          path: ${{ runner.temp }}/images-out
+      - name: 取本次发布摘要
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: images-release-${{ github.sha }}
+          path: ${{ runner.temp }}/images-release
+      - name: 验证同源制品
+        env:
+          TAG: ${{ needs.build-images.outputs.tag }}
+          WEAPP_API_BASE_URL: ${{ vars.STG_WEAPP_API_BASE_URL }}
+          WEAPP_APPID: ${{ vars.STG_WEAPP_APPID }}
+        run: |
+          set -eu
+          node --input-type=module -e 'import fs from "node:fs";import crypto from "node:crypto";import {validateRelease} from "./infra/ci/stg-image-facts.mjs";const p=process.env.RUNNER_TEMP;const s=JSON.parse(fs.readFileSync(p+"/images-out/source.json"));const v=validateRelease(JSON.parse(fs.readFileSync(p+"/images-release/images.json")),process.env.GITHUB_SHA);if(s.source!==process.env.GITHUB_SHA||s.tag!==process.env.TAG||s.appid!==process.env.WEAPP_APPID||s.apiBaseUrl!==process.env.WEAPP_API_BASE_URL||s.weappSha256!==crypto.createHash("sha256").update(fs.readFileSync(p+"/images-out/weapp.tar.gz")).digest("hex")||["source","tag","appid","apiBaseUrl","weappSha256"].some(k=>v[k]!==s[k]))throw Error("构建来源或制品不符");'
       - name: 装独立工具的固定 Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
@@ -170,29 +225,25 @@ jobs:
             if [ "$file" = images.json ]; then dir=images-release; else dir=images-out; fi
             node --input-type=module -e 'console.log(JSON.stringify({operation:"artifact.put",bucket:"lyx-stg-secure-"+process.env.COS_APPID,configuration:{file:process.env.RUNNER_TEMP+"/"+process.argv[1]+"/"+process.argv[2],key:"ci/"+process.env.TAG+"/"+process.argv[2]}}))' "$dir" "$file" | "$RUNNER_TEMP/cos-tools/bin/python" infra/bootstrap/cos-adapter/adapter.py
           done
-      - name: 保存同源发布摘要
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: images-release-${{ github.sha }}
-          path: ${{ runner.temp }}/images-release/images.json
-          if-no-files-found: error
-          retention-days: 7
-      - name: 清理登录态与临时工具
+      - name: 清理临时工具
         if: always()
-        run: docker logout; rm -rf "$RUNNER_TEMP/cos-tools"
+        run: rm -rf "$RUNNER_TEMP/cos-tools"
 
   mirror-base:
     name: mirror-base
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && vars.STG_IMAGES_PUBLISH_ENABLED == 'true' && inputs.mirror_base == true
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: 登录配置的仓库
         env:
           REGISTRY: ${{ vars.STG_REGISTRY }}
           NAMESPACE: ${{ vars.STG_REGISTRY_NAMESPACE }}
-          REGISTRY_USER: ${{ secrets.STG_REGISTRY_USERNAME }}
-          REGISTRY_PASSWORD: ${{ secrets.STG_REGISTRY_PASSWORD }}
+          REGISTRY_USER: ${{ vars.STG_REGISTRY == 'ghcr.io' && github.actor || secrets.STG_REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ vars.STG_REGISTRY == 'ghcr.io' && secrets.GITHUB_TOKEN || secrets.STG_REGISTRY_PASSWORD }}
         run: |
           set -eu
           test -n "$REGISTRY" && test -n "$NAMESPACE" && test -n "$REGISTRY_USER" && test -n "$REGISTRY_PASSWORD"
@@ -201,4 +252,56 @@ jobs:
           docker buildx imagetools create --tag "$REGISTRY/$NAMESPACE/redis:7" redis:7.4-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
       - name: 清理登录态
         if: always()
-        run: docker logout
+        env:
+          REGISTRY: ${{ vars.STG_REGISTRY }}
+        run: docker logout "$REGISTRY"
+
+  # 迁移旧账号的既有公开依赖；独立于应用 main 发布和部署，默认关闭。
+  # 首次恢复需在 required 能拉取 MinIO 之前执行，仅手动批准的精确源码可写。
+  mirror-minio:
+    name: mirror-minio
+    if: github.event_name == 'workflow_dispatch' && inputs.mirror_minio == true && vars.MINIO_MIRROR_ENABLED == 'true' && github.repository == 'sanqianyuejia/liyoxi-project' && github.sha == vars.MINIO_MIRROR_APPROVED_SHA
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    concurrency:
+      group: minio-ghcr-recovery
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: 拉取并核对固定版本的两个架构
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/minio-recovery"
+          target=ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z
+          # 非官方缓存只作传输；Docker 按已与本机缓存交叉核验的摘要检查清单与每层内容。
+          for arch in amd64 arm64; do
+            case "$arch" in
+              amd64) digest=sha256:a1a8bd4ac40ad7881a245bab97323e18f971e4d4cba2c2007ec1bedd21cbaba2 ;;
+              arm64) digest=sha256:9966a92a734f9411e32f4f41d7d9d826fcdc0f68c4e20b70295bd4e7c11f8a2f ;;
+            esac
+            source="ghcr.linkos.org/ghcr.io/byfire-dev/minio@$digest"
+            docker pull --platform "linux/$arch" "$source"
+            test "$(docker image inspect "$source" --format '{{.Architecture}}')" = "$arch"
+            test "$(docker image inspect "$source" --format '{{index .Config.Labels "version"}}')" = RELEASE.2025-09-07T16-13-09Z
+            docker tag "$source" "$target-$arch"
+          done
+      - name: 恢复并发布两个固定架构
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          target=ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          for arch in amd64 arm64; do
+            docker push "$target-$arch"
+          done
+          docker buildx imagetools create --tag "$target" --annotation "index:org.opencontainers.image.source=https://github.com/sanqianyuejia/liyoxi-project" "$target-amd64" "$target-arm64"
+          docker buildx imagetools inspect --raw "$target" > "$RUNNER_TEMP/minio-recovery/published-index.json"
+          jq -e '([.manifests[].platform | .os + "/" + .architecture] | sort) == ["linux/amd64", "linux/arm64"]' "$RUNNER_TEMP/minio-recovery/published-index.json"
+      - name: 清理登录态与临时清单
+        if: always()
+        run: |
+          docker logout ghcr.io
+          rm -rf "$RUNNER_TEMP/minio-recovery"

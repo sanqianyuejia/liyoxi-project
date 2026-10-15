@@ -20,7 +20,12 @@ describe("W2-25b 构建与外部写边界", () => {
     expect(body).toContain("pg_dump --version");
     expect(body).toContain("--check");
     expect(body).toContain("-m unittest -v test_adapter.py");
+    expect(body.match(/org\.opencontainers\.image\.source=/g)).toHaveLength(2);
+    expect(body.match(/org\.opencontainers\.image\.revision=/g)).toHaveLength(2);
+    expect(body).toContain("${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}");
+    expect(body).toContain("org.opencontainers.image.revision=${GITHUB_SHA}");
     expect(body).not.toMatch(/secrets\.|docker (push|login)|artifact\.put|orchestrate\.mjs/);
+    expect(body).not.toContain("packages: write");
     expect(images).toContain("name: images-build-${{ github.sha }}");
   });
 
@@ -30,13 +35,45 @@ describe("W2-25b 构建与外部写边界", () => {
       "if: vars.STG_IMAGES_PUBLISH_ENABLED == 'true' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')",
     );
     expect(body).toContain("--password-stdin");
-    expect(body).toContain('test "$STG_ARTIFACT_UPLOAD_ENABLED" = true');
-    expect(body).toContain("LYX_COS_ARTIFACT_UPLOAD_ENABLED=true");
+    expect(body).toContain("permissions:\n      contents: read\n      packages: write");
+    expect(body).toContain(
+      "REGISTRY_USER: ${{ vars.STG_REGISTRY == 'ghcr.io' && github.actor || secrets.STG_REGISTRY_USERNAME }}",
+    );
+    expect(body).toContain(
+      "REGISTRY_PASSWORD: ${{ vars.STG_REGISTRY == 'ghcr.io' && secrets.GITHUB_TOKEN || secrets.STG_REGISTRY_PASSWORD }}",
+    );
+    expect(body).toContain("!/^wx[a-f0-9]{16}$/.test(process.env.WEAPP_APPID)");
+    expect(body).toContain("s.appid!==process.env.WEAPP_APPID");
+    expect(body).toContain("s.apiBaseUrl!==process.env.WEAPP_API_BASE_URL");
     expect(body.indexOf("s.source!==process.env.GITHUB_SHA")).toBeLessThan(
       body.indexOf("docker push"),
     );
     expect(body).not.toMatch(/--upload\b|\bweapp-upload\b/);
+    expect(body).not.toMatch(/STG_COS_|artifact\.put|cos-tools|STG_ARTIFACT_UPLOAD_ENABLED/);
+    expect(body).toContain("name: images-release-${{ github.sha }}");
     expect(body).toContain("if: always()");
+    expect(body).toContain('docker logout "$REGISTRY"');
+    expect(images).not.toContain("ghcr_only");
+    const artifacts = job(images, "publish-artifacts");
+    expect(artifacts).toContain(
+      "if: vars.STG_IMAGES_PUBLISH_ENABLED == 'true' && vars.STG_ARTIFACT_UPLOAD_ENABLED == 'true' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')",
+    );
+    expect(artifacts).toContain("needs: [build-images, publish-images]");
+    expect(artifacts).toContain("name: images-build-${{ github.sha }}");
+    expect(artifacts).toContain("name: images-release-${{ github.sha }}");
+    expect(artifacts).toContain('test "$STG_ARTIFACT_UPLOAD_ENABLED" = true');
+    expect(artifacts).toContain("LYX_COS_ARTIFACT_UPLOAD_ENABLED=true");
+    expect(artifacts).toContain("validateRelease");
+    expect(artifacts).toContain("v[k]!==s[k]");
+    expect(artifacts.indexOf("s.source!==process.env.GITHUB_SHA")).toBeLessThan(
+      artifacts.indexOf("artifact.put"),
+    );
+    expect(artifacts).toContain("python-version: 3.11.14");
+    expect(artifacts).toContain("verify_lock.py");
+    expect(artifacts.match(/--require-hashes --no-build-isolation/g)).toHaveLength(2);
+    expect(artifacts).not.toMatch(/docker (push|login)|packages: write|orchestrate\.mjs/);
+    expect(artifacts).not.toMatch(/--upload\b|\bweapp-upload\b/);
+    expect(artifacts).toContain("if: always()");
   });
 
   it("PG/Redis 只手动且启用才转存多架构清单；不 pull/tag/push 单平台", () => {
@@ -45,9 +82,41 @@ describe("W2-25b 构建与外部写边界", () => {
       "if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && vars.STG_IMAGES_PUBLISH_ENABLED == 'true' && inputs.mirror_base == true",
     );
     expect(body.match(/docker buildx imagetools create/g)).toHaveLength(2);
+    expect(body).toContain("permissions:\n      contents: read\n      packages: write");
+    expect(body).toContain(
+      "REGISTRY_PASSWORD: ${{ vars.STG_REGISTRY == 'ghcr.io' && secrets.GITHUB_TOKEN || secrets.STG_REGISTRY_PASSWORD }}",
+    );
     expect(body).toMatch(/postgres:17-trixie@sha256:[a-f0-9]{64}/);
     expect(body).toMatch(/redis:7\.4-alpine@sha256:[a-f0-9]{64}/);
     expect(body).not.toMatch(/docker (pull|tag|push) /);
+  });
+
+  it("MinIO 恢复仅手动与精确批准源码，固定摘要拉取验真后才登录推送", () => {
+    const body = job(images, "mirror-minio");
+    expect(body).toContain(
+      "github.event_name == 'workflow_dispatch' && inputs.mirror_minio == true",
+    );
+    expect(body).toContain("vars.MINIO_MIRROR_ENABLED == 'true'");
+    expect(body).toContain("github.repository == 'sanqianyuejia/liyoxi-project'");
+    expect(body).toContain("github.sha == vars.MINIO_MIRROR_APPROVED_SHA");
+    expect(body).toContain("packages: write");
+    expect(body).toContain(
+      "sha256:a1a8bd4ac40ad7881a245bab97323e18f971e4d4cba2c2007ec1bedd21cbaba2",
+    );
+    expect(body).toContain(
+      "sha256:9966a92a734f9411e32f4f41d7d9d826fcdc0f68c4e20b70295bd4e7c11f8a2f",
+    );
+    expect(body).toContain('source="ghcr.linkos.org/ghcr.io/byfire-dev/minio@$digest"');
+    expect(body).toContain('docker pull --platform "linux/$arch" "$source"');
+    expect(body.indexOf("docker image inspect")).toBeLessThan(body.indexOf("docker login"));
+    expect(body).toContain("for arch in amd64 arm64");
+    expect(body).toContain('"$target-amd64" "$target-arm64"');
+    expect(body).toContain('["linux/amd64", "linux/arm64"]');
+    expect(body).toContain("if: always()");
+    expect(body).not.toMatch(/docker run|STG_SSH|STG_COS|orchestrate|:latest/);
+    expect(job(images, "build-images")).toContain(
+      "if: github.event_name != 'workflow_dispatch' || inputs.mirror_minio != true",
+    );
   });
 
   it("部署整个 job 默认关闭，同源 main 成功 push/runID/HEAD 绑定，先核摘要再编排", () => {
