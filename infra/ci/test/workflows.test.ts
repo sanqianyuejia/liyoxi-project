@@ -841,8 +841,10 @@ describe("本地 Compose 与 CI 的服务容器", () => {
     for (const image of images.slice(0, 2)) expect(image).toMatch(/:(?!latest$)[\w.-]+$/);
     expect(images[0]).toMatch(/^postgres:17-/);
     expect(images[1]).toBe("redis:7.4-alpine");
-    // MinIO 的来源与“只写 latest”是业主定的（状态文件偏差 1）；换来源或换标签要改这里。
-    expect(images[2]).toBe("ghcr.io/byfire-dev/minio:latest");
+    // 业主授权迁入本项目并公开，固定已验证的版本与双架构索引摘要。
+    expect(images[2]).toBe(
+      "ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z@sha256:37a173a1c3042bdbbd9904bd3ab7c4c7b17f607b268220a607a685c14d94d1cb",
+    );
     expect(compose).not.toMatch(/^\s*TZ:/m);
   });
 

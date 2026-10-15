@@ -42,11 +42,9 @@ services:
       retries: 30
 
   minio:
-    # 业主定的来源（2026-10-04）：业主自己仓库里的这一份，匿名可拉。它与官方最后一个社区版
-    # RELEASE.2025-09-07T16-13-09Z 是同一个镜像（摘要 sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e）。
-    # 官方仓库 minio/minio 已不公开（Docker Hub 404、Quay 401）。只写 latest、不带摘要也是业主定的：
-    # docs/plan/status/W0-03.md “偏差”第 1 条。
-    image: ghcr.io/byfire-dev/minio:latest
+    # 业主于 2026-10-15 授权从旧源迁入本项目并公开；已核匿名索引、双架构子清单与配置读取。
+    # 固定 RELEASE.2025-09-07T16-13-09Z 及恢复后的新索引摘要；记录见 infra/docker/minio-recovery.md。
+    image: ghcr.io/sanqianyuejia/liyoxi/minio:RELEASE.2025-09-07T16-13-09Z@sha256:37a173a1c3042bdbbd9904bd3ab7c4c7b17f607b268220a607a685c14d94d1cb
     container_name: lyx-minio
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
