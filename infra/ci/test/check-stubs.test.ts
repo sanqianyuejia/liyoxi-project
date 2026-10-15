@@ -41,11 +41,11 @@ function replace(path: string, before: string, after: string) {
 }
 
 describe("计划逐行留桩与未来页面", () => {
-  it("真实登记通过，未来两个员工部分桩仍未回补且不阻断 M1", () => {
+  it("真实登记通过，两个员工部分桩已随 M2 回补", () => {
     const { dir, check } = fixture();
     expect(check().status).toBe(0);
     for (const name of ["m2-staff-activation-sms.md", "m2-staff-assignment-pool.md"])
-      expect(readFileSync(join(dir, "stubs", name), "utf8")).toContain("| 状态 | 留桩中 |");
+      expect(readFileSync(join(dir, "stubs", name), "utf8")).toContain("| 状态 | 已回补 |");
   });
   it("删除已回补文件也拒绝，不能因当前计数为零丢掉登记", () => {
     const { dir, check } = fixture();
