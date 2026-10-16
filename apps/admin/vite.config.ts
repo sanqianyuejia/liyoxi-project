@@ -9,10 +9,12 @@
 // 产物文件名带内容哈希（Vite 的默认命名）；每次构建写入构建号：index.html 的 <meta name="lyx-build">、
 // 代码里的 __LYX_BUILD__、产物根目录的 build.json 三处同值。构建号取环境变量 LYX_BUILD，
 // 没有时取 git 提交的短哈希，都没有时是 dev。
+import { fileURLToPath } from "node:url";
+import { LOCAL_STORAGE_PREFIX, localStorageOrigin } from "./src/lib/local-storage";
 import { execFileSync } from "node:child_process";
 
 import react from "@vitejs/plugin-react";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
 
 function resolveBuildNumber(): string {
   const fromEnv = process.env.LYX_BUILD?.trim();
@@ -89,9 +91,21 @@ export default defineConfig(({ mode }) => {
   const build = resolveBuildNumber();
   const withFixtures = mode !== "production";
   const apiOrigin = process.env.LYX_API_ORIGIN;
+  // 只读取服务端配置用于开发代理，不把 .env 或凭据打包进浏览器。
+  const localEnv =
+    mode === "development"
+      ? loadEnv(mode, fileURLToPath(new URL("../../", import.meta.url)), "MINIO_")
+      : {};
+  const storageOrigin =
+    mode === "development"
+      ? localStorageOrigin(
+          localEnv.MINIO_PUBLIC_ENDPOINT || localEnv.MINIO_ENDPOINT || "http://127.0.0.1:9100",
+        )
+      : "";
   return {
     plugins: [react(), buildNumberPlugin(build, mode), sampleBackendPlugin()],
     define: {
+      __LYX_LOCAL_STORAGE_ORIGIN__: JSON.stringify(storageOrigin),
       __LYX_BUILD__: JSON.stringify(build),
       __LYX_DEV_FIXTURES__: JSON.stringify(withFixtures),
     },
@@ -103,7 +117,19 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5183,
       // 与接口同源（D7 第 5.1 节）：本地开发把 /api 转给 api 进程。api 骨架（W0-22）到位前不设 LYX_API_ORIGIN，不转发
-      proxy: apiOrigin ? { "/api": { target: apiOrigin, changeOrigin: false } } : undefined,
+      proxy: {
+        ...(apiOrigin ? { "/api": { target: apiOrigin, changeOrigin: false } } : {}),
+        ...(storageOrigin
+          ? {
+              [LOCAL_STORAGE_PREFIX]: {
+                target: storageOrigin,
+                changeOrigin: true,
+                rewrite: (path: string) => path.slice(LOCAL_STORAGE_PREFIX.length),
+                proxyTimeout: 120_000,
+              },
+            }
+          : {}),
+      },
     },
     preview: { port: 4183, strictPort: true },
     test: {

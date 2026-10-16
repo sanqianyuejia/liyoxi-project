@@ -1,6 +1,6 @@
 import { Alert, Button, Modal } from "antd";
 import { useEffect, useState, type ReactNode } from "react";
-import { contentConflict, contentError } from "./api";
+import { contentConflict, contentError, contentListingFailures } from "./api";
 import type { createContentIntent } from "./model";
 
 export function ContentDialog({
@@ -22,6 +22,7 @@ export function ContentDialog({
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
+  const [listingBlocked, setListingBlocked] = useState(false);
   const [conflict, setConflict] = useState(false);
   useEffect(() => {
     intent.activate();
@@ -31,11 +32,13 @@ export function ContentDialog({
     if (pending || intent.pending || disabled || conflict) return;
     setPending(true);
     setError(undefined);
+    setListingBlocked(false);
     try {
       await submit();
     } catch (failure) {
       if (!intent.signal.aborted) {
         setError(contentError(failure));
+        setListingBlocked(contentListingFailures(failure).length > 0);
         setConflict(contentConflict(failure));
       }
     } finally {
@@ -55,6 +58,11 @@ export function ContentDialog({
     >
       <div className="content-form">{children}</div>
       {error ? <Alert type="error" title={error} /> : null}
+      {listingBlocked ? (
+        <p role="status">
+          本次修改未保存，表单内容已保留。已上架短剧须先补齐上述资料；如需暂存修改，请先下架再编辑。
+        </p>
+      ) : null}
       {conflict ? (
         <Alert
           type="warning"

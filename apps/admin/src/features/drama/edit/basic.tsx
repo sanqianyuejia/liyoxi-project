@@ -4,6 +4,7 @@ import {
   DramaCastBodySchema,
 } from "@liyoxi/contract";
 import { Alert, Button, Checkbox, Input, InputNumber, Select } from "antd";
+import type { UploadTaskState } from "../../../lib/upload";
 import { useState } from "react";
 import { FormField } from "../../../components/FormField";
 import { ReadOnlyValue } from "../../../components/ReadOnlyValue";
@@ -25,6 +26,9 @@ export function BasicDialog({
   onClose(): void;
   onSaved(): void;
 }) {
+  const [uploadState, setUploadState] = useState<UploadTaskState>({ status: "idle" });
+  const [uploadKey, setUploadKey] = useState(0);
+  const uploading = uploadState.status === "uploading";
   const [intent] = useState(() => createContentIntent("drama-basic"));
   const knownClass = DRAMA_CLASS_OPTIONS.some((v) => v.value === drama.dramaClass);
   const [draft, setDraft] = useState<BasicBody>(() => ({
@@ -47,9 +51,11 @@ export function BasicDialog({
   return (
     <ContentDialog
       title="编辑基础信息"
+      disabled={uploading}
       intent={intent}
       onClose={onClose}
       submit={async () => {
+        if (uploading) return;
         const body = DramaBasicBodySchema.parse(draft);
         if (
           await intent.submit(body, (key, signal) => api.basic(drama.dramaId, body, key, signal))
@@ -74,12 +80,38 @@ export function BasicDialog({
         {() => (
           <>
             <ContentUpload
+              key={uploadKey}
               api={api}
               category="poster"
+              preserveValueOnFailure
+              onStateChange={setUploadState}
               onChange={(posterFileId) => set({ posterFileId })}
             />
-            <p>{draft.posterFileId ? "已引用封面文件" : "未选择封面"}</p>
-            <Button onClick={() => set({ posterFileId: null })}>移除封面引用</Button>
+            <p role="status">
+              {uploading
+                ? uploadState.percent >= 90
+                  ? "正在处理封面，请稍候"
+                  : "封面上传中，请稍候"
+                : uploadState.status === "failed" || uploadState.status === "rejected"
+                  ? draft.posterFileId
+                    ? "新封面未上传成功，原封面已保留"
+                    : "封面未上传成功，请重试或重新选择"
+                  : draft.posterFileId
+                    ? "已引用封面文件"
+                    : "未选择封面"}
+            </p>
+            {draft.posterFileId ? (
+              <Button
+                disabled={uploading}
+                onClick={() => {
+                  set({ posterFileId: null });
+                  setUploadState({ status: "idle" });
+                  setUploadKey((value) => value + 1);
+                }}
+              >
+                移除封面引用
+              </Button>
+            ) : null}
           </>
         )}
       </FormField>

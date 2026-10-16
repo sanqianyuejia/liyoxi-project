@@ -79,6 +79,13 @@ export function createTicketDetailApi(services: Pick<AppServices, "api">) {
       c
         .POST("/api/v1/admin/files", { body, headers: { "Idempotency-Key": key }, signal })
         .then(unwrap),
+    refreshCredentials: (fileId: string, signal?: AbortSignal) =>
+      c
+        .POST("/api/v1/admin/files/{fileId}/refresh-credentials", {
+          params: { path: { fileId } },
+          signal,
+        })
+        .then(unwrap),
     complete: (fileId: string, key: string, signal?: AbortSignal) =>
       c
         .POST("/api/v1/admin/files/{fileId}/complete", {

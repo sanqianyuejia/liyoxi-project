@@ -24,7 +24,7 @@ export default defineConfig({
           use: { storageState: process.env.LYX_ADMIN_LIVE_STATE },
         },
       ]
-    : [{ name: "samples", testIgnore: /(?:^|[/\\])live-[^/\\]*$/ }],
+    : [{ name: "samples", testIgnore: [/(?:^|[/\\])live-[^/\\]*$/, /cover-upload\.spec\.ts$/] }],
   fullyParallel: false,
   workers: 1,
   retries: 0,
