@@ -360,6 +360,14 @@ describe("冒烟脚本的约束核对（docker inspect 桩掉）", () => {
 });
 
 describe("整套环境的 Compose 与镜像定义", () => {
+  it("浏览器 CSP 与 API/worker 的 MinIO 公网地址使用相同配置和默认值", () => {
+    const text = read("infra/compose/stack.yml");
+    const endpoints = [...text.matchAll(/MINIO_PUBLIC_ENDPOINT: (.+)/g)].map((v) => v[1]);
+    const csp = /MEDIA_ORIGINS: (.+)/.exec(text)?.[1];
+    expect(endpoints).toHaveLength(2);
+    expect(csp).toBe("${MINIO_PUBLIC_ENDPOINT:-http://127.0.0.1:9100}");
+    expect(endpoints.every((value) => value === csp)).toBe(true);
+  });
   const stack = read("infra/compose/stack.yml");
   const local = read("infra/compose/local.yml");
   const serviceBlock = (text: string, name: string) =>

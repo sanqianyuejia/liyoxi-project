@@ -2,7 +2,7 @@ import { maxUploadBytes, UPLOAD_CATEGORIES } from "@liyoxi/shared/uploads";
 import { Alert, Button } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { UploadField } from "../../../components/UploadField";
-import type { UploadFn, UploadRule } from "../../../lib/upload";
+import type { UploadFn, UploadRule, UploadTaskState } from "../../../lib/upload";
 import { createProductionUpload } from "../../delivery/ticket-detail/upload";
 import type { DramaApi, FileBody } from "./api";
 import { contentError } from "./api";
@@ -14,11 +14,15 @@ export function ContentUpload({
   category,
   onChange,
   disabled = false,
+  preserveValueOnFailure = false,
+  onStateChange,
 }: {
   api: DramaApi;
   category: Category;
   onChange(fileId: string | null): void;
   disabled?: boolean;
+  preserveValueOnFailure?: boolean;
+  onStateChange?: (state: UploadTaskState) => void;
 }) {
   const adapter = useRef<ReturnType<typeof createProductionUpload> | null>(null);
   const upload = useCallback<UploadFn>((file, options) => {
@@ -49,7 +53,16 @@ export function ContentUpload({
       if (adapter.current === current) adapter.current = null;
     };
   }, [api, category]);
-  return <UploadField rule={rule} upload={upload} disabled={disabled} onChange={onChange} />;
+  return (
+    <UploadField
+      rule={rule}
+      upload={upload}
+      disabled={disabled}
+      onChange={onChange}
+      preserveValueOnFailure={preserveValueOnFailure}
+      onStateChange={onStateChange}
+    />
+  );
 }
 export function SourcePreview({
   api,

@@ -1,3 +1,4 @@
+import { localStorageRequestUrl } from "../../../lib/local-storage";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { getRouteApi, useRouteContext } from "@tanstack/react-router";
 import { Alert, Button, Input } from "antd";
@@ -156,7 +157,7 @@ function DramaEditWorkspace({ id }: { id: string }) {
                 <img
                   className="content-poster"
                   alt={`${drama.title}封面`}
-                  src={drama.posterUrl.url}
+                  src={localStorageRequestUrl(drama.posterUrl.url, __LYX_LOCAL_STORAGE_ORIGIN__)}
                 />
               ) : null}
               <div className="content-form-grid">

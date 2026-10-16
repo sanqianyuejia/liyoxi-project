@@ -24,6 +24,9 @@ export interface UploadFieldProps {
   /** 上传区里的字，缺省“点击上传” */
   text?: string;
   disabled?: boolean;
+  /** 替换失败时保留调用方当前引用，仅成功或明确移除已上传文件时更改。 */
+  preserveValueOnFailure?: boolean;
+  onStateChange?: (state: UploadTaskState) => void;
 }
 
 const UID = "lyx-upload-file";
@@ -42,15 +45,32 @@ export function toUploadList(state: UploadTaskState): UploadFile[] {
   }
 }
 
-export function UploadField({ rule, upload, onChange, text, disabled }: UploadFieldProps) {
+export function UploadField({
+  rule,
+  upload,
+  onChange,
+  text,
+  disabled,
+  preserveValueOnFailure = false,
+  onStateChange,
+}: UploadFieldProps) {
   const [state, setState] = useState<UploadTaskState>({ status: "idle" });
   const task = useMemo(
-    () => createUploadTask({ rule, upload, onChange: setState }),
-    [rule, upload],
+    () =>
+      createUploadTask({
+        rule,
+        upload,
+        onChange: (next) => {
+          setState(next);
+          onStateChange?.(next);
+        },
+      }),
+    [rule, upload, onStateChange],
   );
-  /** 一次上传（或重试）结束后把结果交给调用方：传完给 fileId，其余给 null */
-  const report = (final: UploadTaskState): void =>
-    onChange(final.status === "done" ? final.fileId : null);
+  const report = (final: UploadTaskState): void => {
+    if (final.status === "done") onChange(final.fileId);
+    else if (!preserveValueOnFailure) onChange(null);
+  };
 
   const busy = state.status === "uploading";
   const hint = `支持 ${describeAccept(rule.accept)}，单个文件不超过 ${rule.maxSizeMb}MB`;
@@ -64,21 +84,23 @@ export function UploadField({ rule, upload, onChange, text, disabled }: UploadFi
         fileList={toUploadList(state)}
         // 不走 antd 自己的请求：校验与上传都交给状态机
         beforeUpload={(file) => {
-          onChange(null);
+          if (!preserveValueOnFailure) onChange(null);
           void task.start(file).then(report);
           return false;
         }}
         onRemove={() => {
+          const removeReference = !preserveValueOnFailure || state.status === "done";
           task.reset();
-          onChange(null);
+          if (removeReference) onChange(null);
           return true;
         }}
         showUploadList={{
-          showRemoveIcon: !busy,
+          showRemoveIcon: !busy && !disabled,
           extra: ({ status }) =>
             status === "error" ? (
               <button
                 type="button"
+                disabled={disabled}
                 className="lyx-link"
                 onClick={() => void task.retry().then(report)}
               >
@@ -93,7 +115,15 @@ export function UploadField({ rule, upload, onChange, text, disabled }: UploadFi
           disabled={disabled || busy}
         >
           <Icon name="upload" size={16} />
-          <span>{state.status === "done" ? "重新上传（替换）" : (text ?? "点击上传")}</span>
+          <span>
+            {busy
+              ? state.percent >= 90
+                ? "正在处理文件…"
+                : "上传中…"
+              : state.status === "done"
+                ? "重新上传（替换）"
+                : (text ?? "点击上传")}
+          </span>
         </button>
       </Upload>
       {state.status === "rejected" ? (

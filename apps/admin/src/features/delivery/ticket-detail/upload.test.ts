@@ -10,8 +10,8 @@ const registration: Awaited<ReturnType<DetailApi["file"]>> = {
   region: "us-east-1",
   clientToken: "test",
   credentialsLeft: 30,
-  expiresAt: "2026-10-01T00:00:00Z",
-  uploadExpiresAt: "2026-10-01T00:00:00Z",
+  expiresAt: "2099-10-01T00:00:00Z",
+  uploadExpiresAt: "2099-10-01T00:00:00Z",
   sts: null,
   chunkSize: null,
   chunkParallel: null,
@@ -33,6 +33,8 @@ class Xhr {
   onload?: () => void;
   onerror?: () => void;
   onabort?: () => void;
+  ontimeout?: () => void;
+  timeout = 0;
   open(method: string, url: string) {
     this.method = method;
     this.url = url;
@@ -51,11 +53,12 @@ function setup() {
   vi.stubGlobal("window", { setTimeout, clearTimeout });
   const api = {
     file: vi.fn().mockResolvedValue(registration),
+    refreshCredentials: vi.fn().mockResolvedValue(registration),
     complete: vi.fn().mockResolvedValue({ status: "stored" }),
     fileStatus: vi.fn().mockResolvedValue({ status: "stored" }),
   };
   const adapter = createProductionUpload(
-    api as unknown as Pick<DetailApi, "file" | "complete" | "fileStatus">,
+    api as unknown as Pick<DetailApi, "file" | "complete" | "fileStatus" | "refreshCredentials">,
     {
       category: "sample_video",
       storeId: "store",
@@ -132,4 +135,52 @@ it("直传中关闭取消网络且不 complete、不报告成功", async () => {
   await rejected;
   expect(api.complete).not.toHaveBeenCalled();
   expect(progress).not.toHaveBeenCalledWith(100);
+});
+
+it("直传超时拒绝且不确认入库，重试仍可成功", async () => {
+  const { api, adapter, file } = setup();
+  const first = adapter.upload(file, { onProgress: vi.fn() });
+  const failed = expect(first).rejects.toThrow("直传超时");
+  await vi.waitFor(() => expect(Xhr.calls).toHaveLength(1));
+  expect(Xhr.calls[0]!.timeout).toBe(120_000);
+  Xhr.calls[0]!.ontimeout?.();
+  Xhr.calls[0]!.onload?.();
+  await failed;
+  expect(api.complete).not.toHaveBeenCalled();
+  const retry = adapter.upload(file, { onProgress: vi.fn() });
+  await vi.waitFor(() => expect(Xhr.calls).toHaveLength(2));
+  Xhr.calls[1]!.onload?.();
+  await expect(retry).resolves.toEqual({ fileId: "file" });
+  adapter.dispose();
+});
+it("失败后凭证过期，续签同一 fileId 再直传，不重新登记", async () => {
+  const { api, adapter, file } = setup();
+  const expiring = { ...registration, expiresAt: new Date(Date.now() + 60_000).toISOString() };
+  api.file.mockResolvedValue(expiring);
+  const first = adapter.upload(file, { onProgress: vi.fn() });
+  const failed = expect(first).rejects.toThrow("网络失败");
+  await vi.waitFor(() => expect(Xhr.calls).toHaveLength(1));
+  Xhr.calls[0]!.onerror?.();
+  await failed;
+  expiring.expiresAt = "2000-01-01T00:00:00Z";
+  api.refreshCredentials.mockResolvedValue({
+    ...registration,
+    post: { ...registration.post!, url: "https://storage.test/renewed" },
+  });
+  const retry = adapter.upload(file, { onProgress: vi.fn() });
+  await vi.waitFor(() => expect(Xhr.calls).toHaveLength(2));
+  expect(api.refreshCredentials).toHaveBeenCalledWith("file", expect.any(AbortSignal));
+  expect(api.file).toHaveBeenCalledTimes(1);
+  expect(Xhr.calls[1]!.url).toBe("https://storage.test/renewed");
+  Xhr.calls[1]!.onload?.();
+  await retry;
+  adapter.dispose();
+});
+it("上传窗口过期不再直传或续签", async () => {
+  const { api, adapter, file } = setup();
+  api.file.mockResolvedValue({ ...registration, uploadExpiresAt: "2000-01-01T00:00:00Z" });
+  await expect(adapter.upload(file, { onProgress: vi.fn() })).rejects.toThrow("重新选择文件");
+  expect(Xhr.calls).toHaveLength(0);
+  expect(api.refreshCredentials).not.toHaveBeenCalled();
+  adapter.dispose();
 });

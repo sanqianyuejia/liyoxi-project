@@ -123,8 +123,8 @@ services:
       API_UPSTREAM: lyx-api:3000
       # 可信代理：本地填共享网络的网段，由 up.mjs 现查后传进来
       TRUSTED_PROXY_CIDRS: ${LYX_STACK_TRUSTED_CIDRS:-}
-      # 写进 CSP 的对象存储源：本机的 MinIO
-      MEDIA_ORIGINS: http://localhost:9100
+      # 与 API 返回的直传/签读地址使用同一来源，包含 LAN 覆盖。
+      MEDIA_ORIGINS: ${MINIO_PUBLIC_ENDPOINT:-http://127.0.0.1:9100}
     ports:
       - "${LYX_STACK_BIND:-127.0.0.1}:${LYX_STACK_PORT:-8080}:8080"
     restart: on-failure

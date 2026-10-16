@@ -1,3 +1,4 @@
+import { localStorageRequestUrl } from "../../../lib/local-storage";
 import { maxUploadBytes } from "@liyoxi/shared/uploads";
 import type { UploadFn, UploadRule } from "../../../lib/upload";
 import { newIdempotencyKey } from "../../../lib/idempotency";
@@ -44,7 +45,10 @@ export function postFile(
     for (const [key, value] of Object.entries(registration.post.fields)) form.append(key, value);
     form.append("file", file);
     const abort = () => xhr.abort();
+    let settled = false;
     const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
       signal.removeEventListener("abort", abort);
       if (error) reject(error);
       else resolve();
@@ -54,10 +58,16 @@ export function postFile(
       if (e.lengthComputable) progress((e.loaded / e.total) * 85);
     };
     xhr.onload = () =>
-      finish(xhr.status >= 200 && xhr.status < 300 ? undefined : new Error("文件直传失败，请重试"));
+      finish(
+        xhr.status >= 200 && xhr.status < 300
+          ? undefined
+          : new Error(`文件直传失败（HTTP ${xhr.status}），请重试`),
+      );
     xhr.onerror = () => finish(new Error("文件直传网络失败，请重试"));
+    xhr.timeout = 120_000;
+    xhr.ontimeout = () => finish(new Error("文件直传超时，请检查网络后重试"));
     xhr.onabort = () => finish(canceled());
-    xhr.open("POST", registration.post.url);
+    xhr.open("POST", localStorageRequestUrl(registration.post.url, __LYX_LOCAL_STORAGE_ORIGIN__));
     // 凭证表单独立直传：不发送后台 Cookie，不覆盖 multipart Content-Type。
     xhr.withCredentials = false;
     xhr.send(form);
@@ -66,7 +76,7 @@ export function postFile(
 
 /** 一个上传位持有自己的意图和取消句柄；重试复用同一文件的 clientToken。 */
 export function createProductionUpload(
-  api: Pick<DetailApi, "file" | "complete" | "fileStatus">,
+  api: Pick<DetailApi, "file" | "complete" | "fileStatus" | "refreshCredentials">,
   context: Omit<FileBody, "fileName" | "sizeBytes" | "clientToken" | "mime">,
 ) {
   const entries = new WeakMap<
@@ -90,7 +100,7 @@ export function createProductionUpload(
       };
       entries.set(file, entry);
     }
-    const registration =
+    let registration =
       entry.registration ??
       (await api.file(
         { ...context, fileName: file.name, sizeBytes: String(file.size), clientToken: entry.token },
@@ -100,6 +110,17 @@ export function createProductionUpload(
     entry.registration = registration;
     if (signal.aborted || disposed) throw canceled();
     if (!entry.posted) {
+      if (Date.parse(registration.uploadExpiresAt) <= Date.now()) {
+        throw new Error("本次上传已过期，请重新选择文件");
+      }
+      if (Date.parse(registration.expiresAt) <= Date.now() + 30_000) {
+        registration = await api.refreshCredentials(registration.fileId, signal);
+        entry.registration = registration;
+        if (signal.aborted || disposed) throw canceled();
+        if (Date.parse(registration.expiresAt) <= Date.now()) {
+          throw new Error("上传凭证已过期，请重试");
+        }
+      }
       await postFile(registration, file, signal, onProgress);
       entry.posted = true;
     }

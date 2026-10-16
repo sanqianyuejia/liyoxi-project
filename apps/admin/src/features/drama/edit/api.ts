@@ -24,6 +24,7 @@ import {
   AdminFileViewSchema,
   SignedUrlSchema,
   MediaJobPageSchema,
+  z,
 } from "@liyoxi/contract";
 import type { AppServices } from "../../../app/services";
 import { readFailure, type ApiFailure } from "../../../lib/api-errors";
@@ -59,8 +60,20 @@ export async function contentResult<T>(result: {
         });
   throw new ContentFailure(await readFailure(response));
 }
+const listingFailureDetails = z.object({
+  failed: z.array(z.object({ code: z.string(), note: z.string() })),
+});
+export function contentListingFailures(error: unknown) {
+  if (!(error instanceof ContentFailure) || error.failure.symbol !== "LISTING_CHECK_FAILED")
+    return [];
+  const result = listingFailureDetails.safeParse(error.failure.body?.details);
+  return result.success ? result.data.failed : [];
+}
 export function contentError(error: unknown): string {
   if (error instanceof ContentFailure) {
+    const failed = contentListingFailures(error);
+    if (failed.length)
+      return `上架校验未通过：${failed.map((v) => `${v.code}：${v.note}`).join("；")}`;
     const fields = error.failure.body?.fieldErrors;
     return fields?.length ? fields.map((v) => `${v.path}：${v.message}`).join("；") : error.message;
   }
@@ -281,6 +294,14 @@ export function createDramaApi(services: Pick<AppServices, "api">) {
     file: (body: FileBody, key: string, signal?: AbortSignal) =>
       c
         .POST("/api/v1/admin/files", { body, headers: headers(key), signal })
+        .then(contentResult)
+        .then((v) => FileRegistrationSchema.parse(v)),
+    refreshCredentials: (fileId: string, signal?: AbortSignal) =>
+      c
+        .POST("/api/v1/admin/files/{fileId}/refresh-credentials", {
+          params: { path: { fileId } },
+          signal,
+        })
         .then(contentResult)
         .then((v) => FileRegistrationSchema.parse(v)),
     complete: (fileId: string, key: string, signal?: AbortSignal) =>
